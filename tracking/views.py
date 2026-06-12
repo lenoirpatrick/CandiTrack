@@ -2,6 +2,7 @@ import json
 
 from django.conf import settings
 from django.contrib import messages
+from django.db.models import Case, IntegerField, Q, When
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -17,12 +18,58 @@ def _is_ajax(request):
     return request.headers.get("x-requested-with") == "XMLHttpRequest"
 
 
+# Champs triables depuis la liste (issue #11) : clé d'URL -> champ modèle.
+CANDIDATURE_SORTS = {
+    "candidature": "libelle",
+    "poste": "poste",
+    "statut": "statut",
+    "date": "date_envoi",
+}
+
+
 def candidature_list(request):
-    candidatures = Candidature.objects.select_related("site").all()
+    candidatures = Candidature.objects.select_related("site")
+
+    # Recherche plein texte sur les principaux champs (issue #11).
+    query = (request.GET.get("q") or "").strip()
+    if query:
+        candidatures = candidatures.filter(
+            Q(libelle__icontains=query)
+            | Q(entreprise__icontains=query)
+            | Q(poste__icontains=query)
+            | Q(notes__icontains=query)
+        )
+
+    # Tri par colonne (issue #11).
+    sort = request.GET.get("sort")
+    if sort not in CANDIDATURE_SORTS:
+        sort = "date"
+    direction = "asc" if request.GET.get("dir") == "asc" else "desc"
+    field = CANDIDATURE_SORTS[sort]
+    prefix = "" if direction == "asc" else "-"
+
+    # Les candidatures clôturées sont toujours reléguées en bas (issue #10).
+    candidatures = candidatures.annotate(
+        _closed=Case(
+            When(motif_cloture="", then=0), default=1, output_field=IntegerField()
+        )
+    ).order_by("_closed", f"{prefix}{field}", "-created_at")
+
     return render(
         request,
         "tracking/candidature_list.html",
-        {"candidatures": candidatures},
+        {
+            "candidatures": candidatures,
+            "q": query,
+            "sort": sort,
+            "dir": direction,
+            "sortable_columns": [
+                ("candidature", "Candidature"),
+                ("poste", "Poste"),
+                ("statut", "Statut"),
+                ("date", "Date d'envoi"),
+            ],
+        },
     )
 
 

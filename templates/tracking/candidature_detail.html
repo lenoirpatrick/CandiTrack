@@ -16,7 +16,7 @@
         <span class="muted">{{ progress.done }} / {{ progress.total }} — {{ progress.percent }} %</span>
         {% endif %}
     </div>
-    <div class="bar-track" style="margin:0.75rem 0;"><span class="bar-fill" style="width:{{ progress.percent }}%;"></span></div>
+    <div class="bar-track" style="margin:0.75rem 0;"><span class="bar-fill" style="width:{{ progress.percent }}%; background:{{ progress.color }};"></span></div>
     <div class="steps">
         {% for step in progress.steps %}
         <span class="step {% if step.done %}done{% endif %}">{% if step.done %}✓{% else %}○{% endif %} {{ step.label }}</span>

@@ -98,6 +98,24 @@
         .mini-bar { display:inline-block; vertical-align:middle; width:90px; height:8px;
                  background:var(--track); border-radius:4px; overflow:hidden; }
         .mini-bar span { display:block; height:100%; background:var(--accent); }
+        /* List search + closed (stopped) rows (issues #10, #11) */
+        .list-search { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
+        th a { color:inherit; text-decoration:none; }
+        th a:hover { color:var(--accent); }
+        .closed-row { opacity:0.55; }
+        .closed-row td { background:rgba(224,88,75,0.06); }
+        /* Toasts (issue #13) */
+        .toast-container { position:fixed; top:1rem; right:1rem; z-index:1000;
+                 display:flex; flex-direction:column; gap:0.5rem; max-width:360px; }
+        .toast { background:var(--card); color:var(--text); border:1px solid var(--border);
+                 border-left:4px solid var(--accent); border-radius:8px; padding:0.7rem 1rem;
+                 box-shadow:0 6px 20px rgba(0,0,0,0.18); font-size:0.92rem;
+                 opacity:0; transform:translateX(20px); transition:opacity .25s ease, transform .25s ease; }
+        .toast.show { opacity:1; transform:translateX(0); }
+        .toast.success { border-left-color:#27a567; }
+        .toast.error, .toast.danger { border-left-color:#e0584b; }
+        .toast.warning { border-left-color:#d98a00; }
+        .toast.info, .toast.debug { border-left-color:var(--accent); }
     </style>
 </head>
 <body>
@@ -113,12 +131,11 @@
         <a href="/admin/" class="muted">Admin</a>
     </nav>
 </header>
+<div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+{% if messages %}
+<script id="toast-data" type="application/json">[{% for message in messages %}{"text": "{{ message|escapejs }}", "level": "{{ message.tags|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]</script>
+{% endif %}
 <main>
-    {% if messages %}
-    <ul class="messages">
-        {% for message in messages %}<li>{{ message }}</li>{% endfor %}
-    </ul>
-    {% endif %}
     {% block content %}{% endblock %}
 </main>
 <script>
@@ -138,6 +155,34 @@
             render();
         });
         render();
+    })();
+
+    // Toasts (issue #13) : remplace l'ancienne liste de messages.
+    (function () {
+        var container = document.getElementById("toast-container");
+        function showToast(text, level) {
+            var el = document.createElement("div");
+            el.className = "toast " + ((level || "info").split(" ")[0] || "info");
+            el.setAttribute("role", "status");
+            el.textContent = text;
+            container.appendChild(el);
+            requestAnimationFrame(function () { el.classList.add("show"); });
+            setTimeout(function () {
+                el.classList.remove("show");
+                setTimeout(function () { el.remove(); }, 300);
+            }, 4000);
+        }
+        // Exposé pour déclencher un toast depuis n'importe quelle page.
+        window.toast = showToast;
+
+        var data = document.getElementById("toast-data");
+        if (data) {
+            try {
+                JSON.parse(data.textContent).forEach(function (m) {
+                    showToast(m.text, m.level);
+                });
+            } catch (e) {}
+        }
     })();
 </script>
 </body>

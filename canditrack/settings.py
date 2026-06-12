@@ -42,6 +42,11 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get
 # Keep it in .env, never commit it.
 CANDITRACK_FERNET_KEY = os.environ.get('CANDITRACK_FERNET_KEY', '')
 
+# Shared token authenticating the Chrome extension's API calls (issue #2).
+# Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"
+# Keep it in .env, never commit it.
+CANDITRACK_API_TOKEN = os.environ.get('CANDITRACK_API_TOKEN', '')
+
 
 # Application definition
 

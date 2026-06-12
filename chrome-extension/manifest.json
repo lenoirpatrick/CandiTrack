@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "CandiTrack",
+  "version": "1.0.0",
+  "description": "Ajoute la page d'offre d'emploi courante à CandiTrack en un clic.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
+  "action": {
+    "default_title": "Ajouter à CandiTrack",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}

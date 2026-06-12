@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: system-ui, "Segoe UI", sans-serif; width: 320px; margin: 0; padding: 14px; color: #1f2937; }
+  h1 { font-size: 1rem; margin: 0 0 0.6rem; color: #2d6cdf; }
+  label { display: block; font-size: 0.8rem; font-weight: 600; margin: 0.5rem 0 0.15rem; }
+  input { width: 100%; box-sizing: border-box; padding: 0.4rem; border: 1px solid #d6dae1; border-radius: 6px; font: inherit; }
+  .row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.8rem; }
+  button { background: #2d6cdf; color: #fff; border: none; border-radius: 6px; padding: 0.5rem 0.9rem; cursor: pointer; font: inherit; }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .muted { color: #6b7280; font-size: 0.8rem; }
+  .status { margin-top: 0.7rem; font-size: 0.85rem; }
+  .status.ok { color: #1c7c43; }
+  .status.err { color: #c0392b; }
+  a { color: #2d6cdf; }
+</style>
+</head>
+<body>
+  <h1>Ajouter à CandiTrack</h1>
+  <div id="form">
+    <label for="entreprise">Entreprise</label>
+    <input id="entreprise" type="text">
+    <label for="poste">Poste</label>
+    <input id="poste" type="text">
+    <label for="url">URL de l'offre</label>
+    <input id="url" type="url">
+    <div class="row">
+      <button id="add">Ajouter</button>
+      <span class="muted">Source : <span id="source">—</span></span>
+    </div>
+  </div>
+  <div id="status" class="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

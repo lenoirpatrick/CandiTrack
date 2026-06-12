@@ -3,7 +3,7 @@
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
     <h1 style="margin:0;">Candidatures</h1>
-    <a class="btn" href="{% url 'tracking:candidature_create' %}">+ Nouvelle candidature</a>
+    <a class="btn js-modal-link" href="{% url 'tracking:candidature_create' %}">+ Nouvelle candidature</a>
 </div>
 
 <div class="card">
@@ -11,10 +11,10 @@
     <table>
         <thead>
             <tr>
-                <th>Entreprise</th>
+                <th>Candidature</th>
                 <th>Poste</th>
-                <th>Source</th>
                 <th>Statut</th>
+                <th>Avancement</th>
                 <th>Date d'envoi</th>
                 <th></th>
             </tr>
@@ -22,13 +22,16 @@
         <tbody>
             {% for c in candidatures %}
             <tr>
-                <td><a href="{{ c.get_absolute_url }}">{{ c.entreprise }}</a></td>
+                <td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td>
                 <td>{{ c.poste }}</td>
-                <td>{{ c.get_source_display }}</td>
                 <td><span class="badge">{{ c.get_statut_display }}</span></td>
+                <td>{% with p=c.progression %}
+                    <span class="mini-bar" title="{{ p.done }}/{{ p.total }} — {{ p.percent }} %"><span style="width:{{ p.percent }}%;"></span></span>
+                    <span class="muted" style="font-size:0.8rem;">{{ p.percent }} %</span>
+                {% endwith %}</td>
                 <td>{{ c.date_envoi|date:"d/m/Y"|default:"—" }}</td>
                 <td class="row-actions">
-                    <a href="{% url 'tracking:candidature_update' c.pk %}">Modifier</a>
+                    <a class="js-modal-link" href="{% url 'tracking:candidature_update' c.pk %}">Modifier</a>
                 </td>
             </tr>
             {% endfor %}
@@ -36,7 +39,51 @@
     </table>
     {% else %}
     <p class="muted">Aucune candidature pour le moment. Commencez par en
-        <a href="{% url 'tracking:candidature_create' %}">ajouter une</a>.</p>
+        <a class="js-modal-link" href="{% url 'tracking:candidature_create' %}">ajouter une</a>.</p>
     {% endif %}
 </div>
+
+<dialog id="cand-modal"><div class="modal-body" id="cand-modal-body"></div></dialog>
+
+<script>
+(function () {
+    var modal = document.getElementById("cand-modal");
+    var body = document.getElementById("cand-modal-body");
+    var AJAX = {"X-Requested-With": "XMLHttpRequest"};
+
+    function bind() {
+        var form = body.querySelector("form");
+        if (!form) return;
+        body.querySelectorAll("[data-close]").forEach(function (el) {
+            el.addEventListener("click", function (e) { e.preventDefault(); modal.close(); });
+        });
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            fetch(form.getAttribute("action"), {
+                method: "POST", body: new FormData(form), headers: AJAX
+            }).then(function (r) {
+                var ct = r.headers.get("content-type") || "";
+                if (r.ok && ct.indexOf("application/json") >= 0) {
+                    window.location.reload();
+                    return null;
+                }
+                return r.text();
+            }).then(function (html) {
+                if (html !== null) { body.innerHTML = html; bind(); }
+            });
+        });
+    }
+
+    function open(url) {
+        fetch(url, {headers: AJAX})
+            .then(function (r) { return r.text(); })
+            .then(function (html) { body.innerHTML = html; bind(); modal.showModal(); });
+    }
+
+    document.querySelectorAll(".js-modal-link").forEach(function (a) {
+        a.addEventListener("click", function (e) { e.preventDefault(); open(a.getAttribute("href")); });
+    });
+    modal.addEventListener("click", function (e) { if (e.target === modal) modal.close(); });
+})();
+</script>
 {% endblock %}

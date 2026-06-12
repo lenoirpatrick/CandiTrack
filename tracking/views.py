@@ -1,10 +1,15 @@
 from django.contrib import messages
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .logos import fetch_logo_url
 from .models import CV, Candidature, JobSite, StatusHistory
 from .statistics import compute_stats
+
+
+def _is_ajax(request):
+    return request.headers.get("x-requested-with") == "XMLHttpRequest"
 
 
 def candidature_list(request):
@@ -27,7 +32,23 @@ def candidature_detail(request, pk):
     )
 
 
+def _render_candidature_form(request, form, title, action, status=200):
+    """Render the form: just the partial for AJAX (modal), full page otherwise."""
+    template = (
+        "tracking/_candidature_form.html"
+        if _is_ajax(request)
+        else "tracking/candidature_form.html"
+    )
+    return render(
+        request,
+        template,
+        {"form": form, "title": title, "action": action},
+        status=status,
+    )
+
+
 def candidature_create(request):
+    action = request.path
     if request.method == "POST":
         form = CandidatureForm(request.POST)
         if form.is_valid():
@@ -36,18 +57,21 @@ def candidature_create(request):
                 candidature=candidature, statut=candidature.statut
             )
             messages.success(request, "Candidature créée.")
+            if _is_ajax(request):
+                return JsonResponse({"ok": True, "redirect": candidature.get_absolute_url()})
             return redirect(candidature)
-    else:
-        form = CandidatureForm()
-    return render(
-        request,
-        "tracking/candidature_form.html",
-        {"form": form, "title": "Nouvelle candidature"},
+        # Invalid: re-render the form (422 so the modal shows the errors).
+        return _render_candidature_form(
+            request, form, "Nouvelle candidature", action, status=422
+        )
+    return _render_candidature_form(
+        request, CandidatureForm(), "Nouvelle candidature", action
     )
 
 
 def candidature_update(request, pk):
     candidature = get_object_or_404(Candidature, pk=pk)
+    action = request.path
     previous_statut = candidature.statut
     if request.method == "POST":
         form = CandidatureForm(request.POST, instance=candidature)
@@ -58,13 +82,14 @@ def candidature_update(request, pk):
                     candidature=candidature, statut=candidature.statut
                 )
             messages.success(request, "Candidature mise à jour.")
+            if _is_ajax(request):
+                return JsonResponse({"ok": True, "redirect": candidature.get_absolute_url()})
             return redirect(candidature)
-    else:
-        form = CandidatureForm(instance=candidature)
-    return render(
-        request,
-        "tracking/candidature_form.html",
-        {"form": form, "title": "Modifier la candidature"},
+        return _render_candidature_form(
+            request, form, "Modifier la candidature", action, status=422
+        )
+    return _render_candidature_form(
+        request, CandidatureForm(instance=candidature), "Modifier la candidature", action
     )
 
 

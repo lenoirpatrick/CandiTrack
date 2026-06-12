@@ -1,0 +1,53 @@
+{% comment %}
+Candidature form, split into two sections (Caractéristiques / Étapes).
+Used both in a modal (AJAX) and as a full-page fallback. `action` is the
+target URL (create or update).
+{% endcomment %}
+<form method="post" action="{{ action }}" class="candidature-form" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="error">{{ form.non_field_errors }}</div>{% endif %}
+
+    <fieldset>
+        <legend>Caractéristiques</legend>
+        {% include "tracking/_field.html" with field=form.libelle %}
+        <div class="grid2">
+            {% include "tracking/_field.html" with field=form.entreprise %}
+            {% include "tracking/_field.html" with field=form.poste %}
+        </div>
+        <div class="grid2">
+            {% include "tracking/_field.html" with field=form.site %}
+            {% include "tracking/_field.html" with field=form.source %}
+        </div>
+        {% include "tracking/_field.html" with field=form.url_offre %}
+        <div class="grid2">
+            {% include "tracking/_field.html" with field=form.date_envoi %}
+            {% include "tracking/_field.html" with field=form.canal_envoi %}
+        </div>
+        <div class="grid2">
+            {% include "tracking/_field.html" with field=form.statut %}
+            {% include "tracking/_field.html" with field=form.salaire_propose %}
+        </div>
+        {% include "tracking/_field.html" with field=form.notes %}
+    </fieldset>
+
+    <fieldset>
+        <legend>Étapes</legend>
+        <div class="checks">
+            {% include "tracking/_checkbox.html" with field=form.envoyee %}
+            {% include "tracking/_checkbox.html" with field=form.traitee %}
+            {% include "tracking/_checkbox.html" with field=form.entretien_programme %}
+            {% include "tracking/_checkbox.html" with field=form.offre_soumise %}
+            {% include "tracking/_checkbox.html" with field=form.acceptation %}
+        </div>
+        <div class="grid3">
+            {% include "tracking/_field.html" with field=form.date_entretien_1 %}
+            {% include "tracking/_field.html" with field=form.date_entretien_2 %}
+            {% include "tracking/_field.html" with field=form.date_entretien_3 %}
+        </div>
+    </fieldset>
+
+    <div class="form-actions">
+        <button type="submit" class="btn">Enregistrer</button>
+        <a href="{% url 'tracking:candidature_list' %}" class="btn secondary" data-close>Annuler</a>
+    </div>
+</form>

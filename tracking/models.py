@@ -7,6 +7,8 @@ The schema anticipates the four board issues:
 - #368 CV upload:   CV
 """
 
+import secrets
+
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
@@ -293,6 +295,32 @@ class Contact(models.Model):
 
     def __str__(self):
         return self.nom
+
+
+class ApiToken(models.Model):
+    """API token for the Chrome extension (issue #6).
+
+    Lets an end-user generate / register a key from the help page, without
+    needing access to the backend ``.env``. The extension endpoint accepts
+    any stored token (and still the ``CANDITRACK_API_TOKEN`` setting, for
+    backwards compatibility).
+    """
+
+    token = models.CharField("jeton", max_length=64, unique=True)
+    label = models.CharField("libellé", max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "jeton API"
+        verbose_name_plural = "jetons API"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.label or f"Jeton #{self.pk}"
+
+    @staticmethod
+    def new_token():
+        return secrets.token_urlsafe(32)
 
 
 def cv_upload_path(instance, filename):

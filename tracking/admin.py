@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     CV,
+    ApiToken,
     Candidature,
     Contact,
     Interview,
@@ -51,6 +52,12 @@ class ContactAdmin(admin.ModelAdmin):
 @admin.register(CV)
 class CVAdmin(admin.ModelAdmin):
     list_display = ("label", "file", "uploaded_at")
+
+
+@admin.register(ApiToken)
+class ApiTokenAdmin(admin.ModelAdmin):
+    list_display = ("label", "token", "created_at")
+    readonly_fields = ("created_at",)
 
 
 admin.site.register(StatusHistory)

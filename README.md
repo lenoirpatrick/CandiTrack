@@ -65,9 +65,10 @@ courante à CandiTrack en un clic.
    **Charger l'extension non empaquetée** → choisir le dossier `chrome-extension/`.
 3. Ouvrir les **options** de l'extension : renseigner l'URL du backend
    (`http://127.0.0.1:8000`) et coller le **jeton**.
-4. Sur une page d'offre, cliquer l'icône CandiTrack : entreprise / poste / URL
-   sont pré-remplis (via les métadonnées JobPosting / Open Graph de la page),
-   puis **Ajouter**.
+4. Sur une page d'offre, cliquer l'icône CandiTrack : l'entreprise et l'URL
+   sont pré-remplies (via les métadonnées JobPosting / Open Graph de la page),
+   puis **Ajouter**. Le plugin ne renseigne pas le poste ni la date d'envoi
+   (à compléter ensuite dans CandiTrack).
 
 L'extension appelle `POST /api/candidatures/` en envoyant le jeton dans l'en-tête
 `X-Api-Token`. Le backend par défaut écoute sur `127.0.0.1:8000`/`localhost:8000`

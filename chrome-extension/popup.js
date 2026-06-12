@@ -1,7 +1,9 @@
 "use strict";
 
-// Runs inside the active tab to extract the job offer's metadata.
-// Prefers a schema.org JobPosting (JSON-LD), falls back to Open Graph / title.
+// Runs inside the active tab to extract the recruiting company name (issue #9).
+// The plugin deliberately does NOT capture the job title nor a send date:
+// those are filled in later, in CandiTrack.
+// Strategy: schema.org JobPosting (JSON-LD) → site-specific DOM → Open Graph.
 function extractFromPage() {
   function meta(prop) {
     var el = document.querySelector(
@@ -9,12 +11,16 @@ function extractFromPage() {
     );
     return el ? (el.getAttribute("content") || "") : "";
   }
+  function text(sel) {
+    var el = document.querySelector(sel);
+    return el ? (el.textContent || "").trim() : "";
+  }
 
   var entreprise = "";
-  var poste = "";
 
+  // 1) schema.org JobPosting (JSON-LD) — most reliable when present.
   var scripts = document.querySelectorAll('script[type="application/ld+json"]');
-  for (var i = 0; i < scripts.length; i++) {
+  for (var i = 0; i < scripts.length && !entreprise; i++) {
     try {
       var parsed = JSON.parse(scripts[i].textContent);
       var nodes = Array.isArray(parsed) ? parsed : [parsed];
@@ -25,20 +31,40 @@ function extractFromPage() {
         var type = node["@type"];
         var isJob = type === "JobPosting" ||
           (Array.isArray(type) && type.indexOf("JobPosting") >= 0);
-        if (isJob) {
-          if (!poste && node.title) poste = String(node.title);
-          if (!entreprise && node.hiringOrganization && node.hiringOrganization.name) {
-            entreprise = String(node.hiringOrganization.name);
-          }
+        if (isJob && node.hiringOrganization) {
+          var org = node.hiringOrganization;
+          var name = typeof org === "string" ? org : org.name;
+          if (name) { entreprise = String(name); break; }
         }
       }
     } catch (e) { /* ignore malformed JSON-LD */ }
   }
 
-  if (!poste) poste = meta("og:title") || document.title || "";
-  if (!entreprise) entreprise = meta("og:site_name") || "";
+  // 2) Site-specific DOM selectors (pages without JSON-LD, e.g. LinkedIn signed-in).
+  if (!entreprise) {
+    var selectors = [
+      ".topcard__org-name-link",                           // LinkedIn (déconnecté)
+      ".topcard__flavor",                                  // LinkedIn (déconnecté, variante)
+      ".job-details-jobs-unified-top-card__company-name",  // LinkedIn (connecté)
+      ".jobs-unified-top-card__company-name",              // LinkedIn (ancienne UI)
+      '[data-testid="inlineHeader-companyName"]',          // Indeed
+      '[data-testid="company-name"]',                      // Indeed (variante)
+      ".jobsearch-CompanyInfoContainer a",                 // Indeed (ancienne UI)
+      ".company",                                          // génériques (APEC, Monster…)
+    ];
+    for (var k = 0; k < selectors.length && !entreprise; k++) {
+      entreprise = text(selectors[k]);
+    }
+  }
 
-  return { url: location.href, entreprise: entreprise.trim(), poste: poste.trim() };
+  // 3) Open Graph — but ignore generic job-board names (LinkedIn, Indeed…).
+  if (!entreprise) {
+    var og = meta("og:site_name");
+    var generic = /linkedin|indeed|monster|cadr|apec|france.?travail|p[oô]le.?emploi|welcome to the jungle|glassdoor|hellowork/i;
+    if (og && !generic.test(og)) entreprise = og;
+  }
+
+  return { url: location.href, entreprise: entreprise.trim() };
 }
 
 function sourceFromUrl(url) {
@@ -90,7 +116,6 @@ document.addEventListener("DOMContentLoaded", function () {
         if (chrome.runtime.lastError || !results || !results[0]) return;
         var data = results[0].result || {};
         if (data.entreprise) document.getElementById("entreprise").value = data.entreprise;
-        if (data.poste) document.getElementById("poste").value = data.poste;
         if (data.url) document.getElementById("url").value = data.url;
       }
     );
@@ -106,7 +131,6 @@ document.addEventListener("DOMContentLoaded", function () {
       var payload = {
         url: document.getElementById("url").value.trim(),
         entreprise: document.getElementById("entreprise").value.trim(),
-        poste: document.getElementById("poste").value.trim(),
         source: current.source
       };
       btn.disabled = true;

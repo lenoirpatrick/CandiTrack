@@ -1,0 +1,10 @@
+{% comment %}Sortable column header (issue #11). Expects: key, label, and sort/dir/q from context.{% endcomment %}
+<th>
+    {% if sort == key and dir == "asc" %}
+        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=desc">{{ label }} ▲</a>
+    {% elif sort == key %}
+        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=asc">{{ label }} ▼</a>
+    {% else %}
+        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=asc">{{ label }}</a>
+    {% endif %}
+</th>

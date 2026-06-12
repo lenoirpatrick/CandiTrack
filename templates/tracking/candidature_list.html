@@ -19,18 +19,13 @@
     <table>
         <thead>
             <tr>
-                {% for key, label in sortable_columns %}
-                <th>
-                    {% if dir == "asc" and sort == key %}
-                        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=desc">{{ label }} ▲</a>
-                    {% elif sort == key %}
-                        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=asc">{{ label }} ▼</a>
-                    {% else %}
-                        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=asc">{{ label }}</a>
-                    {% endif %}
-                </th>
-                {% endfor %}
+                {% include "tracking/_sort_th.html" with key="candidature" label="Candidature" %}
+                {% include "tracking/_sort_th.html" with key="entreprise" label="Entreprise" %}
+                {% include "tracking/_sort_th.html" with key="poste" label="Poste" %}
+                <th>Site source</th>
+                {% include "tracking/_sort_th.html" with key="statut" label="Statut" %}
                 <th>Avancement</th>
+                {% include "tracking/_sort_th.html" with key="date" label="Date d'envoi" %}
                 <th></th>
             </tr>
         </thead>
@@ -39,7 +34,11 @@
             {% with p=c.progression %}
             <tr{% if p.closed %} class="closed-row"{% endif %}>
                 <td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td>
-                <td>{{ c.poste }}</td>
+                <td>{{ c.entreprise|default:"—" }}</td>
+                <td>{{ c.poste|default:"—" }}</td>
+                <td>
+                    {% if c.source_logo %}<img src="{{ c.source_logo }}" alt="" class="src-logo">{% endif %}{{ c.get_source_display }}
+                </td>
                 <td><span class="badge">{{ c.etape_courante }}</span></td>
                 <td>
                     <span class="mini-bar" title="{% if p.closed %}Terminée — {{ p.motif }}{% else %}{{ p.done }}/{{ p.total }}{% endif %} — {{ p.percent }} %"><span style="width:{{ p.percent }}%; background:{{ p.color }};"></span></span>

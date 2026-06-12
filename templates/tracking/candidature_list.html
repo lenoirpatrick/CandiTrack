@@ -26,7 +26,7 @@
                 <td>{{ c.poste }}</td>
                 <td>{{ c.get_source_display }}</td>
                 <td><span class="badge">{{ c.get_statut_display }}</span></td>
-                <td>{{ c.date_envoi|date:"d/m/Y" }}</td>
+                <td>{{ c.date_envoi|date:"d/m/Y"|default:"—" }}</td>
                 <td class="row-actions">
                     <a href="{% url 'tracking:candidature_update' c.pk %}">Modifier</a>
                 </td>

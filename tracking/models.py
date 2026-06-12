@@ -86,7 +86,9 @@ class Candidature(models.Model):
         "source", max_length=20, choices=Source.choices, default=Source.AUTRE
     )
     url_offre = models.URLField("URL de l'offre", blank=True)
-    date_envoi = models.DateField("date d'envoi", default=timezone.localdate)
+    date_envoi = models.DateField(
+        "date d'envoi", default=timezone.localdate, null=True, blank=True
+    )
     canal_envoi = models.CharField(
         "canal d'envoi", max_length=20, choices=Canal.choices, default=Canal.EMAIL
     )

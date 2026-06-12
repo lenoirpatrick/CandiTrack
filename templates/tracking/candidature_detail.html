@@ -12,7 +12,7 @@
         <tr><th>Source</th><td>{{ candidature.get_source_display }}</td></tr>
         <tr><th>Site</th><td>{{ candidature.site|default:"—" }}</td></tr>
         <tr><th>Canal d'envoi</th><td>{{ candidature.get_canal_envoi_display }}</td></tr>
-        <tr><th>Date d'envoi</th><td>{{ candidature.date_envoi|date:"d/m/Y" }}</td></tr>
+        <tr><th>Date d'envoi</th><td>{{ candidature.date_envoi|date:"d/m/Y"|default:"—" }}</td></tr>
         <tr><th>URL de l'offre</th><td>
             {% if candidature.url_offre %}<a href="{{ candidature.url_offre }}" target="_blank" rel="noopener">{{ candidature.url_offre }}</a>{% else %}—{% endif %}
         </td></tr>

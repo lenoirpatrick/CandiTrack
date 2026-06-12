@@ -15,27 +15,29 @@
         })();
     </script>
     <style>
+        /* Palette projet (issue #14) — voir docs/palette.md :
+           080E20 090F23 0A1127 0B132B 1C2541 3A506B 5BC0BE */
         :root {
-            --bg:#f7f8fa; --card:#fff; --border:#e2e5ea; --accent:#2d6cdf;
-            --muted:#6b7280; --text:#1f2937; --nav-link:#374151;
-            --chip-bg:#eef1f6; --chip-text:#374151; --track:#eef1f6;
-            --msg-bg:#e7f5ec; --msg-border:#bfe3cd; --input-bg:#fff;
+            --bg:#f4f6fa; --card:#ffffff; --border:#dce3ec; --accent:#3a506b;
+            --muted:#5a6b85; --text:#0b132b; --nav-link:#1c2541;
+            --chip-bg:#e7ecf4; --chip-text:#1c2541; --track:#e7ecf4;
+            --msg-bg:#e3f4f3; --msg-border:#bfe3e2; --input-bg:#ffffff;
         }
         /* Follow the OS preference unless the user explicitly chose light. */
         @media (prefers-color-scheme: dark) {
             :root:not([data-theme="light"]) {
-                --bg:#0f1115; --card:#1a1d23; --border:#2a2f37; --accent:#5b91ff;
-                --muted:#9aa3af; --text:#e5e7eb; --nav-link:#cbd2dc;
-                --chip-bg:#2a2f37; --chip-text:#cbd2dc; --track:#2a2f37;
-                --msg-bg:#15311f; --msg-border:#27613c; --input-bg:#0f1115;
+                --bg:#0b132b; --card:#1c2541; --border:#3a506b; --accent:#5bc0be;
+                --muted:#8fa3bf; --text:#e6ecf5; --nav-link:#c7d2e2;
+                --chip-bg:#243156; --chip-text:#c7d2e2; --track:#1c2541;
+                --msg-bg:#123a39; --msg-border:#2e5d5b; --input-bg:#0a1127;
             }
         }
         /* Explicit dark choice always wins. */
         :root[data-theme="dark"] {
-            --bg:#0f1115; --card:#1a1d23; --border:#2a2f37; --accent:#5b91ff;
-            --muted:#9aa3af; --text:#e5e7eb; --nav-link:#cbd2dc;
-            --chip-bg:#2a2f37; --chip-text:#cbd2dc; --track:#2a2f37;
-            --msg-bg:#15311f; --msg-border:#27613c; --input-bg:#0f1115;
+            --bg:#0b132b; --card:#1c2541; --border:#3a506b; --accent:#5bc0be;
+            --muted:#8fa3bf; --text:#e6ecf5; --nav-link:#c7d2e2;
+            --chip-bg:#243156; --chip-text:#c7d2e2; --track:#1c2541;
+            --msg-bg:#123a39; --msg-border:#2e5d5b; --input-bg:#0a1127;
         }
         * { box-sizing: border-box; }
         body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;

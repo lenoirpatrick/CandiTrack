@@ -1,10 +1,10 @@
 from django.contrib import messages
-from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import CandidatureForm, JobSiteForm
 from .logos import fetch_logo_url
-from .models import CV, Candidature, JobSite, Statut, StatusHistory
+from .models import CV, Candidature, JobSite, StatusHistory
+from .statistics import compute_stats
 
 
 def candidature_list(request):
@@ -133,23 +133,8 @@ def site_refresh_logo(request, pk):
 
 
 def stats(request):
-    """Issue #367 — basic aggregate now, full KPIs later."""
-    total = Candidature.objects.count()
-    by_status = (
-        Candidature.objects.values("statut")
-        .annotate(count=Count("id"))
-        .order_by("-count")
-    )
-    label_map = dict(Statut.choices)
-    by_status = [
-        {"label": label_map.get(row["statut"], row["statut"]), "count": row["count"]}
-        for row in by_status
-    ]
-    return render(
-        request,
-        "tracking/stats.html",
-        {"total": total, "by_status": by_status},
-    )
+    """Issue #367 — statistics dashboard with KPIs."""
+    return render(request, "tracking/stats.html", compute_stats())
 
 
 def cv_list(request):

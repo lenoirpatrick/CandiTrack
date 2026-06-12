@@ -2,26 +2,68 @@
 {% block title %}Statistiques — CandiTrack{% endblock %}
 {% block content %}
 <h1>Statistiques</h1>
-<p class="muted">Issue #367 — KPI complets (taux de réponse par source, délais moyens, graphes)
-    à venir. Voici un premier aperçu.</p>
 
-<div class="card">
-    <p style="font-size:1.4rem; margin:0;"><strong>{{ total }}</strong> candidature{{ total|pluralize }} au total</p>
+{% if kpis.total %}
+<div class="kpi-grid">
+    <div class="kpi"><div class="kpi-value">{{ kpis.total }}</div><div class="kpi-label">Candidatures</div></div>
+    <div class="kpi"><div class="kpi-value">{{ kpis.responded }}</div><div class="kpi-label">Réponses <span class="muted">({{ kpis.response_rate }} %)</span></div></div>
+    <div class="kpi"><div class="kpi-value">{{ kpis.interviewed }}</div><div class="kpi-label">Entretiens <span class="muted">({{ kpis.interview_rate }} %)</span></div></div>
+    <div class="kpi"><div class="kpi-value">{{ kpis.offers }}</div><div class="kpi-label">Offres <span class="muted">({{ kpis.offer_rate }} %)</span></div></div>
+    <div class="kpi"><div class="kpi-value">{{ kpis.pending }}</div><div class="kpi-label">En attente</div></div>
+    <div class="kpi"><div class="kpi-value">{% if kpis.avg_response_delay is not None %}{{ kpis.avg_response_delay }}<small> j</small>{% else %}—{% endif %}</div><div class="kpi-label">Délai moyen de réponse</div></div>
 </div>
 
 <div class="card">
     <h2 style="margin-top:0;">Répartition par statut</h2>
-    {% if by_status %}
-    <table>
-        <thead><tr><th>Statut</th><th>Nombre</th></tr></thead>
-        <tbody>
-            {% for row in by_status %}
-            <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p class="muted">Pas encore de données.</p>
-    {% endif %}
+    {% for row in by_status %}
+    <div class="bar-row">
+        <span class="bar-label">{{ row.label }}</span>
+        <span class="bar-track"><span class="bar-fill" style="width:{% widthratio row.count max_status 100 %}%;"></span></span>
+        <span class="bar-count">{{ row.count }}</span>
+    </div>
+    {% endfor %}
 </div>
+
+<div class="card">
+    <h2 style="margin-top:0;">Répartition par source</h2>
+    {% for row in by_source %}
+    <div class="bar-row">
+        <span class="bar-label">{{ row.label }}</span>
+        <span class="bar-track"><span class="bar-fill" style="width:{% widthratio row.count max_source 100 %}%;"></span></span>
+        <span class="bar-count">{{ row.count }}</span>
+    </div>
+    {% endfor %}
+</div>
+
+{% if by_month %}
+<div class="card">
+    <h2 style="margin-top:0;">Candidatures par mois</h2>
+    {% for row in by_month %}
+    <div class="bar-row">
+        <span class="bar-label">{{ row.month|date:"M Y" }}</span>
+        <span class="bar-track"><span class="bar-fill" style="width:{% widthratio row.count max_month 100 %}%;"></span></span>
+        <span class="bar-count">{{ row.count }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card">
+    <p class="muted">Pas encore de données. <a href="{% url 'tracking:candidature_create' %}">Ajoutez une candidature</a> pour voir vos statistiques.</p>
+</div>
+{% endif %}
+
+<style>
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:1rem; margin-bottom:1rem; }
+    .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem; }
+    .kpi-value { font-size:1.9rem; font-weight:700; color:var(--accent); line-height:1; }
+    .kpi-value small { font-size:1rem; color:var(--muted); }
+    .kpi-label { color:var(--muted); margin-top:0.35rem; font-size:0.9rem; }
+    .bar-row { display:flex; align-items:center; gap:0.75rem; margin:0.4rem 0; }
+    .bar-label { flex:0 0 9rem; font-size:0.9rem; }
+    .bar-track { flex:1; background:#eef1f6; border-radius:6px; height:0.85rem; overflow:hidden; }
+    .bar-fill { display:block; height:100%; background:var(--accent); border-radius:6px; min-width:2px; }
+    .bar-count { flex:0 0 2.5rem; text-align:right; font-variant-numeric:tabular-nums; }
+</style>
 {% endblock %}

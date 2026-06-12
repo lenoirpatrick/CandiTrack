@@ -69,6 +69,16 @@ class Statut(models.TextChoices):
     ABANDONNEE = "abandonnee", "Abandonnée"
 
 
+class MotifCloture(models.TextChoices):
+    """Reason a candidature is closed/finished (issue #5)."""
+
+    POSTE_POURVU = "poste_pourvu", "Poste pourvu"
+    PAS_QUALIFIE = "pas_qualifie", "Pas assez qualifié"
+    REFUS_CANDIDAT = "refus_candidat", "Refus candidat"
+    NON_ADEQUATION = "non_adequation", "Non adéquation du poste"
+    REFUS_SALAIRE = "refus_salaire", "Refus salaire"
+
+
 class Candidature(models.Model):
     """A single job application and its current state (issue #365)."""
 
@@ -109,6 +119,11 @@ class Candidature(models.Model):
     salaire_propose = models.CharField("salaire proposé", max_length=100, blank=True)
     acceptation = models.BooleanField("acceptation", default=False)
 
+    # Clôture de la candidature (issue #5) : un motif renseigné = terminée.
+    motif_cloture = models.CharField(
+        "motif de clôture", max_length=20, choices=MotifCloture.choices, blank=True
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -132,19 +147,31 @@ class Candidature(models.Model):
     def get_absolute_url(self):
         return reverse("tracking:candidature_detail", args=[self.pk])
 
+    @property
+    def est_terminee(self):
+        """A closed candidature has a closing reason set (issue #5)."""
+        return bool(self.motif_cloture)
+
     def progression(self):
-        """Progress of the application across its milestones (issue #3)."""
+        """Progress across milestones (issue #3).
+
+        A closed candidature is shown at 100% regardless of the current
+        step (issue #5).
+        """
         steps = [
             {"label": label, "done": bool(getattr(self, field))}
             for field, label in self.PROGRESS_STEPS
         ]
         done = sum(1 for s in steps if s["done"])
         total = len(steps)
+        closed = self.est_terminee
         return {
             "steps": steps,
             "done": done,
             "total": total,
-            "percent": round(100 * done / total) if total else 0,
+            "percent": 100 if closed else (round(100 * done / total) if total else 0),
+            "closed": closed,
+            "motif": self.get_motif_cloture_display() if closed else "",
         }
 
 

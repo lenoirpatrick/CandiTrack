@@ -46,6 +46,12 @@ target URL (create or update).
         </div>
     </fieldset>
 
+    <fieldset>
+        <legend>Clôture</legend>
+        {% include "tracking/_field.html" with field=form.motif_cloture %}
+        <small class="muted">Un motif renseigné termine la candidature : l'avancement passe à 100 %.</small>
+    </fieldset>
+
     <div class="form-actions">
         <button type="submit" class="btn">Enregistrer</button>
         <a href="{% url 'tracking:candidature_list' %}" class="btn secondary" data-close>Annuler</a>

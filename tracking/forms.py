@@ -29,6 +29,8 @@ class CandidatureForm(forms.ModelForm):
             "offre_soumise",
             "salaire_propose",
             "acceptation",
+            # Clôture (issue #5)
+            "motif_cloture",
             "notes",
         ]
         widgets = {

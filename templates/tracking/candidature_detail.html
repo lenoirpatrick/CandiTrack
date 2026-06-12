@@ -10,7 +10,11 @@
 <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:baseline;">
         <h2 style="margin:0;">Avancement</h2>
+        {% if progress.closed %}
+        <span class="muted">Terminée — {{ progress.motif }} · 100 %</span>
+        {% else %}
         <span class="muted">{{ progress.done }} / {{ progress.total }} — {{ progress.percent }} %</span>
+        {% endif %}
     </div>
     <div class="bar-track" style="margin:0.75rem 0;"><span class="bar-fill" style="width:{{ progress.percent }}%;"></span></div>
     <div class="steps">
@@ -25,6 +29,7 @@
     <table>
         <tr><th>Entreprise / Poste</th><td>{{ candidature.entreprise }} — {{ candidature.poste }}</td></tr>
         <tr><th>Statut</th><td><span class="badge">{{ candidature.get_statut_display }}</span></td></tr>
+        <tr><th>Clôture</th><td>{% if candidature.motif_cloture %}<span class="badge">{{ candidature.get_motif_cloture_display }}</span>{% else %}<span class="muted">En cours</span>{% endif %}</td></tr>
         <tr><th>Source</th><td>{{ candidature.get_source_display }}</td></tr>
         <tr><th>Site</th><td>{{ candidature.site|default:"—" }}</td></tr>
         <tr><th>Canal d'envoi</th><td>{{ candidature.get_canal_envoi_display }}</td></tr>

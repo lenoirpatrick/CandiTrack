@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Candidatures — CandiTrack{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <h1 style="margin:0;">Candidatures</h1>
+    <a class="btn" href="{% url 'tracking:candidature_create' %}">+ Nouvelle candidature</a>
+</div>
+
+<div class="card">
+    {% if candidatures %}
+    <table>
+        <thead>
+            <tr>
+                <th>Entreprise</th>
+                <th>Poste</th>
+                <th>Source</th>
+                <th>Statut</th>
+                <th>Date d'envoi</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in candidatures %}
+            <tr>
+                <td><a href="{{ c.get_absolute_url }}">{{ c.entreprise }}</a></td>
+                <td>{{ c.poste }}</td>
+                <td>{{ c.get_source_display }}</td>
+                <td><span class="badge">{{ c.get_statut_display }}</span></td>
+                <td>{{ c.date_envoi|date:"d/m/Y"|default:"—" }}</td>
+                <td class="row-actions">
+                    <a href="{% url 'tracking:candidature_update' c.pk %}">Modifier</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Aucune candidature pour le moment. Commencez par en
+        <a href="{% url 'tracking:candidature_create' %}">ajouter une</a>.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — CandiTrack{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<div class="card">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <p class="muted">Formats acceptés : PDF, DOC, DOCX, ODT, RTF, TXT.</p>
+        <div style="margin-top:1rem;">
+            <button type="submit" class="btn">Charger</button>
+            <a class="btn secondary" href="{% url 'tracking:cv_list' %}">Annuler</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

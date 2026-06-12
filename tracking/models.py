@@ -73,7 +73,7 @@ class Candidature(models.Model):
     """A single job application and its current state (issue #365)."""
 
     libelle = models.CharField("libellé", max_length=200, blank=True)
-    entreprise = models.CharField("entreprise", max_length=200)
+    entreprise = models.CharField("entreprise", max_length=200, blank=True)
     poste = models.CharField("poste", max_length=200)
     site = models.ForeignKey(
         JobSite,

@@ -76,6 +76,28 @@
         .step.done { background:var(--accent); color:#fff; }
         .theme-toggle { background:none; border:1px solid var(--border); color:var(--nav-link);
                  border-radius:8px; padding:0.3rem 0.6rem; cursor:pointer; font-size:1rem; }
+        /* Forms: sections + grids */
+        fieldset { border:1px solid var(--border); border-radius:10px; padding:0.5rem 1rem 1rem; margin:0 0 1rem; }
+        legend { font-weight:700; color:var(--accent); padding:0 0.4rem; }
+        .field { margin:0.5rem 0; }
+        .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 1rem; }
+        .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:0 1rem; }
+        .checks { display:flex; flex-wrap:wrap; gap:0.5rem 1.25rem; margin:0.4rem 0 0.9rem; }
+        .check { display:flex; align-items:center; gap:0.4rem; font-weight:500; cursor:pointer; }
+        .error { color:#e0584b; display:block; font-size:0.85rem; }
+        .form-actions { display:flex; gap:0.5rem; margin-top:0.5rem; }
+        @media (max-width:560px) { .grid2, .grid3 { grid-template-columns:1fr; } }
+        /* Modal (native dialog) */
+        dialog { border:none; border-radius:12px; padding:0; width:92%; max-width:680px;
+                 max-height:88vh; overflow:auto; background:var(--card); color:var(--text);
+                 box-shadow:0 12px 40px rgba(0,0,0,0.3); }
+        dialog::backdrop { background:rgba(0,0,0,0.5); }
+        .modal-body { padding:1.25rem 1.5rem; }
+        .modal-body h2 { margin-top:0; }
+        /* Mini progress bar in lists */
+        .mini-bar { display:inline-block; vertical-align:middle; width:90px; height:8px;
+                 background:var(--track); border-radius:4px; overflow:hidden; }
+        .mini-bar span { display:block; height:100%; background:var(--accent); }
     </style>
 </head>
 <body>

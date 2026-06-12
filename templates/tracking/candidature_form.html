@@ -3,13 +3,6 @@
 {% block content %}
 <h1>{{ title }}</h1>
 <div class="card">
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <div style="margin-top:1rem;">
-            <button type="submit" class="btn">Enregistrer</button>
-            <a class="btn secondary" href="{% url 'tracking:candidature_list' %}">Annuler</a>
-        </div>
-    </form>
+    {% include "tracking/_candidature_form.html" %}
 </div>
 {% endblock %}

@@ -45,9 +45,10 @@ class CandidatureForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=False)
         # Auto-remplir le libellé si laissé vide (issue #3).
+        # L'entreprise est facultative ; on compose avec ce qui est disponible.
         if not instance.libelle:
             parts = [p for p in (instance.entreprise, instance.poste) if p]
-            instance.libelle = " — ".join(parts)
+            instance.libelle = " — ".join(parts) or "Candidature"
         if commit:
             instance.save()
         return instance

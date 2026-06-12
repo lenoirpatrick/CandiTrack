@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import CandidatureForm, JobSiteForm
+from .forms import CandidatureForm, CVForm, JobSiteForm
 from .logos import fetch_logo_url
 from .models import CV, Candidature, JobSite, StatusHistory
 from .statistics import compute_stats
@@ -138,6 +138,33 @@ def stats(request):
 
 
 def cv_list(request):
-    """Issue #368 — upload/reformat UI comes later."""
+    """Issue #368 — list uploaded CVs (reformat/LinkedIn import come later)."""
     cvs = CV.objects.all()
     return render(request, "tracking/cv_list.html", {"cvs": cvs})
+
+
+def cv_create(request):
+    if request.method == "POST":
+        form = CVForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "CV chargé.")
+            return redirect("tracking:cv_list")
+    else:
+        form = CVForm()
+    return render(
+        request,
+        "tracking/cv_form.html",
+        {"form": form, "title": "Charger un CV"},
+    )
+
+
+def cv_delete(request, pk):
+    cv = get_object_or_404(CV, pk=pk)
+    if request.method == "POST":
+        # Remove the file from storage, then the record.
+        cv.file.delete(save=False)
+        cv.delete()
+        messages.success(request, "CV supprimé.")
+        return redirect("tracking:cv_list")
+    return render(request, "tracking/cv_confirm_delete.html", {"cv": cv})

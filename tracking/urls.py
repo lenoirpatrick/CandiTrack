@@ -20,4 +20,6 @@ urlpatterns = [
     path("sites/<int:pk>/logo/", views.site_refresh_logo, name="site_refresh_logo"),
     path("stats/", views.stats, name="stats"),
     path("cv/", views.cv_list, name="cv_list"),
+    path("cv/charger/", views.cv_create, name="cv_create"),
+    path("cv/<int:pk>/supprimer/", views.cv_delete, name="cv_delete"),
 ]

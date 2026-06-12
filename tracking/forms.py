@@ -1,7 +1,9 @@
+import os
+
 from django import forms
 
 from .logos import fetch_logo_url
-from .models import Candidature, JobSite
+from .models import CV, Candidature, JobSite
 
 
 class CandidatureForm(forms.ModelForm):
@@ -72,3 +74,28 @@ class JobSiteForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class CVForm(forms.ModelForm):
+    """Upload form for a CV (issue #368)."""
+
+    ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".odt", ".rtf", ".txt"}
+
+    class Meta:
+        model = CV
+        fields = ["label", "file"]
+        widgets = {
+            "label": forms.TextInput(
+                attrs={"placeholder": "Ex. CV Développeur Backend 2026"}
+            ),
+        }
+
+    def clean_file(self):
+        f = self.cleaned_data["file"]
+        ext = os.path.splitext(f.name)[1].lower()
+        if ext not in self.ALLOWED_EXTENSIONS:
+            allowed = ", ".join(sorted(self.ALLOWED_EXTENSIONS))
+            raise forms.ValidationError(
+                f"Format non supporté ({ext or 'inconnu'}). Formats acceptés : {allowed}."
+            )
+        return f

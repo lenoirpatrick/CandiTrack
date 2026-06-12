@@ -72,6 +72,7 @@ class Statut(models.TextChoices):
 class Candidature(models.Model):
     """A single job application and its current state (issue #365)."""
 
+    libelle = models.CharField("libellé", max_length=200, blank=True)
     entreprise = models.CharField("entreprise", max_length=200)
     poste = models.CharField("poste", max_length=200)
     site = models.ForeignKey(
@@ -97,8 +98,28 @@ class Candidature(models.Model):
     )
     notes = models.TextField("notes", blank=True)
 
+    # Étapes d'avancement (issue #3) — la barre de progression en découle.
+    envoyee = models.BooleanField("candidature envoyée", default=False)
+    traitee = models.BooleanField("candidature traitée", default=False)
+    entretien_programme = models.BooleanField("entretien programmé", default=False)
+    date_entretien_1 = models.DateField("date entretien 1", null=True, blank=True)
+    date_entretien_2 = models.DateField("date entretien 2", null=True, blank=True)
+    date_entretien_3 = models.DateField("date entretien 3", null=True, blank=True)
+    offre_soumise = models.BooleanField("offre soumise", default=False)
+    salaire_propose = models.CharField("salaire proposé", max_length=100, blank=True)
+    acceptation = models.BooleanField("acceptation", default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    # Étapes ordonnées de la candidature, pour la barre de progression (issue #3).
+    PROGRESS_STEPS = [
+        ("envoyee", "Envoyée"),
+        ("traitee", "Traitée"),
+        ("entretien_programme", "Entretien programmé"),
+        ("offre_soumise", "Offre soumise"),
+        ("acceptation", "Acceptation"),
+    ]
 
     class Meta:
         verbose_name = "candidature"
@@ -106,10 +127,25 @@ class Candidature(models.Model):
         ordering = ["-date_envoi", "-created_at"]
 
     def __str__(self):
-        return f"{self.entreprise} — {self.poste}"
+        return self.libelle or f"{self.entreprise} — {self.poste}"
 
     def get_absolute_url(self):
         return reverse("tracking:candidature_detail", args=[self.pk])
+
+    def progression(self):
+        """Progress of the application across its milestones (issue #3)."""
+        steps = [
+            {"label": label, "done": bool(getattr(self, field))}
+            for field, label in self.PROGRESS_STEPS
+        ]
+        done = sum(1 for s in steps if s["done"])
+        total = len(steps)
+        return {
+            "steps": steps,
+            "done": done,
+            "total": total,
+            "percent": round(100 * done / total) if total else 0,
+        }
 
 
 class StatusHistory(models.Model):

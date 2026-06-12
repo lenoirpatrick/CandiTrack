@@ -1,18 +1,42 @@
 {% extends "base.html" %}
-{% block title %}{{ candidature.entreprise }} — CandiTrack{% endblock %}
+{% block title %}{{ candidature }} — CandiTrack{% endblock %}
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-    <h1 style="margin:0;">{{ candidature.entreprise }} — {{ candidature.poste }}</h1>
+    <h1 style="margin:0;">{{ candidature }}</h1>
     <a class="btn" href="{% url 'tracking:candidature_update' candidature.pk %}">Modifier</a>
 </div>
 
+{% with progress=candidature.progression %}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <h2 style="margin:0;">Avancement</h2>
+        <span class="muted">{{ progress.done }} / {{ progress.total }} — {{ progress.percent }} %</span>
+    </div>
+    <div class="bar-track" style="margin:0.75rem 0;"><span class="bar-fill" style="width:{{ progress.percent }}%;"></span></div>
+    <div class="steps">
+        {% for step in progress.steps %}
+        <span class="step {% if step.done %}done{% endif %}">{% if step.done %}✓{% else %}○{% endif %} {{ step.label }}</span>
+        {% endfor %}
+    </div>
+</div>
+{% endwith %}
+
 <div class="card">
     <table>
+        <tr><th>Entreprise / Poste</th><td>{{ candidature.entreprise }} — {{ candidature.poste }}</td></tr>
         <tr><th>Statut</th><td><span class="badge">{{ candidature.get_statut_display }}</span></td></tr>
         <tr><th>Source</th><td>{{ candidature.get_source_display }}</td></tr>
         <tr><th>Site</th><td>{{ candidature.site|default:"—" }}</td></tr>
         <tr><th>Canal d'envoi</th><td>{{ candidature.get_canal_envoi_display }}</td></tr>
         <tr><th>Date d'envoi</th><td>{{ candidature.date_envoi|date:"d/m/Y"|default:"—" }}</td></tr>
+        <tr><th>Dates d'entretien</th><td>
+            {% if candidature.date_entretien_1 or candidature.date_entretien_2 or candidature.date_entretien_3 %}
+            {{ candidature.date_entretien_1|date:"d/m/Y"|default:"—" }} ·
+            {{ candidature.date_entretien_2|date:"d/m/Y"|default:"—" }} ·
+            {{ candidature.date_entretien_3|date:"d/m/Y"|default:"—" }}
+            {% else %}—{% endif %}
+        </td></tr>
+        <tr><th>Salaire proposé</th><td>{{ candidature.salaire_propose|default:"—" }}</td></tr>
         <tr><th>URL de l'offre</th><td>
             {% if candidature.url_offre %}<a href="{{ candidature.url_offre }}" target="_blank" rel="noopener">{{ candidature.url_offre }}</a>{% else %}—{% endif %}
         </td></tr>

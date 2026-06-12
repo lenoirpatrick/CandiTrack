@@ -3,7 +3,16 @@ import json
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import ApiToken, Candidature, JobSite, MotifCloture, Source, Statut
+from .models import (
+    ApiToken,
+    Canal,
+    Candidature,
+    JobSite,
+    MotifCloture,
+    Source,
+    Statut,
+)
+from .statistics import compute_stats
 
 
 class EtapeCouranteTests(TestCase):
@@ -180,3 +189,39 @@ class ApiTokenAuthTests(TestCase):
             HTTP_X_API_TOKEN="nope",
         )
         self.assertEqual(resp.status_code, 401)
+
+
+class MenuIconTests(TestCase):
+    """Issue #14 — Canal and Motif menu labels carry an icon."""
+
+    def test_canal_labels_have_icon(self):
+        # Each label starts with a non-ASCII glyph (emoji).
+        for value, label in Canal.choices:
+            self.assertFalse(label.isascii(), f"{value} sans icône")
+
+    def test_motif_labels_have_icon(self):
+        for value, label in MotifCloture.choices:
+            self.assertFalse(label.isascii(), f"{value} sans icône")
+
+
+class SourceDonutTests(TestCase):
+    """Issue #15 — source breakdown drives a circular (donut) chart."""
+
+    def test_segments_geometry(self):
+        Candidature.objects.create(poste="a", source=Source.LINKEDIN)
+        Candidature.objects.create(poste="b", source=Source.LINKEDIN)
+        Candidature.objects.create(poste="c", source=Source.INDEED)
+        ctx = compute_stats()
+        rows = ctx["by_source"]
+        self.assertEqual(ctx["source_total"], 3)
+        self.assertAlmostEqual(sum(r["percent"] for r in rows), 100, delta=0.5)
+        for r in rows:
+            self.assertTrue(r["color"].startswith("#"))
+            self.assertAlmostEqual(r["dash"] + r["gap"], 100, delta=0.01)
+
+    def test_stats_page_renders_svg(self):
+        Candidature.objects.create(poste="a", source=Source.LINKEDIN)
+        resp = self.client.get(reverse("tracking:stats"))
+        self.assertContains(resp, "<svg")
+        self.assertContains(resp, "donut")
+        self.assertContains(resp, "stroke-dasharray")

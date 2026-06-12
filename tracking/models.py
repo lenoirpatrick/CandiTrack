@@ -53,11 +53,12 @@ class Source(models.TextChoices):
 
 
 class Canal(models.TextChoices):
-    EMAIL = "email", "Email direct"
-    FORMULAIRE = "formulaire", "Formulaire site"
-    EASY_APPLY = "easy_apply", "LinkedIn Easy Apply"
-    COOPTATION = "cooptation", "Cooptation"
-    AUTRE = "autre", "Autre"
+    # Une icône précède chaque libellé pour les menus déroulants (issue #14).
+    EMAIL = "email", "✉️ Email direct"
+    FORMULAIRE = "formulaire", "📝 Formulaire site"
+    EASY_APPLY = "easy_apply", "⚡ LinkedIn Easy Apply"
+    COOPTATION = "cooptation", "🤝 Cooptation"
+    AUTRE = "autre", "🌐 Autre"
 
 
 class Statut(models.TextChoices):
@@ -74,11 +75,12 @@ class Statut(models.TextChoices):
 class MotifCloture(models.TextChoices):
     """Reason a candidature is closed/finished (issue #5)."""
 
-    POSTE_POURVU = "poste_pourvu", "Poste pourvu"
-    PAS_QUALIFIE = "pas_qualifie", "Pas assez qualifié"
-    REFUS_CANDIDAT = "refus_candidat", "Refus candidat"
-    NON_ADEQUATION = "non_adequation", "Non adéquation du poste"
-    REFUS_SALAIRE = "refus_salaire", "Refus salaire"
+    # Une icône précède chaque libellé pour les menus déroulants (issue #14).
+    POSTE_POURVU = "poste_pourvu", "🚫 Poste pourvu"
+    PAS_QUALIFIE = "pas_qualifie", "📉 Pas assez qualifié"
+    REFUS_CANDIDAT = "refus_candidat", "🙅 Refus candidat"
+    NON_ADEQUATION = "non_adequation", "🧭 Non adéquation du poste"
+    REFUS_SALAIRE = "refus_salaire", "💸 Refus salaire"
 
 
 class Candidature(models.Model):

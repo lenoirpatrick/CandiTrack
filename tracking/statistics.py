@@ -23,8 +23,35 @@ INTERVIEW_STATUSES = {Statut.ENTRETIEN_PLANIFIE, Statut.ENTRETIEN_PASSE, Statut.
 PENDING_STATUSES = {Statut.ENVOYEE, Statut.RELANCEE, Statut.SANS_REPONSE}
 
 
+# Couleurs du graphique circulaire par source (issue #15), accordées à la
+# palette du projet (voir docs/palette.md) tout en restant distinguables.
+SOURCE_COLORS = [
+    "#5BC0BE", "#3A506B", "#6FB1FC", "#E9C46A",
+    "#E76F51", "#9B8CFF", "#2A9D8F",
+]
+
+
 def _pct(part, whole):
     return round(100 * part / whole, 1) if whole else 0.0
+
+
+def _donut_segments(rows):
+    """Annotate breakdown rows with circular-chart geometry (issue #15).
+
+    Uses an SVG circle of ``pathLength=100`` so ``stroke-dasharray`` values
+    are percentages and segments chain via ``stroke-dashoffset``.
+    """
+    total = sum(r["count"] for r in rows)
+    cumulative = 0.0
+    for i, r in enumerate(rows):
+        pct = (100 * r["count"] / total) if total else 0.0
+        r["percent"] = round(pct, 1)
+        r["color"] = SOURCE_COLORS[i % len(SOURCE_COLORS)]
+        r["dash"] = round(pct, 3)
+        r["gap"] = round(100 - pct, 3)
+        r["offset"] = round(25 - cumulative, 3)
+        cumulative += pct
+    return total
 
 
 def _ever_reached(statuses):
@@ -103,6 +130,7 @@ def compute_stats():
         for value, label in Source.choices
         if source_counts.get(value, 0)
     ]
+    source_total = _donut_segments(by_source)
 
     # Applications per month (chronological).
     by_month = [
@@ -121,6 +149,7 @@ def compute_stats():
         "by_status": by_status,
         "by_source": by_source,
         "by_month": by_month,
+        "source_total": source_total,
         "max_status": max((r["count"] for r in by_status), default=0),
         "max_source": max((r["count"] for r in by_source), default=0),
         "max_month": max((r["count"] for r in by_month), default=0),

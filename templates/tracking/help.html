@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Aide — CandiTrack{% endblock %}
+{% block content %}
+<h1>Aide</h1>
+
+<div class="card">
+    <h2 style="margin-top:0;">1. Installer l'extension Chrome</h2>
+    <p>L'extension ajoute la page d'offre courante à CandiTrack en un clic.</p>
+    <ol>
+        <li><a class="btn" href="{% url 'tracking:extension_download' %}">⬇ Télécharger l'extension (.zip)</a>
+            puis décompresser le dossier.</li>
+        <li>Ouvrir <code>chrome://extensions</code> dans Chrome.</li>
+        <li>Activer le <strong>Mode développeur</strong> (en haut à droite).</li>
+        <li>Cliquer <strong>Charger l'extension non empaquetée</strong> et choisir le dossier
+            <code>canditrack-extension</code> décompressé.</li>
+        <li>Ouvrir les <strong>options</strong> de l'extension : renseigner l'URL du backend
+            (par défaut <code>http://127.0.0.1:8000</code>) et coller une <strong>clé API</strong>
+            (voir ci-dessous).</li>
+    </ol>
+    <p class="muted">Sur une page d'offre, cliquez l'icône CandiTrack : l'entreprise et l'URL
+        sont pré-remplies, puis <strong>Ajouter</strong>.</p>
+</div>
+
+<div class="card">
+    <h2 style="margin-top:0;">2. Clé API</h2>
+    <p>L'extension s'authentifie auprès du backend avec une clé API, envoyée dans
+        l'en-tête <code>X-Api-Token</code>. Générez une clé ici et collez-la dans les
+        options de l'extension — aucun accès au serveur n'est nécessaire.</p>
+
+    {% if settings_token %}
+    <p class="muted">Une clé est aussi définie côté serveur via
+        <code>CANDITRACK_API_TOKEN</code> ; elle reste valable.</p>
+    {% endif %}
+
+    {% if tokens %}
+    <table>
+        <thead><tr><th>Libellé</th><th>Clé</th><th>Créée le</th><th></th></tr></thead>
+        <tbody>
+            {% for t in tokens %}
+            <tr>
+                <td>{{ t.label|default:"—" }}</td>
+                <td>
+                    <code class="token-value" data-token="{{ t.token }}">••••••••••••</code>
+                    <button type="button" class="linklike js-reveal">afficher</button>
+                    <button type="button" class="linklike js-copy" data-token="{{ t.token }}">copier</button>
+                </td>
+                <td class="muted">{{ t.created_at|date:"d/m/Y H:i" }}</td>
+                <td>
+                    <form method="post" style="display:inline;"
+                          onsubmit="return confirm('Révoquer cette clé ? L\'extension qui l\'utilise ne pourra plus ajouter d\'offres.');">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="revoke">
+                        <input type="hidden" name="token_id" value="{{ t.pk }}">
+                        <button type="submit" class="linklike">révoquer</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Aucune clé pour le moment.</p>
+    {% endif %}
+
+    <form method="post" style="margin-top:1rem; display:flex; gap:0.5rem; align-items:flex-end; flex-wrap:wrap;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="generate">
+        <div>
+            <label for="label">Libellé (optionnel)</label>
+            <input id="label" name="label" type="text" placeholder="Ex. mon PC" style="max-width:240px;">
+        </div>
+        <button class="btn" type="submit">Générer une nouvelle clé</button>
+    </form>
+</div>
+
+<script>
+(function () {
+    document.querySelectorAll(".js-reveal").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var code = btn.parentNode.querySelector(".token-value");
+            var shown = code.dataset.shown === "1";
+            code.textContent = shown ? "••••••••••••" : code.dataset.token;
+            code.dataset.shown = shown ? "0" : "1";
+            btn.textContent = shown ? "afficher" : "masquer";
+        });
+    });
+    document.querySelectorAll(".js-copy").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            navigator.clipboard.writeText(btn.dataset.token).then(function () {
+                if (window.toast) window.toast("Clé copiée dans le presse-papier.", "success");
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

@@ -1,16 +1,27 @@
+import io
 import json
+import zipfile
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
 from django.db.models import Case, IntegerField, Q, When
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .logos import fetch_logo_url
-from .models import CV, Candidature, JobSite, Source, Statut, StatusHistory
+from .models import (
+    CV,
+    ApiToken,
+    Candidature,
+    JobSite,
+    Source,
+    Statut,
+    StatusHistory,
+)
 from .statistics import compute_stats
 
 
@@ -21,10 +32,25 @@ def _is_ajax(request):
 # Champs triables depuis la liste (issue #11) : clé d'URL -> champ modèle.
 CANDIDATURE_SORTS = {
     "candidature": "libelle",
+    "entreprise": "entreprise",
     "poste": "poste",
     "statut": "statut",
     "date": "date_envoi",
 }
+
+
+def _source_logos():
+    """Map a Source value to a JobSite logo URL (issue #8).
+
+    The source enum mirrors the built-in job sites by display name, so we
+    can surface the source site's logo in the list.
+    """
+    sites = {s.name.lower(): s.logo_url for s in JobSite.objects.all() if s.logo_url}
+    return {
+        value: sites[label.lower()]
+        for value, label in Source.choices
+        if label.lower() in sites
+    }
 
 
 def candidature_list(request):
@@ -55,6 +81,12 @@ def candidature_list(request):
         )
     ).order_by("_closed", f"{prefix}{field}", "-created_at")
 
+    # Logo du site source pour chaque candidature (issue #8).
+    logos = _source_logos()
+    candidatures = list(candidatures)
+    for c in candidatures:
+        c.source_logo = logos.get(c.source, "")
+
     return render(
         request,
         "tracking/candidature_list.html",
@@ -63,12 +95,6 @@ def candidature_list(request):
             "q": query,
             "sort": sort,
             "dir": direction,
-            "sortable_columns": [
-                ("candidature", "Candidature"),
-                ("poste", "Poste"),
-                ("statut", "Statut"),
-                ("date", "Date d'envoi"),
-            ],
         },
     )
 
@@ -247,6 +273,47 @@ def cv_delete(request, pk):
     return render(request, "tracking/cv_confirm_delete.html", {"cv": cv})
 
 
+# --- Help / extension config (issue #6) -----------------------------------
+
+
+def help_page(request):
+    """Help page: install the extension and manage API keys (issue #6)."""
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "generate":
+            ApiToken.objects.create(
+                token=ApiToken.new_token(),
+                label=(request.POST.get("label") or "").strip(),
+            )
+            messages.success(request, "Nouveau jeton API généré.")
+        elif action == "revoke":
+            ApiToken.objects.filter(pk=request.POST.get("token_id")).delete()
+            messages.success(request, "Jeton révoqué.")
+        return redirect("tracking:help")
+
+    return render(
+        request,
+        "tracking/help.html",
+        {
+            "tokens": ApiToken.objects.all(),
+            "settings_token": settings.CANDITRACK_API_TOKEN,
+        },
+    )
+
+
+def extension_download(request):
+    """Serve the chrome-extension/ folder as a zip the user can install (issue #6)."""
+    ext_dir = Path(settings.BASE_DIR) / "chrome-extension"
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path in sorted(ext_dir.rglob("*")):
+            if path.is_file():
+                zf.write(path, path.relative_to(ext_dir.parent))
+    resp = HttpResponse(buffer.getvalue(), content_type="application/zip")
+    resp["Content-Disposition"] = 'attachment; filename="canditrack-extension.zip"'
+    return resp
+
+
 # --- API for the Chrome extension (issue #2) ------------------------------
 
 
@@ -258,8 +325,11 @@ def api_candidature_create(request):
     Authenticated with a shared token sent in the ``X-Api-Token`` header
     (CSRF-exempt because it is token- rather than cookie-authenticated).
     """
+    provided = request.headers.get("X-Api-Token", "")
     expected = settings.CANDITRACK_API_TOKEN
-    if not expected or request.headers.get("X-Api-Token") != expected:
+    settings_ok = bool(expected) and provided == expected
+    stored_ok = bool(provided) and ApiToken.objects.filter(token=provided).exists()
+    if not (settings_ok or stored_ok):
         return JsonResponse({"error": "unauthorized"}, status=401)
 
     try:
@@ -269,22 +339,23 @@ def api_candidature_create(request):
 
     url = (data.get("url") or "").strip()
     entreprise = (data.get("entreprise") or "").strip()
-    poste = (data.get("poste") or "").strip()
     source = (data.get("source") or "").strip()
     if source not in Source.values:
         source = Source.AUTRE
-    if not (entreprise or poste or url):
+    if not (entreprise or url):
         return JsonResponse({"error": "empty payload"}, status=400)
 
-    libelle = " — ".join(p for p in (entreprise, poste) if p) or "Candidature"
+    # Le plugin enregistre une annonce : il ne renseigne ni l'intitulé du poste
+    # ni la date d'envoi (laissés vides, à compléter ensuite dans CandiTrack).
+    libelle = entreprise or "Candidature"
     candidature = Candidature.objects.create(
         libelle=libelle,
         entreprise=entreprise,
-        poste=poste or "(à compléter)",
+        poste="",
         url_offre=url,
         source=source,
         statut=Statut.ENVOYEE,
-        envoyee=True,
+        date_envoi=None,
     )
     StatusHistory.objects.create(candidature=candidature, statut=candidature.statut)
     return JsonResponse(

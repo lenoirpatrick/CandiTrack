@@ -19,9 +19,11 @@
   <p class="muted">Si ce n'est pas une URL locale, ajoutez-la aussi dans
      <code>host_permissions</code> du <code>manifest.json</code>.</p>
 
-  <label for="token">Jeton API (CANDITRACK_API_TOKEN)</label>
-  <input id="token" type="password" placeholder="Collez votre jeton ici">
-  <p class="muted">Identique à <code>CANDITRACK_API_TOKEN</code> de votre fichier <code>.env</code>.</p>
+  <label for="token">Clé API</label>
+  <input id="token" type="password" placeholder="Collez votre clé ici">
+  <p class="muted">Générez une clé depuis la page <strong>Aide</strong> de CandiTrack
+     (<code>/aide/</code>), ou utilisez <code>CANDITRACK_API_TOKEN</code> du
+     fichier <code>.env</code> du serveur.</p>
 
   <div><button id="save">Enregistrer</button><span id="saved" class="saved"></span></div>
   <script src="options.js"></script>

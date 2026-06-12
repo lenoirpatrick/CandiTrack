@@ -104,6 +104,7 @@
         th a:hover { color:var(--accent); }
         .closed-row { opacity:0.55; }
         .closed-row td { background:rgba(224,88,75,0.06); }
+        .src-logo { height:16px; width:16px; object-fit:contain; vertical-align:middle; margin-right:0.35rem; border-radius:3px; }
         /* Toasts (issue #13) */
         .toast-container { position:fixed; top:1rem; right:1rem; z-index:1000;
                  display:flex; flex-direction:column; gap:0.5rem; max-width:360px; }
@@ -126,9 +127,10 @@
         <a href="{% url 'tracking:site_list' %}">Sites</a>
         <a href="{% url 'tracking:stats' %}">Stats</a>
         <a href="{% url 'tracking:cv_list' %}">CV</a>
+        <a href="{% url 'tracking:help' %}">Aide</a>
         <button type="button" class="theme-toggle" id="theme-toggle" title="Changer de thème"
                 aria-label="Changer de thème" style="margin-left:auto;">🌓</button>
-        <a href="/admin/" class="muted">Admin</a>
+        {% if user.is_staff %}<a href="/admin/" class="muted">Admin</a>{% endif %}
     </nav>
 </header>
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>

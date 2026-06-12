@@ -1,7 +1,9 @@
-from django.test import TestCase
+import json
+
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import Candidature, MotifCloture, Statut
+from .models import ApiToken, Candidature, JobSite, MotifCloture, Source, Statut
 
 
 class EtapeCouranteTests(TestCase):
@@ -101,3 +103,80 @@ class ToastTests(TestCase):
         # Message survives the redirect and is rendered into the toast payload.
         self.assertContains(resp, "toast-data")
         self.assertContains(resp, "Candidature créée")
+
+
+class AdminLinkTests(TestCase):
+    """Issue #7 — the Django admin link is hidden from non-staff users."""
+
+    def test_hidden_for_anonymous(self):
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertNotContains(resp, 'href="/admin/"')
+
+
+class ListSourceColumnTests(TestCase):
+    """Issue #8 — entreprise + source site (with logo) shown in the list."""
+
+    def test_entreprise_and_source_logo(self):
+        site, _ = JobSite.objects.get_or_create(name="LinkedIn")
+        site.logo_url = "https://x/li.png"
+        site.save()
+        Candidature.objects.create(
+            libelle="L", entreprise="ACME", poste="Dev", source=Source.LINKEDIN
+        )
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, "Entreprise")
+        self.assertContains(resp, "Site source")
+        self.assertContains(resp, "ACME")
+        self.assertContains(resp, "https://x/li.png")
+
+    def test_entreprise_is_sortable(self):
+        resp = self.client.get(
+            reverse("tracking:candidature_list"), {"sort": "entreprise"}
+        )
+        self.assertEqual(resp.context["sort"], "entreprise")
+
+
+class HelpPageTests(TestCase):
+    """Issue #6 — help page, API key generation, extension download."""
+
+    def test_page_loads(self):
+        resp = self.client.get(reverse("tracking:help"))
+        self.assertContains(resp, "Clé API")
+        self.assertContains(resp, "Installer l'extension")
+
+    def test_generate_and_revoke_token(self):
+        self.client.post(reverse("tracking:help"), {"action": "generate", "label": "PC"})
+        self.assertEqual(ApiToken.objects.count(), 1)
+        tok = ApiToken.objects.get()
+        self.assertTrue(tok.token)
+        self.client.post(reverse("tracking:help"), {"action": "revoke", "token_id": tok.pk})
+        self.assertEqual(ApiToken.objects.count(), 0)
+
+    def test_extension_download_is_zip(self):
+        resp = self.client.get(reverse("tracking:extension_download"))
+        self.assertEqual(resp["Content-Type"], "application/zip")
+        self.assertGreater(len(resp.content), 0)
+
+
+@override_settings(CANDITRACK_API_TOKEN="")
+class ApiTokenAuthTests(TestCase):
+    """Issue #6 — the API endpoint accepts a stored ApiToken."""
+
+    def test_stored_token_authorizes(self):
+        tok = ApiToken.objects.create(token=ApiToken.new_token(), label="PC")
+        resp = self.client.post(
+            reverse("tracking:api_candidature_create"),
+            data=json.dumps({"entreprise": "ACME", "url": "https://x/job"}),
+            content_type="application/json",
+            HTTP_X_API_TOKEN=tok.token,
+        )
+        self.assertEqual(resp.status_code, 201)
+
+    def test_unknown_token_rejected(self):
+        resp = self.client.post(
+            reverse("tracking:api_candidature_create"),
+            data=json.dumps({"entreprise": "ACME"}),
+            content_type="application/json",
+            HTTP_X_API_TOKEN="nope",
+        )
+        self.assertEqual(resp.status_code, 401)

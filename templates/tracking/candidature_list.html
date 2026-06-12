@@ -6,37 +6,57 @@
     <a class="btn js-modal-link" href="{% url 'tracking:candidature_create' %}">+ Nouvelle candidature</a>
 </div>
 
+{% comment %}En-tête de colonne triable (issue #11) : bascule asc/desc et garde la recherche.{% endcomment %}
+<form method="get" class="list-search" style="margin-bottom:1rem;">
+    <input type="search" name="q" value="{{ q }}" placeholder="Rechercher (entreprise, poste, notes…)"
+           aria-label="Rechercher" style="max-width:360px;">
+    <button class="btn secondary" type="submit">Rechercher</button>
+    {% if q %}<a class="muted" href="{% url 'tracking:candidature_list' %}" style="margin-left:0.5rem;">Réinitialiser</a>{% endif %}
+</form>
+
 <div class="card">
     {% if candidatures %}
     <table>
         <thead>
             <tr>
-                <th>Candidature</th>
-                <th>Poste</th>
-                <th>Statut</th>
+                {% for key, label in sortable_columns %}
+                <th>
+                    {% if dir == "asc" and sort == key %}
+                        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=desc">{{ label }} ▲</a>
+                    {% elif sort == key %}
+                        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=asc">{{ label }} ▼</a>
+                    {% else %}
+                        <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}sort={{ key }}&dir=asc">{{ label }}</a>
+                    {% endif %}
+                </th>
+                {% endfor %}
                 <th>Avancement</th>
-                <th>Date d'envoi</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
             {% for c in candidatures %}
-            <tr>
+            {% with p=c.progression %}
+            <tr{% if p.closed %} class="closed-row"{% endif %}>
                 <td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td>
                 <td>{{ c.poste }}</td>
-                <td><span class="badge">{{ c.get_statut_display }}</span></td>
-                <td>{% with p=c.progression %}
-                    <span class="mini-bar" title="{% if p.closed %}Terminée — {{ p.motif }}{% else %}{{ p.done }}/{{ p.total }}{% endif %} — {{ p.percent }} %"><span style="width:{{ p.percent }}%;"></span></span>
+                <td><span class="badge">{{ c.etape_courante }}</span></td>
+                <td>
+                    <span class="mini-bar" title="{% if p.closed %}Terminée — {{ p.motif }}{% else %}{{ p.done }}/{{ p.total }}{% endif %} — {{ p.percent }} %"><span style="width:{{ p.percent }}%; background:{{ p.color }};"></span></span>
                     <span class="muted" style="font-size:0.8rem;">{% if p.closed %}Terminée{% else %}{{ p.percent }} %{% endif %}</span>
-                {% endwith %}</td>
+                </td>
                 <td>{{ c.date_envoi|date:"d/m/Y"|default:"—" }}</td>
                 <td class="row-actions">
                     <a class="js-modal-link" href="{% url 'tracking:candidature_update' c.pk %}">Modifier</a>
                 </td>
             </tr>
+            {% endwith %}
             {% endfor %}
         </tbody>
     </table>
+    {% elif q %}
+    <p class="muted">Aucune candidature ne correspond à « {{ q }} ».
+        <a href="{% url 'tracking:candidature_list' %}">Réinitialiser la recherche</a>.</p>
     {% else %}
     <p class="muted">Aucune candidature pour le moment. Commencez par en
         <a class="js-modal-link" href="{% url 'tracking:candidature_create' %}">ajouter une</a>.</p>

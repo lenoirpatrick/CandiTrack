@@ -136,6 +136,15 @@ class Candidature(models.Model):
         ("acceptation", "Acceptation"),
     ]
 
+    # Libellés courts pour la colonne « Statut » de la liste (issue #12).
+    STEP_SHORT_LABELS = {
+        "envoyee": "Envoyée",
+        "traitee": "Traitée",
+        "entretien_programme": "Entretien",
+        "offre_soumise": "Offre",
+        "acceptation": "Acceptation",
+    }
+
     class Meta:
         verbose_name = "candidature"
         verbose_name_plural = "candidatures"
@@ -152,11 +161,26 @@ class Candidature(models.Model):
         """A closed candidature has a closing reason set (issue #5)."""
         return bool(self.motif_cloture)
 
+    def etape_courante(self):
+        """Short label of the furthest reached step, for the list (issue #12).
+
+        Reflects the boolean progress steps rather than the raw ``statut``
+        field, so the list updates as the candidature advances.
+        """
+        if self.est_terminee:
+            return "Terminée"
+        label = "Nouvelle"
+        for field, _ in self.PROGRESS_STEPS:
+            if getattr(self, field):
+                label = self.STEP_SHORT_LABELS[field]
+        return label
+
     def progression(self):
         """Progress across milestones (issue #3).
 
         A closed candidature is shown at 100% regardless of the current
-        step (issue #5).
+        step (issue #5). The bar colour shifts from red to green as the
+        candidature advances, and a closed one is forced to red (issue #10).
         """
         steps = [
             {"label": label, "done": bool(getattr(self, field))}
@@ -165,12 +189,19 @@ class Candidature(models.Model):
         done = sum(1 for s in steps if s["done"])
         total = len(steps)
         closed = self.est_terminee
+        if closed:
+            color = "#e0584b"  # rouge : process stoppé
+        else:
+            # Teinte de 0° (rouge) à 120° (vert) selon l'avancement.
+            hue = round(120 * done / total) if total else 0
+            color = f"hsl({hue}, 62%, 45%)"
         return {
             "steps": steps,
             "done": done,
             "total": total,
             "percent": 100 if closed else (round(100 * done / total) if total else 0),
             "closed": closed,
+            "color": color,
             "motif": self.get_motif_cloture_display() if closed else "",
         }
 

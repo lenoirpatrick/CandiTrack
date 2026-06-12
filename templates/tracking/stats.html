@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Statistiques — CandiTrack{% endblock %}
+{% block content %}
+<h1>Statistiques</h1>
+<p class="muted">Issue #367 — KPI complets (taux de réponse par source, délais moyens, graphes)
+    à venir. Voici un premier aperçu.</p>
+
+<div class="card">
+    <p style="font-size:1.4rem; margin:0;"><strong>{{ total }}</strong> candidature{{ total|pluralize }} au total</p>
+</div>
+
+<div class="card">
+    <h2 style="margin-top:0;">Répartition par statut</h2>
+    {% if by_status %}
+    <table>
+        <thead><tr><th>Statut</th><th>Nombre</th></tr></thead>
+        <tbody>
+            {% for row in by_status %}
+            <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Pas encore de données.</p>
+    {% endif %}
+</div>
+{% endblock %}

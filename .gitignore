@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# CandiTrack
+.env
+db.sqlite3
+/media/
+/staticfiles/
+.idea/

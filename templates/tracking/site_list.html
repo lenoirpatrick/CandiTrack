@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Sites — CandiTrack{% endblock %}
+{% block content %}
+<h1>Sites d'emploi</h1>
+<p class="muted">Issue #366 — la gestion complète (ajout depuis l'interface, récupération automatique
+    du logo) arrivera dans une prochaine itération. Pour l'instant, gérez les sites depuis l'<a href="/admin/tracking/jobsite/">admin</a>.
+    Les mots de passe sont chiffrés au repos.</p>
+
+<div class="card">
+    {% if sites %}
+    <table>
+        <thead><tr><th>Logo</th><th>Nom</th><th>URL</th><th>Identifiant</th><th>Par défaut</th></tr></thead>
+        <tbody>
+            {% for s in sites %}
+            <tr>
+                <td>{% if s.logo_url %}<img src="{{ s.logo_url }}" alt="" height="20">{% else %}—{% endif %}</td>
+                <td>{{ s.name }}</td>
+                <td>{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a>{% else %}—{% endif %}</td>
+                <td>{{ s.username|default:"—" }}</td>
+                <td>{% if s.is_builtin %}✓{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Aucun site.</p>
+    {% endif %}
+</div>
+{% endblock %}

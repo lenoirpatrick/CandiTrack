@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ candidature.entreprise }} — CandiTrack{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <h1 style="margin:0;">{{ candidature.entreprise }} — {{ candidature.poste }}</h1>
+    <a class="btn" href="{% url 'tracking:candidature_update' candidature.pk %}">Modifier</a>
+</div>
+
+<div class="card">
+    <table>
+        <tr><th>Statut</th><td><span class="badge">{{ candidature.get_statut_display }}</span></td></tr>
+        <tr><th>Source</th><td>{{ candidature.get_source_display }}</td></tr>
+        <tr><th>Site</th><td>{{ candidature.site|default:"—" }}</td></tr>
+        <tr><th>Canal d'envoi</th><td>{{ candidature.get_canal_envoi_display }}</td></tr>
+        <tr><th>Date d'envoi</th><td>{{ candidature.date_envoi|date:"d/m/Y" }}</td></tr>
+        <tr><th>URL de l'offre</th><td>
+            {% if candidature.url_offre %}<a href="{{ candidature.url_offre }}" target="_blank" rel="noopener">{{ candidature.url_offre }}</a>{% else %}—{% endif %}
+        </td></tr>
+        <tr><th>Notes</th><td>{{ candidature.notes|linebreaksbr|default:"—" }}</td></tr>
+    </table>
+</div>
+
+<div class="card">
+    <h2 style="margin-top:0;">Historique des statuts</h2>
+    {% if candidature.status_history.all %}
+    <table>
+        <thead><tr><th>Date</th><th>Statut</th></tr></thead>
+        <tbody>
+            {% for h in candidature.status_history.all %}
+            <tr><td>{{ h.date|date:"d/m/Y H:i" }}</td><td>{{ h.get_statut_display }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Aucun historique.</p>
+    {% endif %}
+</div>
+
+<a href="{% url 'tracking:candidature_list' %}" class="muted">← Retour à la liste</a>
+{% endblock %}

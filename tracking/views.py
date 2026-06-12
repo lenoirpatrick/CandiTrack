@@ -1,10 +1,15 @@
+import json
+
+from django.conf import settings
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .logos import fetch_logo_url
-from .models import CV, Candidature, JobSite, StatusHistory
+from .models import CV, Candidature, JobSite, Source, Statut, StatusHistory
 from .statistics import compute_stats
 
 
@@ -193,3 +198,53 @@ def cv_delete(request, pk):
         messages.success(request, "CV supprimé.")
         return redirect("tracking:cv_list")
     return render(request, "tracking/cv_confirm_delete.html", {"cv": cv})
+
+
+# --- API for the Chrome extension (issue #2) ------------------------------
+
+
+@csrf_exempt
+@require_POST
+def api_candidature_create(request):
+    """Create a candidature from the Chrome extension.
+
+    Authenticated with a shared token sent in the ``X-Api-Token`` header
+    (CSRF-exempt because it is token- rather than cookie-authenticated).
+    """
+    expected = settings.CANDITRACK_API_TOKEN
+    if not expected or request.headers.get("X-Api-Token") != expected:
+        return JsonResponse({"error": "unauthorized"}, status=401)
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"error": "invalid json"}, status=400)
+
+    url = (data.get("url") or "").strip()
+    entreprise = (data.get("entreprise") or "").strip()
+    poste = (data.get("poste") or "").strip()
+    source = (data.get("source") or "").strip()
+    if source not in Source.values:
+        source = Source.AUTRE
+    if not (entreprise or poste or url):
+        return JsonResponse({"error": "empty payload"}, status=400)
+
+    libelle = " — ".join(p for p in (entreprise, poste) if p) or "Candidature"
+    candidature = Candidature.objects.create(
+        libelle=libelle,
+        entreprise=entreprise,
+        poste=poste or "(à compléter)",
+        url_offre=url,
+        source=source,
+        statut=Statut.ENVOYEE,
+        envoyee=True,
+    )
+    StatusHistory.objects.create(candidature=candidature, statut=candidature.statut)
+    return JsonResponse(
+        {
+            "ok": True,
+            "id": candidature.pk,
+            "url": request.build_absolute_uri(candidature.get_absolute_url()),
+        },
+        status=201,
+    )

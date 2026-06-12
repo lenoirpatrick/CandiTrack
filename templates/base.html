@@ -46,6 +46,7 @@
         nav a { color:var(--nav-link); text-decoration:none; padding:1rem 0.25rem; }
         nav a:hover { color: var(--accent); }
         main { max-width: 1000px; margin:1.5rem auto; padding:0 1rem; }
+        main.wide { max-width: 1400px; }
         .card { background:var(--card); border:1px solid var(--border); border-radius:10px;
                 padding:1rem 1.25rem; margin-bottom:1rem; }
         table { width:100%; border-collapse: collapse; }
@@ -137,7 +138,7 @@
 {% if messages %}
 <script id="toast-data" type="application/json">[{% for message in messages %}{"text": "{{ message|escapejs }}", "level": "{{ message.tags|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]</script>
 {% endif %}
-<main>
+<main class="{% block main_class %}{% endblock %}">
     {% block content %}{% endblock %}
 </main>
 <script>

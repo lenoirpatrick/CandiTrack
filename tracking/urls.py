@@ -14,6 +14,10 @@ urlpatterns = [
         name="candidature_update",
     ),
     path("sites/", views.site_list, name="site_list"),
+    path("sites/nouveau/", views.site_create, name="site_create"),
+    path("sites/<int:pk>/modifier/", views.site_update, name="site_update"),
+    path("sites/<int:pk>/supprimer/", views.site_delete, name="site_delete"),
+    path("sites/<int:pk>/logo/", views.site_refresh_logo, name="site_refresh_logo"),
     path("stats/", views.stats, name="stats"),
     path("cv/", views.cv_list, name="cv_list"),
 ]

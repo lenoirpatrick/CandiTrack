@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Supprimer {{ site.name }} — CandiTrack{% endblock %}
+{% block content %}
+<h1>Supprimer le site</h1>
+<div class="card">
+    <p>Supprimer définitivement le site <strong>{{ site.name }}</strong> ?</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn" style="background:#c0392b;">Supprimer</button>
+        <a class="btn secondary" href="{% url 'tracking:site_list' %}">Annuler</a>
+    </form>
+</div>
+{% endblock %}

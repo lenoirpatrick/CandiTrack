@@ -1,29 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Sites — CandiTrack{% endblock %}
 {% block content %}
-<h1>Sites d'emploi</h1>
-<p class="muted">Issue #366 — la gestion complète (ajout depuis l'interface, récupération automatique
-    du logo) arrivera dans une prochaine itération. Pour l'instant, gérez les sites depuis l'<a href="/admin/tracking/jobsite/">admin</a>.
-    Les mots de passe sont chiffrés au repos.</p>
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <h1 style="margin:0;">Sites d'emploi</h1>
+    <a class="btn" href="{% url 'tracking:site_create' %}">+ Ajouter un site</a>
+</div>
+<p class="muted">Les identifiants sont stockés avec le mot de passe <strong>chiffré au repos</strong>.
+    Le logo est récupéré dynamiquement depuis l'URL du site.</p>
 
 <div class="card">
     {% if sites %}
     <table>
-        <thead><tr><th>Logo</th><th>Nom</th><th>URL</th><th>Identifiant</th><th>Par défaut</th></tr></thead>
+        <thead><tr><th>Logo</th><th>Nom</th><th>URL</th><th>Identifiant</th><th>Mot de passe</th><th>Actions</th></tr></thead>
         <tbody>
             {% for s in sites %}
             <tr>
-                <td>{% if s.logo_url %}<img src="{{ s.logo_url }}" alt="" height="20">{% else %}—{% endif %}</td>
-                <td>{{ s.name }}</td>
+                <td>{% if s.logo_url %}<img src="{{ s.logo_url }}" alt="" height="24" style="vertical-align:middle;">{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td>{{ s.name }}{% if s.is_builtin %} <span class="badge">défaut</span>{% endif %}</td>
                 <td>{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a>{% else %}—{% endif %}</td>
                 <td>{{ s.username|default:"—" }}</td>
-                <td>{% if s.is_builtin %}✓{% endif %}</td>
+                <td>{% if s.password %}<span class="muted">••••••</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+                <td class="row-actions" style="white-space:nowrap;">
+                    <a href="{% url 'tracking:site_update' s.pk %}">Modifier</a>
+                    <form method="post" action="{% url 'tracking:site_refresh_logo' s.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="linklike" title="Récupérer le logo depuis l'URL">Logo</button>
+                    </form>
+                    <a href="{% url 'tracking:site_delete' s.pk %}">Supprimer</a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p class="muted">Aucun site.</p>
+    <p class="muted">Aucun site. <a href="{% url 'tracking:site_create' %}">Ajoutez-en un</a>.</p>
     {% endif %}
 </div>
 {% endblock %}

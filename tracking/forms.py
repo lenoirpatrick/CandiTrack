@@ -10,6 +10,7 @@ class CandidatureForm(forms.ModelForm):
     class Meta:
         model = Candidature
         fields = [
+            "libelle",
             "entreprise",
             "poste",
             "site",
@@ -18,12 +19,38 @@ class CandidatureForm(forms.ModelForm):
             "date_envoi",
             "canal_envoi",
             "statut",
+            # Étapes d'avancement (issue #3)
+            "envoyee",
+            "traitee",
+            "entretien_programme",
+            "date_entretien_1",
+            "date_entretien_2",
+            "date_entretien_3",
+            "offre_soumise",
+            "salaire_propose",
+            "acceptation",
             "notes",
         ]
         widgets = {
+            "libelle": forms.TextInput(
+                attrs={"placeholder": "Laisser vide : généré depuis entreprise et poste"}
+            ),
             "date_envoi": forms.DateInput(attrs={"type": "date"}),
+            "date_entretien_1": forms.DateInput(attrs={"type": "date"}),
+            "date_entretien_2": forms.DateInput(attrs={"type": "date"}),
+            "date_entretien_3": forms.DateInput(attrs={"type": "date"}),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        # Auto-remplir le libellé si laissé vide (issue #3).
+        if not instance.libelle:
+            parts = [p for p in (instance.entreprise, instance.poste) if p]
+            instance.libelle = " — ".join(parts)
+        if commit:
+            instance.save()
+        return instance
 
 
 class JobSiteForm(forms.ModelForm):

@@ -61,6 +61,8 @@ class Canal(models.TextChoices):
     FORMULAIRE = "formulaire", "📝 Formulaire site"
     EASY_APPLY = "easy_apply", "⚡ LinkedIn Easy Apply"
     COOPTATION = "cooptation", "🤝 Cooptation"
+    CONTACT_ENTRANT = "contact_entrant", "📞 Contact entrant (tél./mail)"
+    RELATIONNEL = "relationnel", "👥 Relationnel"
     AUTRE = "autre", "🌐 Autre"
 
 
@@ -84,6 +86,7 @@ class MotifCloture(models.TextChoices):
     REFUS_CANDIDAT = "refus_candidat", "🙅 Refus candidat"
     NON_ADEQUATION = "non_adequation", "🧭 Non adéquation du poste"
     REFUS_SALAIRE = "refus_salaire", "💸 Refus salaire"
+    PAS_DONNE_SUITE = "pas_donne_suite", "📭 Pas donné suite"
 
 
 class Candidature(models.Model):

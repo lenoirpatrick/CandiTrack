@@ -68,6 +68,15 @@
                background:var(--chip-bg); color:var(--chip-text); }
         .badge { display:inline-block; background:var(--chip-bg); color:var(--chip-text); padding:0.15rem 0.55rem;
                  border-radius:999px; font-size:0.8rem; }
+        /* Interrupteur actif/inactif d'un site (issue #32). */
+        .switch { position:relative; display:inline-block; width:38px; height:20px; vertical-align:middle; margin:0; }
+        .switch input { opacity:0; width:0; height:0; }
+        .switch .slider { position:absolute; inset:0; cursor:pointer; background:var(--track);
+                 border:1px solid var(--border); border-radius:999px; transition:0.2s; }
+        .switch .slider::before { content:""; position:absolute; height:14px; width:14px; left:2px; top:2px;
+                 background:#fff; border-radius:50%; transition:0.2s; }
+        .switch input:checked + .slider { background:var(--accent); border-color:var(--accent); }
+        .switch input:checked + .slider::before { transform:translateX(18px); }
         form p { margin:0.6rem 0; }
         label { display:block; font-weight:600; font-size:0.9rem; margin-bottom:0.2rem; }
         input, select, textarea { width:100%; padding:0.45rem 0.55rem; border:1px solid var(--border);

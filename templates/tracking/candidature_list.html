@@ -26,7 +26,6 @@
                 <th>Site source</th>
                 {% include "tracking/_sort_th.html" with key="statut" label="Statut" %}
                 <th>Avancement</th>
-                {% include "tracking/_sort_th.html" with key="date" label="Date d'envoi" %}
                 <th></th>
             </tr>
         </thead>
@@ -45,7 +44,6 @@
                     <span class="mini-bar" title="{% if p.closed %}Terminée — {{ p.motif }}{% else %}{{ p.done }}/{{ p.total }}{% endif %} — {{ p.percent }} %"><span style="width:{{ p.percent }}%; background:{{ p.color }};"></span></span>
                     <span class="muted" style="font-size:0.8rem;">{% if p.closed %}Terminée{% else %}{{ p.percent }} %{% endif %}</span>
                 </td>
-                <td>{{ c.date_envoi|date:"d/m/Y"|default:"—" }}</td>
                 <td class="row-actions">
                     <a class="js-modal-link" href="{% url 'tracking:candidature_update' c.pk %}">Modifier</a>
                     <a href="{% url 'tracking:candidature_delete' c.pk %}">Supprimer</a>

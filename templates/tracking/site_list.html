@@ -26,7 +26,11 @@
                     <a href="{% url 'tracking:site_update' s.pk %}">Modifier</a>
                     <form method="post" action="{% url 'tracking:site_toggle_active' s.pk %}" style="display:inline;">
                         {% csrf_token %}
-                        <button type="submit" class="linklike">{% if s.actif %}Désactiver{% else %}Activer{% endif %}</button>
+                        <label class="switch" title="{% if s.actif %}Désactiver{% else %}Activer{% endif %}">
+                            <input type="checkbox" onchange="this.form.submit()"{% if s.actif %} checked{% endif %}
+                                   aria-label="{% if s.actif %}Désactiver{% else %}Activer{% endif %} {{ s.name }}">
+                            <span class="slider"></span>
+                        </label>
                     </form>
                     {% if not s.is_builtin %}<a href="{% url 'tracking:site_delete' s.pk %}">Supprimer</a>{% endif %}
                 </td>

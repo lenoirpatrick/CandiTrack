@@ -23,6 +23,11 @@ release du même nom.
 - #27 — Sites d'emploi : suppression du bouton « Logo » de la liste ; le favicon
   du site est désormais chargé automatiquement à l'enregistrement (un logo
   manuel reste possible via le champ dédié).
+- #28 — Liste des candidatures : retrait de la colonne « Date d'envoi ».
+- #30 — Motif de clôture : ajout de « Pas donné suite ».
+- #31 — Canal d'envoi : ajout de « Contact entrant (tél./mail) » et
+  « Relationnel ».
+- #32 — Sites d'emploi : le bouton activer/désactiver devient un interrupteur.
 
 ## [1.0.1] — 2026-06-13
 

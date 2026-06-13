@@ -337,6 +337,37 @@ class SiteFaviconTests(TestCase):
         self.assertNotContains(resp, "Logo</button>")
 
 
+class CandidatureListColumnsTests(TestCase):
+    """Issue #28 — la date d'envoi n'apparaît plus dans la liste."""
+
+    def test_pas_de_colonne_date_envoi(self):
+        Candidature.objects.create(poste="Dév")
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertNotContains(resp, "Date d'envoi")
+
+
+class ChoicesTests(TestCase):
+    """Issues #30, #31 — nouveaux motifs de clôture et canaux d'envoi."""
+
+    def test_motif_pas_donne_suite(self):
+        self.assertEqual(MotifCloture.PAS_DONNE_SUITE.value, "pas_donne_suite")
+
+    def test_canaux_contact_entrant_et_relationnel(self):
+        valeurs = [c.value for c in Canal]
+        self.assertIn("contact_entrant", valeurs)
+        self.assertIn("relationnel", valeurs)
+
+
+class SiteToggleSwitchTests(TestCase):
+    """Issue #32 — le bouton activer/désactiver est un interrupteur."""
+
+    def test_liste_affiche_un_interrupteur(self):
+        s = JobSite.objects.create(name="Exemple", actif=True)
+        resp = self.client.get(reverse("tracking:site_list"))
+        self.assertContains(resp, 'class="switch"')
+        self.assertContains(resp, "this.form.submit()")
+
+
 class AcceptationConfettiTests(TestCase):
     """Issue #23 — acceptation : barre verte à 100 % et confettis."""
 

@@ -51,7 +51,7 @@ CANDITRACK_API_TOKEN = os.environ.get('CANDITRACK_API_TOKEN', '')
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    # django.contrib.admin retiré : l'admin Django est désactivé (gestion via l'app).
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',

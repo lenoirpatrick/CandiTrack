@@ -114,12 +114,15 @@ class ToastTests(TestCase):
         self.assertContains(resp, "Candidature créée")
 
 
-class AdminLinkTests(TestCase):
-    """Issue #7 — the Django admin link is hidden from non-staff users."""
+class AdminDisabledTests(TestCase):
+    """L'admin Django est désactivé : aucun lien ni route /admin/."""
 
-    def test_hidden_for_anonymous(self):
+    def test_no_admin_link(self):
         resp = self.client.get(reverse("tracking:candidature_list"))
         self.assertNotContains(resp, 'href="/admin/"')
+
+    def test_admin_route_returns_404(self):
+        self.assertEqual(self.client.get("/admin/").status_code, 404)
 
 
 class ListSourceColumnTests(TestCase):

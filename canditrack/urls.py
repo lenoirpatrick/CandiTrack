@@ -1,11 +1,11 @@
 """URL configuration for canditrack project."""
 from django.conf import settings
 from django.conf.urls.static import static
-from django.contrib import admin
 from django.urls import include, path
 
+# L'admin Django est désactivé : toute la gestion passe par les pages de
+# l'application (candidatures, sites, CV). On n'expose donc aucune route /admin/.
 urlpatterns = [
-    path('admin/', admin.site.urls),
     path('', include('tracking.urls')),
 ]
 

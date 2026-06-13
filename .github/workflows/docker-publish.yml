@@ -1,0 +1,76 @@
+# Publication de l'image Docker sur Docker Hub (issue #18).
+#
+# Déclenché à la fermeture d'un milestone : le titre du milestone sert de
+# version. Le workflow rattache d'abord les issues fermées sans milestone à ce
+# milestone (pour grouper la release), puis construit et pousse l'image avec
+# les tags `latest` et `<version>`.
+#
+# Prérequis (une seule fois) — Settings → Secrets and variables → Actions :
+#   - DOCKERHUB_USERNAME : identifiant Docker Hub (= namespace de l'image)
+#   - DOCKERHUB_TOKEN    : access token Docker Hub (Account → Security)
+name: Publier l'image Docker
+
+on:
+  milestone:
+    types: [closed]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write   # nécessaire pour rattacher les issues au milestone
+    steps:
+      - name: Récupérer la dernière version de main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Déterminer la version (titre du milestone)
+        id: version
+        run: |
+          version="${{ github.event.milestone.title }}"
+          if [ -z "$version" ]; then
+            echo "::error::Le milestone n'a pas de titre exploitable comme version."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version à publier : $version"
+
+      - name: Rattacher les issues fermées sans milestone à ce milestone
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MILESTONE_NUMBER: ${{ github.event.milestone.number }}
+        run: |
+          set -euo pipefail
+          # Issues fermées et sans milestone (l'API web masque les milestones
+          # fermés, on assigne donc par numéro via l'API REST).
+          numbers=$(gh issue list --repo "$REPO" --state closed \
+            --search "no:milestone" --limit 200 --json number --jq '.[].number')
+          if [ -z "$numbers" ]; then
+            echo "Aucune issue fermée sans milestone."
+          else
+            for n in $numbers; do
+              echo "Issue #$n → milestone #$MILESTONE_NUMBER"
+              gh api -X PATCH "repos/$REPO/issues/$n" -F milestone="$MILESTONE_NUMBER"
+            done
+          fi
+
+      - name: Authentification Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Préparer Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build et push de l'image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/canditrack:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/canditrack:${{ steps.version.outputs.version }}

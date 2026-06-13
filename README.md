@@ -74,6 +74,20 @@ docker run -d -p 53487:53487 --env-file .env \
   -v canditrack-data:/app/data -v canditrack-media:/app/media canditrack
 ```
 
+### Publication automatique de l'image (issue #18)
+
+Le workflow `.github/workflows/docker-publish.yml` publie l'image sur Docker Hub
+**à la fermeture d'un milestone** : le titre du milestone (ex. `1.0.0`) sert de
+version. Le workflow rattache au passage les issues fermées sans milestone à
+celui-ci, puis pousse l'image taguée `latest` et `<version>`.
+
+Configuration unique — `Settings → Secrets and variables → Actions` :
+
+| Secret | Valeur |
+|---|---|
+| `DOCKERHUB_USERNAME` | identifiant Docker Hub (= namespace de l'image `…/canditrack`) |
+| `DOCKERHUB_TOKEN` | access token Docker Hub (Account → Security → New Access Token) |
+
 ## Extension Chrome (issue #2)
 
 L'extension du dossier `chrome-extension/` permet d'ajouter l'offre de la page

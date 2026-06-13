@@ -1,0 +1,61 @@
+# Relecture SonarQube Cloud (issue #25).
+#
+# Lance la suite de tests avec mesure de couverture, puis l'analyse statique
+# SonarQube Cloud (https://sonarcloud.io). Déclenché sur push vers `main`, sur
+# les pull requests et manuellement.
+#
+# Prérequis (une seule fois) :
+#   1. Importer le dépôt sur https://sonarcloud.io (organisation `lenoirpatrick`,
+#      clé de projet `lenoirpatrick_CandiTrack` — voir sonar-project.properties).
+#   2. Désactiver « Automatic Analysis » dans le projet SonarCloud (sinon conflit
+#      avec l'analyse pilotée par CI).
+#   3. Settings → Secrets and variables → Actions → ajouter le secret :
+#        - SONAR_TOKEN : jeton généré depuis SonarCloud (My Account → Security).
+name: SonarQube
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  analyse:
+    name: Analyse SonarQube Cloud
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+        with:
+          # Historique complet : SonarQube attribue les lignes à leurs auteurs.
+          fetch-depth: 0
+
+      - name: Installer Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Installer les dépendances (+ couverture)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt coverage
+
+      - name: Lancer les tests avec couverture
+        env:
+          # Clé Fernet éphémère : les tests chiffrent des mots de passe de sites.
+          CANDITRACK_FERNET_KEY: ${{ secrets.SONAR_FERNET_KEY }}
+        run: |
+          # Génère une clé Fernet jetable si aucun secret n'est fourni.
+          if [ -z "$CANDITRACK_FERNET_KEY" ]; then
+            CANDITRACK_FERNET_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+            export CANDITRACK_FERNET_KEY
+          fi
+          coverage run manage.py test tracking
+          coverage xml
+
+      - name: Analyse SonarQube Cloud
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io

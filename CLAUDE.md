@@ -35,6 +35,9 @@ Partir de `.env.example`. Variables clés :
 - `.github/workflows/docker-publish.yml` — CI qui publie sur Docker Hub **à la
   fermeture d'un milestone** (titre du milestone = version, tags `latest` +
   `<version>`). Requiert les secrets `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`.
+- `.github/workflows/sonarqube.yml` — relecture **SonarQube Cloud** (issue #25) :
+  tests + couverture (`coverage.xml`) puis analyse statique, sur `main` et PR.
+  Config dans `sonar-project.properties`, requiert le secret `SONAR_TOKEN`.
 
 ```bash
 docker compose up -d --build   # → http://127.0.0.1:53487/

@@ -4,6 +4,8 @@ Suivi de candidatures — application web Django pour gérer le cycle de candida
 (envois, relances, entretiens, statistiques).
 
 [![Publier l'image Docker](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/docker-publish.yml)
+[![SonarQube](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/sonarqube.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 
 ## Déploiement (Docker)
 
@@ -103,6 +105,27 @@ Configuration unique — `Settings → Secrets and variables → Actions` :
 |---|---|
 | `DOCKERHUB_USERNAME` | identifiant Docker Hub (= namespace de l'image `…/canditrack`) |
 | `DOCKERHUB_TOKEN` | access token Docker Hub (Account → Security → New Access Token) |
+
+### Relecture SonarQube (issue #25)
+
+Le workflow `.github/workflows/sonarqube.yml` lance la suite de tests avec
+mesure de couverture (`coverage.xml`) puis l'analyse statique **SonarQube Cloud**
+([sonarcloud.io](https://sonarcloud.io)) à chaque push sur `main`, sur les pull
+requests et manuellement. La configuration de l'analyse (clé de projet,
+organisation, exclusions, chemin du rapport de couverture) est dans
+[`sonar-project.properties`](sonar-project.properties).
+
+Configuration unique :
+
+1. Importer le dépôt sur SonarQube Cloud (organisation `lenoirpatrick`, clé de
+   projet `lenoirpatrick_CandiTrack`).
+2. Désactiver *Automatic Analysis* côté SonarCloud (l'analyse est pilotée par la
+   CI).
+3. `Settings → Secrets and variables → Actions` → ajouter le secret :
+
+| Secret | Valeur |
+|---|---|
+| `SONAR_TOKEN` | jeton SonarCloud (My Account → Security → Generate Tokens) |
 
 ## Développement local (sans Docker)
 

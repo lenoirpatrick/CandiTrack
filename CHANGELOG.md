@@ -15,6 +15,8 @@ release du même nom.
   à 100 % en vert et un jet de confettis s'affiche.
 - #24 — Documentation : description du dépôt, ce CHANGELOG et publication
   automatique d'une release à la clôture de chaque milestone.
+- #25 — Relecture SonarQube : analyse statique SonarQube Cloud avec mesure de
+  couverture (workflow GitHub Actions sur `main` et pull requests).
 
 ## [1.0.1] — 2026-06-13
 

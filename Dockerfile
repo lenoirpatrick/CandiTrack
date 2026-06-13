@@ -19,8 +19,10 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Utilisateur non-root + dossiers data inscriptibles (db sqlite, media, statiques).
+# chmod +x sur l'entrypoint : Git sous Windows ne préserve pas le bit exécutable.
 RUN useradd --create-home --uid 1000 app \
     && mkdir -p /app/media /app/staticfiles /app/data \
+    && chmod +x /app/docker-entrypoint.sh \
     && chown -R app:app /app
 USER app
 

@@ -1,0 +1,19 @@
+# Environnements et caches
+.venv/
+__pycache__/
+*.py[codz]
+.pytest_cache/
+
+# Secrets et données locales — jamais dans l'image
+.env
+db.sqlite3
+media/
+staticfiles/
+
+# Outillage / VCS
+.git/
+.gitignore
+.idea/
+*.md
+chrome-extension/
+docs/

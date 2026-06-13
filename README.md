@@ -51,6 +51,29 @@ python manage.py runserver
 
 Puis ouvrir http://127.0.0.1:8000/
 
+## Déploiement Docker (issue #17)
+
+Une image de production (gunicorn + statiques servis par WhiteNoise) est fournie.
+
+```bash
+cp .env.example .env   # renseigner SECRET_KEY, CANDITRACK_FERNET_KEY,
+                       # DEBUG=False et ALLOWED_HOSTS pour la prod
+docker compose up -d --build
+```
+
+L'entrypoint applique les migrations (dont le seed des sites) et collecte les
+statiques au démarrage. La base SQLite et les CV uploadés sont persistés dans
+des volumes nommés (`data`, `media`). L'app écoute sur le port **8000**.
+
+Sans compose, directement avec Docker :
+
+```bash
+docker build -t canditrack .
+docker run -d -p 8000:8000 --env-file .env \
+  -e SQLITE_PATH=/app/data/db.sqlite3 \
+  -v canditrack-data:/app/data -v canditrack-media:/app/media canditrack
+```
+
 ## Extension Chrome (issue #2)
 
 L'extension du dossier `chrome-extension/` permet d'ajouter l'offre de la page

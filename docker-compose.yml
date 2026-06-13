@@ -1,0 +1,20 @@
+# Déploiement local/simple de CandiTrack (issue #17).
+#   cp .env.example .env  &&  éditer  &&  docker compose up -d --build
+# La base SQLite et les CV uploadés sont persistés via des volumes nommés.
+services:
+  web:
+    build: .
+    env_file: .env
+    environment:
+      # Base SQLite sur le volume persistant plutôt qu'à la racine du projet.
+      SQLITE_PATH: /app/data/db.sqlite3
+    ports:
+      - "8000:8000"
+    volumes:
+      - data:/app/data
+      - media:/app/media
+    restart: unless-stopped
+
+volumes:
+  data:
+  media:

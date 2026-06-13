@@ -1,0 +1,6 @@
+# Forcer les fins de ligne LF sur les fichiers exécutés dans le conteneur Linux
+# (sinon un checkout Windows en CRLF casse le shebang / l'entrypoint Docker).
+*.sh            text eol=lf
+docker-entrypoint.sh text eol=lf
+Dockerfile      text eol=lf
+.dockerignore   text eol=lf

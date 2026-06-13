@@ -12,7 +12,6 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .forms import CandidatureForm, CVForm, JobSiteForm
-from .logos import fetch_logo_url
 from .models import (
     CV,
     ApiToken,
@@ -268,19 +267,6 @@ def site_toggle_active(request, pk):
         site.save(update_fields=["actif", "updated_at"])
         etat = "activé" if site.actif else "désactivé"
         messages.success(request, f"Site « {site.name} » {etat}.")
-    return redirect("tracking:site_list")
-
-
-def site_refresh_logo(request, pk):
-    """Re-fetch the logo from the site URL (issue #366)."""
-    site = get_object_or_404(JobSite, pk=pk)
-    if request.method == "POST":
-        if site.url:
-            site.logo_url = fetch_logo_url(site.url)
-            site.save(update_fields=["logo_url", "updated_at"])
-            messages.success(request, f"Logo de {site.name} mis à jour.")
-        else:
-            messages.error(request, f"{site.name} n'a pas d'URL.")
     return redirect("tracking:site_list")
 
 

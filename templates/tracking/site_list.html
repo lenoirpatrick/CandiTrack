@@ -6,7 +6,7 @@
     <a class="btn" href="{% url 'tracking:site_create' %}">+ Ajouter un site</a>
 </div>
 <p class="muted">Les identifiants sont stockés avec le mot de passe <strong>chiffré au repos</strong>.
-    Le logo est récupéré dynamiquement depuis l'URL du site.</p>
+    Le logo (favicon du site) est récupéré automatiquement à l'enregistrement.</p>
 
 <div class="card">
     {% if sites %}
@@ -24,10 +24,6 @@
                 <td>{% if s.password %}<span class="muted">••••••</span>{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td class="row-actions" style="white-space:nowrap;">
                     <a href="{% url 'tracking:site_update' s.pk %}">Modifier</a>
-                    <form method="post" action="{% url 'tracking:site_refresh_logo' s.pk %}" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="linklike" title="Récupérer le logo depuis l'URL">Logo</button>
-                    </form>
                     <form method="post" action="{% url 'tracking:site_toggle_active' s.pk %}" style="display:inline;">
                         {% csrf_token %}
                         <button type="submit" class="linklike">{% if s.actif %}Désactiver{% else %}Activer{% endif %}</button>

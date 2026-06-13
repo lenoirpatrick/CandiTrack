@@ -23,7 +23,6 @@ urlpatterns = [
     path("sites/<int:pk>/modifier/", views.site_update, name="site_update"),
     path("sites/<int:pk>/supprimer/", views.site_delete, name="site_delete"),
     path("sites/<int:pk>/desactiver/", views.site_toggle_active, name="site_toggle_active"),
-    path("sites/<int:pk>/logo/", views.site_refresh_logo, name="site_refresh_logo"),
     path("stats/", views.stats, name="stats"),
     path("cv/", views.cv_list, name="cv_list"),
     path("cv/charger/", views.cv_create, name="cv_create"),

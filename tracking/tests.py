@@ -4,7 +4,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .forms import CandidatureForm, CVForm
+from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
     ApiToken,
     Canal,
@@ -306,6 +306,35 @@ class SiteDisableDeleteTests(TestCase):
         qs = CandidatureForm().fields["site"].queryset
         self.assertIn(actif, qs)
         self.assertNotIn(inactif, qs)
+
+
+class SiteFaviconTests(TestCase):
+    """Issue #27 — favicon chargé par défaut, plus de lien « Logo » dans la liste."""
+
+    def test_favicon_par_defaut_a_l_enregistrement(self):
+        form = JobSiteForm(data={"name": "Exemple", "url": "https://www.exemple.fr/"})
+        self.assertTrue(form.is_valid(), form.errors)
+        site = form.save()
+        self.assertEqual(
+            site.logo_url,
+            "https://www.google.com/s2/favicons?domain=www.exemple.fr&sz=64",
+        )
+
+    def test_logo_manuel_respecte(self):
+        form = JobSiteForm(data={
+            "name": "Exemple",
+            "url": "https://www.exemple.fr/",
+            "logo_url": "https://cdn.exemple.fr/logo.png",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        site = form.save()
+        self.assertEqual(site.logo_url, "https://cdn.exemple.fr/logo.png")
+
+    def test_liste_sans_lien_logo(self):
+        JobSite.objects.create(name="Exemple", url="https://www.exemple.fr/")
+        resp = self.client.get(reverse("tracking:site_list"))
+        # La colonne « Logo » subsiste ; seul le bouton d'action est retiré.
+        self.assertNotContains(resp, "Logo</button>")
 
 
 class AcceptationConfettiTests(TestCase):

@@ -53,8 +53,8 @@ libellé pour les menus).
 
 - Seed des sites par défaut : migrations `0002_seed_jobsites` et
   `0010_seed_known_jobsites` (idempotentes, `get_or_create`).
-- Logos dérivés du favicon : `tracking/logos.py` (`favicon_service_url`,
-  `fetch_logo_url`, stdlib uniquement).
+- Logos dérivés du favicon : `tracking/logos.py` (`favicon_service_url`, stdlib
+  uniquement) ; chargé par défaut à l'enregistrement d'un site (issue #27).
 - Géométrie du donut de stats : `tracking/statistics.py`.
 
 ## Extension Chrome (`chrome-extension/`)

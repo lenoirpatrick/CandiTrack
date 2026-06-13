@@ -2,7 +2,7 @@ import os
 
 from django import forms
 
-from .logos import fetch_logo_url
+from .logos import favicon_service_url
 from .models import CV, Candidature, JobSite
 
 
@@ -80,19 +80,13 @@ class JobSiteForm(forms.ModelForm):
         widget=forms.PasswordInput(render_value=False),
         help_text="Laisser vide pour conserver le mot de passe actuel.",
     )
-    auto_logo = forms.BooleanField(
-        label="Récupérer le logo automatiquement depuis l'URL",
-        required=False,
-        initial=True,
-    )
-
     class Meta:
         model = JobSite
         fields = ["name", "url", "username", "password", "logo_url"]
         widgets = {
             "url": forms.URLInput(attrs={"placeholder": "https://www.exemple.fr/"}),
             "logo_url": forms.URLInput(
-                attrs={"placeholder": "Laisser vide pour auto-détection"}
+                attrs={"placeholder": "Laisser vide pour utiliser le favicon du site"}
             ),
         }
 
@@ -107,9 +101,10 @@ class JobSiteForm(forms.ModelForm):
         if not self.cleaned_data.get("password"):
             instance.password = self._original_password
 
-        if self.cleaned_data.get("auto_logo") or not instance.logo_url:
-            if instance.url:
-                instance.logo_url = fetch_logo_url(instance.url)
+        # Logo par défaut : le favicon du site (issue #27). On ne l'impose que si
+        # l'utilisateur n'a pas saisi de logo manuel.
+        if not instance.logo_url and instance.url:
+            instance.logo_url = favicon_service_url(instance.url)
 
         if commit:
             instance.save()

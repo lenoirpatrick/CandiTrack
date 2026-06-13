@@ -20,6 +20,9 @@ release du même nom.
 - #26 — Correctif : les boutons « Nouvelle candidature », « Ajouter un site » et
   « Charger un CV » devenaient illisibles une fois visités (texte de la couleur
   du fond) ; la couleur du texte est désormais verrouillée pour tous les états.
+- #27 — Sites d'emploi : suppression du bouton « Logo » de la liste ; le favicon
+  du site est désormais chargé automatiquement à l'enregistrement (un logo
+  manuel reste possible via le champ dédié).
 
 ## [1.0.1] — 2026-06-13
 

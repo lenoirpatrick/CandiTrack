@@ -15,6 +15,10 @@ from django.utils import timezone
 
 from .fields import EncryptedCharField
 
+# Libellés factorisés pour éviter la duplication de littéraux (issue #29).
+LIBELLE_VERBOSE = "libellé"
+ENVOYEE_LABEL = "Envoyée"
+
 
 class JobSite(models.Model):
     """A job board where applications are submitted (issue #366).
@@ -67,7 +71,7 @@ class Canal(models.TextChoices):
 
 
 class Statut(models.TextChoices):
-    ENVOYEE = "envoyee", "Envoyée"
+    ENVOYEE = "envoyee", ENVOYEE_LABEL
     RELANCEE = "relancee", "Relancée"
     ENTRETIEN_PLANIFIE = "entretien_planifie", "Entretien planifié"
     ENTRETIEN_PASSE = "entretien_passe", "Entretien passé"
@@ -92,7 +96,7 @@ class MotifCloture(models.TextChoices):
 class Candidature(models.Model):
     """A single job application and its current state (issue #365)."""
 
-    libelle = models.CharField("libellé", max_length=200, blank=True)
+    libelle = models.CharField(LIBELLE_VERBOSE, max_length=200, blank=True)
     entreprise = models.CharField("entreprise", max_length=200, blank=True)
     poste = models.CharField("poste", max_length=200)
     site = models.ForeignKey(
@@ -139,7 +143,7 @@ class Candidature(models.Model):
 
     # Étapes ordonnées de la candidature, pour la barre de progression (issue #3).
     PROGRESS_STEPS = [
-        ("envoyee", "Envoyée"),
+        ("envoyee", ENVOYEE_LABEL),
         ("traitee", "Traitée"),
         ("entretien_programme", "Entretien programmé"),
         ("offre_soumise", "Offre soumise"),
@@ -148,7 +152,7 @@ class Candidature(models.Model):
 
     # Libellés courts pour la colonne « Statut » de la liste (issue #12).
     STEP_SHORT_LABELS = {
-        "envoyee": "Envoyée",
+        "envoyee": ENVOYEE_LABEL,
         "traitee": "Traitée",
         "entretien_programme": "Entretien",
         "offre_soumise": "Offre",
@@ -209,11 +213,19 @@ class Candidature(models.Model):
             # Teinte de 0° (rouge) à 120° (vert) selon l'avancement.
             hue = round(120 * done / total) if total else 0
             color = f"hsl({hue}, 62%, 45%)"
+        # Pourcentage affiché : 100 % si acceptée/clôturée, sinon proportionnel
+        # à l'avancement (extraction du ternaire imbriqué, issue #29).
+        if accepted or closed:
+            percent = 100
+        elif total:
+            percent = round(100 * done / total)
+        else:
+            percent = 0
         return {
             "steps": steps,
             "done": done,
             "total": total,
-            "percent": 100 if accepted or closed else (round(100 * done / total) if total else 0),
+            "percent": percent,
             "closed": closed,
             "accepted": accepted,
             "color": color,
@@ -320,7 +332,7 @@ class ApiToken(models.Model):
     """
 
     token = models.CharField("jeton", max_length=64, unique=True)
-    label = models.CharField("libellé", max_length=100, blank=True)
+    label = models.CharField(LIBELLE_VERBOSE, max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -343,7 +355,7 @@ def cv_upload_path(instance, filename):
 class CV(models.Model):
     """An uploaded CV (issue #368). Reformatting/import is a later iteration."""
 
-    label = models.CharField("libellé", max_length=200)
+    label = models.CharField(LIBELLE_VERBOSE, max_length=200)
     file = models.FileField("fichier", upload_to=cv_upload_path)
     uploaded_at = models.DateTimeField("ajouté le", auto_now_add=True)
 

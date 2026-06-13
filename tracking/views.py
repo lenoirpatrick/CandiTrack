@@ -9,7 +9,7 @@ from django.db.models import Case, IntegerField, Q, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
@@ -26,6 +26,10 @@ from .statistics import compute_stats
 
 def _is_ajax(request):
     return request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+
+# Nom de route vers la liste des sites, factorisé pour les redirections (issue #29).
+SITE_LIST_ROUTE = "tracking:site_list"
 
 
 # Champs triables depuis la liste (issue #11) : clé d'URL -> champ modèle.
@@ -52,6 +56,7 @@ def _source_logos():
     }
 
 
+@require_GET
 def candidature_list(request):
     candidatures = Candidature.objects.select_related("site")
 
@@ -110,6 +115,7 @@ def _celebrer_acceptation(request):
     )
 
 
+@require_GET
 def candidature_detail(request, pk):
     candidature = get_object_or_404(
         Candidature.objects.select_related("site"), pk=pk
@@ -204,6 +210,7 @@ def candidature_delete(request, pk):
 # --- Placeholder pages (enriched in later iterations) ---------------------
 
 
+@require_GET
 def site_list(request):
     """Issue #366 — list of job sites with manual management."""
     sites = JobSite.objects.all()
@@ -216,7 +223,7 @@ def site_create(request):
         if form.is_valid():
             form.save()
             messages.success(request, "Site ajouté.")
-            return redirect("tracking:site_list")
+            return redirect(SITE_LIST_ROUTE)
     else:
         form = JobSiteForm()
     return render(
@@ -233,7 +240,7 @@ def site_update(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, "Site mis à jour.")
-            return redirect("tracking:site_list")
+            return redirect(SITE_LIST_ROUTE)
     else:
         form = JobSiteForm(instance=site)
     return render(
@@ -251,11 +258,11 @@ def site_delete(request, pk):
             request,
             f"« {site.name} » est un site par défaut : désactivez-le plutôt que de le supprimer.",
         )
-        return redirect("tracking:site_list")
+        return redirect(SITE_LIST_ROUTE)
     if request.method == "POST":
         site.delete()
         messages.success(request, "Site supprimé.")
-        return redirect("tracking:site_list")
+        return redirect(SITE_LIST_ROUTE)
     return render(request, "tracking/site_confirm_delete.html", {"site": site})
 
 
@@ -267,14 +274,16 @@ def site_toggle_active(request, pk):
         site.save(update_fields=["actif", "updated_at"])
         etat = "activé" if site.actif else "désactivé"
         messages.success(request, f"Site « {site.name} » {etat}.")
-    return redirect("tracking:site_list")
+    return redirect(SITE_LIST_ROUTE)
 
 
+@require_GET
 def stats(request):
     """Issue #367 — statistics dashboard with KPIs."""
     return render(request, "tracking/stats.html", compute_stats())
 
 
+@require_GET
 def cv_list(request):
     """Issue #368 — list uploaded CVs (reformat/LinkedIn import come later)."""
     cvs = CV.objects.all()
@@ -336,6 +345,7 @@ def help_page(request):
     )
 
 
+@require_GET
 def extension_download(request):
     """Serve the chrome-extension/ folder as a zip the user can install (issue #6)."""
     ext_dir = Path(settings.BASE_DIR) / "chrome-extension"

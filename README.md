@@ -5,7 +5,16 @@ Suivi de candidatures — application web Django pour gérer le cycle de candida
 
 [![Publier l'image Docker](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/docker-publish.yml)
 [![SonarQube](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/sonarqube.yml)
+
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
+[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=bugs)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
+[![Security Hotspots](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=security_hotspots)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=coverage)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 
 ## Déploiement (Docker)
 

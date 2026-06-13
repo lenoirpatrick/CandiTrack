@@ -124,6 +124,11 @@
         .toast.error, .toast.danger { border-left-color:#e0584b; }
         .toast.warning { border-left-color:#d98a00; }
         .toast.info, .toast.debug { border-left-color:var(--accent); }
+        /* Pied de page (issue #20) */
+        .site-footer { max-width:1000px; margin:2.5rem auto 1.5rem; padding:1rem;
+                 text-align:center; color:var(--muted); font-size:0.85rem;
+                 border-top:1px solid var(--border); }
+        .site-footer a { color:var(--accent); }
     </style>
 </head>
 <body>
@@ -146,6 +151,11 @@
 <main class="{% block main_class %}{% endblock %}">
     {% block content %}{% endblock %}
 </main>
+<footer class="site-footer">
+    © {% now "Y" %} CandiTrack — conçu par
+    <a href="https://github.com/lenoirpatrick" target="_blank" rel="noopener">Patrick Lenoir</a>
+    avec <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>.
+</footer>
 <script>
     // Theme toggle: cycles the explicit choice and persists it (issue #4).
     (function () {

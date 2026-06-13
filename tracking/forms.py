@@ -110,6 +110,8 @@ class CVForm(forms.ModelForm):
     """Upload form for a CV (issue #368)."""
 
     ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".odt", ".rtf", ".txt"}
+    # Taille maximale d'un CV : 5 Mo (issue #19).
+    MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 
     class Meta:
         model = CV
@@ -127,5 +129,11 @@ class CVForm(forms.ModelForm):
             allowed = ", ".join(sorted(self.ALLOWED_EXTENSIONS))
             raise forms.ValidationError(
                 f"Format non supporté ({ext or 'inconnu'}). Formats acceptés : {allowed}."
+            )
+        if f.size > self.MAX_UPLOAD_SIZE:
+            limite = self.MAX_UPLOAD_SIZE // (1024 * 1024)
+            actuel = f.size / (1024 * 1024)
+            raise forms.ValidationError(
+                f"Fichier trop volumineux ({actuel:.1f} Mo). Taille maximale : {limite} Mo."
             )
         return f

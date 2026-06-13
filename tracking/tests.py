@@ -1,8 +1,10 @@
 import json
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from .forms import CVForm
 from .models import (
     ApiToken,
     Canal,
@@ -228,3 +230,32 @@ class SourceDonutTests(TestCase):
         self.assertContains(resp, "<svg")
         self.assertContains(resp, "donut")
         self.assertContains(resp, "stroke-dasharray")
+
+
+class CVUploadLimitTests(TestCase):
+    """Issue #19 — un CV de plus de 5 Mo est refusé."""
+
+    def _form(self, size):
+        upload = SimpleUploadedFile(
+            "cv.pdf", b"x" * size, content_type="application/pdf"
+        )
+        return CVForm(data={"label": "Mon CV"}, files={"file": upload})
+
+    def test_rejette_au_dela_de_5mo(self):
+        form = self._form(CVForm.MAX_UPLOAD_SIZE + 1)
+        self.assertFalse(form.is_valid())
+        self.assertIn("file", form.errors)
+
+    def test_accepte_en_deca(self):
+        form = self._form(1024)
+        self.assertTrue(form.is_valid())
+
+
+class FooterTests(TestCase):
+    """Issue #20 — pied de page créditant l'auteur et Claude Code."""
+
+    def test_footer_present(self):
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, "site-footer")
+        self.assertContains(resp, "Patrick Lenoir")
+        self.assertContains(resp, "Claude Code")

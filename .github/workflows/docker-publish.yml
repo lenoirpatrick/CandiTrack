@@ -13,6 +13,13 @@ name: Publier l'image Docker
 on:
   milestone:
     types: [closed]
+  # Déclenchement manuel : republier une version donnée (ex. après un changement
+  # d'architecture d'image) sans attendre la fermeture d'un milestone.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (tag de l'image, ex. 1.0.0)"
+        required: true
 
 jobs:
   publish:
@@ -26,18 +33,19 @@ jobs:
         with:
           ref: main
 
-      - name: Déterminer la version (titre du milestone)
+      - name: Déterminer la version (titre du milestone ou saisie manuelle)
         id: version
         run: |
-          version="${{ github.event.milestone.title }}"
+          version="${{ github.event.milestone.title || inputs.version }}"
           if [ -z "$version" ]; then
-            echo "::error::Le milestone n'a pas de titre exploitable comme version."
+            echo "::error::Aucune version : ni titre de milestone ni saisie manuelle."
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Version à publier : $version"
 
       - name: Rattacher les issues fermées sans milestone à ce milestone
+        if: github.event_name == 'milestone'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -63,14 +71,19 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Préparer QEMU (émulation pour le build ARM)
+        uses: docker/setup-qemu-action@v3
+
       - name: Préparer Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build et push de l'image
+      - name: Build et push de l'image (multi-arch)
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          # amd64 pour serveurs/PC, arm64 pour Raspberry Pi (64 bits).
+          platforms: linux/amd64,linux/arm64
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/canditrack:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/canditrack:${{ steps.version.outputs.version }}

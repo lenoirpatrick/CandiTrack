@@ -63,13 +63,13 @@ docker compose up -d --build
 
 L'entrypoint applique les migrations (dont le seed des sites) et collecte les
 statiques au démarrage. La base SQLite et les CV uploadés sont persistés dans
-des volumes nommés (`data`, `media`). L'app écoute sur le port **8000**.
+des volumes nommés (`data`, `media`). L'app écoute sur le port **53487**.
 
 Sans compose, directement avec Docker :
 
 ```bash
 docker build -t canditrack .
-docker run -d -p 8000:8000 --env-file .env \
+docker run -d -p 53487:53487 --env-file .env \
   -e SQLITE_PATH=/app/data/db.sqlite3 \
   -v canditrack-data:/app/data -v canditrack-media:/app/media canditrack
 ```

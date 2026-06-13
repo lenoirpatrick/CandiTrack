@@ -17,6 +17,9 @@ release du même nom.
   automatique d'une release à la clôture de chaque milestone.
 - #25 — Relecture SonarQube : analyse statique SonarQube Cloud avec mesure de
   couverture (workflow GitHub Actions sur `main` et pull requests).
+- #26 — Correctif : les boutons « Nouvelle candidature », « Ajouter un site » et
+  « Charger un CV » devenaient illisibles une fois visités (texte de la couleur
+  du fond) ; la couleur du texte est désormais verrouillée pour tous les états.
 
 ## [1.0.1] — 2026-06-13
 

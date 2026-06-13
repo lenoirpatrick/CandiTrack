@@ -3,13 +3,7 @@
 Suivi de candidatures — application web Django pour gérer le cycle de candidature
 (envois, relances, entretiens, statistiques).
 
-Cette première itération pose la **fondation** : gestion des candidatures opérationnelle,
-et le schéma de données qui anticipe les fonctionnalités du board GitHub :
-
-- **#365** — modèle de suivi (candidatures, historique de statut, relances, entretiens, contacts)
-- **#366** — sites d'emploi avec mot de passe **chiffré au repos**
-- **#367** — page de statistiques (premiers agrégats)
-- **#368** — chargement de CV
+[![Publier l'image Docker](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/lenoirpatrick/CandiTrack/actions/workflows/docker-publish.yml)
 
 ## Déploiement (Docker)
 
@@ -98,7 +92,10 @@ docker run -d -p 53487:53487 --env-file .env \
 Le workflow `.github/workflows/docker-publish.yml` publie l'image sur Docker Hub
 **à la fermeture d'un milestone** : le titre du milestone (ex. `1.0.0`) sert de
 version. Le workflow rattache au passage les issues fermées sans milestone à
-celui-ci, puis pousse l'image taguée `latest` et `<version>`.
+celui-ci, pousse l'image taguée `latest` et `<version>`, puis crée une
+**release GitHub** du nom du milestone listant les issues traitées (l'archive
+source est jointe automatiquement). L'historique des versions est aussi tenu
+dans [CHANGELOG.md](CHANGELOG.md).
 
 Configuration unique — `Settings → Secrets and variables → Actions` :
 

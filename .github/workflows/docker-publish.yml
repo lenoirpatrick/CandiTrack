@@ -1,14 +1,15 @@
-# Publication de l'image Docker sur Docker Hub (issue #18).
+# Publication de l'image Docker sur Docker Hub (issue #18) + release (issue #24).
 #
 # Déclenché à la fermeture d'un milestone : le titre du milestone sert de
 # version. Le workflow rattache d'abord les issues fermées sans milestone à ce
-# milestone (pour grouper la release), puis construit et pousse l'image avec
-# les tags `latest` et `<version>`.
+# milestone (pour grouper la release), construit et pousse l'image avec les tags
+# `latest` et `<version>`, puis crée une release GitHub du nom du milestone
+# listant les issues traitées (avec l'archive source en pièce jointe).
 #
 # Prérequis (une seule fois) — Settings → Secrets and variables → Actions :
 #   - DOCKERHUB_USERNAME : identifiant Docker Hub (= namespace de l'image)
 #   - DOCKERHUB_TOKEN    : access token Docker Hub (Account → Security)
-name: Publier l'image Docker
+name: Docker publish
 
 on:
   milestone:
@@ -25,8 +26,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      issues: write   # nécessaire pour rattacher les issues au milestone
+      contents: write  # créer la release et son tag (issue #24)
+      issues: write    # rattacher les issues au milestone
     steps:
       - name: Récupérer la dernière version de main
         uses: actions/checkout@v4
@@ -87,3 +88,26 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/canditrack:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/canditrack:${{ steps.version.outputs.version }}
+
+      - name: Créer la release du milestone (issue #24)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/canditrack
+        run: |
+          set -euo pipefail
+          # Issues traitées (fermées) du milestone, pour le corps de la release.
+          issues=$(gh issue list --repo "$REPO" --milestone "$VERSION" --state closed \
+            --limit 200 --json number,title --jq '.[] | "- #\(.number) \(.title)"' || true)
+          [ -z "$issues" ] && issues="_Aucune issue listée pour ce milestone._"
+          notes=$(printf 'Image Docker : `%s:%s`\n\n### Issues traitées\n%s\n' \
+            "$IMAGE" "$VERSION" "$issues")
+          # Idempotent : éditer la release si elle existe déjà, sinon la créer.
+          # GitHub attache automatiquement l'archive source (le « package »).
+          if gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1; then
+            gh release edit "$VERSION" --repo "$REPO" --title "$VERSION" --notes "$notes"
+          else
+            gh release create "$VERSION" --repo "$REPO" --target main \
+              --title "$VERSION" --notes "$notes"
+          fi

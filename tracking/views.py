@@ -362,6 +362,12 @@ def extension_download(request):
 # --- API for the Chrome extension (issue #2) ------------------------------
 
 
+# @csrf_exempt est sûr ici (hotspot SonarCloud csrf/S4502, issue #29) :
+# l'endpoint est authentifié par un jeton dans l'en-tête custom X-Api-Token,
+# jamais par un cookie de session. Le CSRF n'exploite que l'envoi automatique
+# des cookies par le navigateur ; un en-tête custom ne peut pas être posé en
+# cross-origin sans préflight CORS (non autorisé). Aucune donnée d'auth n'est
+# donc rejouable par un site tiers.
 @csrf_exempt
 @require_POST
 def api_candidature_create(request):

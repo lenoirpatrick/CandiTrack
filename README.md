@@ -63,6 +63,27 @@ L'application écoute sur le port **53487** → http://127.0.0.1:53487/
 `docker-compose.yml` pointe `SQLITE_PATH` vers `/app/data/db.sqlite3` (volume
 `data`) ; il n'y a donc rien à renseigner pour cette variable dans `.env`.
 
+### Déploiement depuis l'image Docker Hub (sans build)
+
+Sur la machine cible (ex. Raspberry Pi), inutile de cloner les sources ni de
+construire l'image : `docker-compose.deploy.yml` tire directement l'image
+publiée `plenoir/canditrack:latest`.
+
+```bash
+cp .env.example .env   # renseigner SECRET_KEY, CANDITRACK_FERNET_KEY,
+                       # DEBUG=False et ALLOWED_HOSTS
+docker compose -f docker-compose.deploy.yml pull
+docker compose -f docker-compose.deploy.yml up -d
+```
+
+Mise à jour : relancer `pull` puis `up -d` (`pull_policy: always` récupère le
+dernier `latest`). Mêmes volumes persistants (`data`, `media`) et port **53487**
+que le compose de build.
+
+> Sur ARM (Raspberry Pi), l'image tirée doit avoir été construite pour
+> `linux/arm64` — la CI doit publier en multi-arch, sinon construire sur place
+> avec `docker-compose.yml`.
+
 ### Sans docker-compose
 
 ```bash

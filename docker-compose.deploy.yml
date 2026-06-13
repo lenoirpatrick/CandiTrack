@@ -1,0 +1,28 @@
+# Déploiement de CandiTrack à partir de l'image publiée sur Docker Hub.
+# À utiliser sur la machine cible (ex. Raspberry Pi) : aucun build, on tire
+# simplement l'image plenoir/canditrack:latest poussée par la CI (issue #18).
+#
+#   cp .env.example .env   # renseigner SECRET_KEY, CANDITRACK_FERNET_KEY,
+#                          # DEBUG=False et ALLOWED_HOSTS
+#   docker compose -f docker-compose.deploy.yml pull
+#   docker compose -f docker-compose.deploy.yml up -d
+#
+# Mise à jour ultérieure : relancer `pull` puis `up -d` (récupère le dernier latest).
+services:
+  web:
+    image: plenoir/canditrack:latest
+    pull_policy: always
+    env_file: .env
+    environment:
+      # Base SQLite sur le volume persistant plutôt que dans l'image.
+      SQLITE_PATH: /app/data/db.sqlite3
+    ports:
+      - "53487:53487"
+    volumes:
+      - data:/app/data
+      - media:/app/media
+    restart: unless-stopped
+
+volumes:
+  data:
+  media:

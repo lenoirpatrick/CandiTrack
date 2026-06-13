@@ -99,6 +99,18 @@ def candidature_list(request):
     )
 
 
+def _celebrer_acceptation(request):
+    """Easter egg (issue #23) : message marqué pour déclencher les confettis.
+
+    Le tag ``confetti`` est lu côté client (base.html) pour lancer l'animation.
+    """
+    messages.success(
+        request,
+        "🎉 Offre acceptée — félicitations !",
+        extra_tags="confetti",
+    )
+
+
 def candidature_detail(request, pk):
     candidature = get_object_or_404(
         Candidature.objects.select_related("site"), pk=pk
@@ -135,6 +147,8 @@ def candidature_create(request):
                 candidature=candidature, statut=candidature.statut
             )
             messages.success(request, "Candidature créée.")
+            if candidature.acceptation:
+                _celebrer_acceptation(request)
             if _is_ajax(request):
                 return JsonResponse({"ok": True, "redirect": candidature.get_absolute_url()})
             return redirect(candidature)
@@ -151,6 +165,7 @@ def candidature_update(request, pk):
     candidature = get_object_or_404(Candidature, pk=pk)
     action = request.path
     previous_statut = candidature.statut
+    previous_acceptation = candidature.acceptation
     if request.method == "POST":
         form = CandidatureForm(request.POST, instance=candidature)
         if form.is_valid():
@@ -160,6 +175,8 @@ def candidature_update(request, pk):
                     candidature=candidature, statut=candidature.statut
                 )
             messages.success(request, "Candidature mise à jour.")
+            if candidature.acceptation and not previous_acceptation:
+                _celebrer_acceptation(request)
             if _is_ajax(request):
                 return JsonResponse({"ok": True, "redirect": candidature.get_absolute_url()})
             return redirect(candidature)
@@ -168,6 +185,20 @@ def candidature_update(request, pk):
         )
     return _render_candidature_form(
         request, CandidatureForm(instance=candidature), "Modifier la candidature", action
+    )
+
+
+def candidature_delete(request, pk):
+    """Issue #21 — supprimer définitivement une candidature."""
+    candidature = get_object_or_404(Candidature, pk=pk)
+    if request.method == "POST":
+        candidature.delete()
+        messages.success(request, "Candidature supprimée.")
+        return redirect("tracking:candidature_list")
+    return render(
+        request,
+        "tracking/candidature_confirm_delete.html",
+        {"candidature": candidature},
     )
 
 
@@ -215,11 +246,29 @@ def site_update(request, pk):
 
 def site_delete(request, pk):
     site = get_object_or_404(JobSite, pk=pk)
+    # Les sites par défaut ne se suppriment pas : on les désactive (issue #22).
+    if site.is_builtin:
+        messages.error(
+            request,
+            f"« {site.name} » est un site par défaut : désactivez-le plutôt que de le supprimer.",
+        )
+        return redirect("tracking:site_list")
     if request.method == "POST":
         site.delete()
         messages.success(request, "Site supprimé.")
         return redirect("tracking:site_list")
     return render(request, "tracking/site_confirm_delete.html", {"site": site})
+
+
+def site_toggle_active(request, pk):
+    """Issue #22 — activer/désactiver un site (surtout les sites par défaut)."""
+    site = get_object_or_404(JobSite, pk=pk)
+    if request.method == "POST":
+        site.actif = not site.actif
+        site.save(update_fields=["actif", "updated_at"])
+        etat = "activé" if site.actif else "désactivé"
+        messages.success(request, f"Site « {site.name} » {etat}.")
+    return redirect("tracking:site_list")
 
 
 def site_refresh_logo(request, pk):

@@ -29,6 +29,9 @@ class JobSite(models.Model):
     password = EncryptedCharField("mot de passe", blank=True, default="")
     logo_url = models.URLField("URL du logo", blank=True)
     is_builtin = models.BooleanField("site par défaut", default=False)
+    # Un site désactivé reste en base mais n'est plus proposé pour de nouvelles
+    # candidatures (issue #22) — utile pour masquer un site par défaut non voulu.
+    actif = models.BooleanField("actif", default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -193,7 +196,11 @@ class Candidature(models.Model):
         done = sum(1 for s in steps if s["done"])
         total = len(steps)
         closed = self.est_terminee
-        if closed:
+        # Une acceptation est une réussite : barre pleine et verte (issue #23).
+        accepted = bool(self.acceptation)
+        if accepted:
+            color = "hsl(120, 62%, 45%)"  # vert : offre acceptée
+        elif closed:
             color = "#e0584b"  # rouge : process stoppé
         else:
             # Teinte de 0° (rouge) à 120° (vert) selon l'avancement.
@@ -203,8 +210,9 @@ class Candidature(models.Model):
             "steps": steps,
             "done": done,
             "total": total,
-            "percent": 100 if closed else (round(100 * done / total) if total else 0),
+            "percent": 100 if accepted or closed else (round(100 * done / total) if total else 0),
             "closed": closed,
+            "accepted": accepted,
             "color": color,
             "motif": self.get_motif_cloture_display() if closed else "",
         }

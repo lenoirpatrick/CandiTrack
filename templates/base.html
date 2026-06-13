@@ -198,10 +198,61 @@
             try {
                 JSON.parse(data.textContent).forEach(function (m) {
                     showToast(m.text, m.level);
+                    // Easter egg (issue #23) : confettis si le message est tagué.
+                    if (m.level && m.level.indexOf("confetti") >= 0) {
+                        launchConfetti();
+                    }
                 });
             } catch (e) {}
         }
     })();
+
+    // Confettis (issue #23) — animation canvas légère, sans dépendance.
+    function launchConfetti() {
+        var canvas = document.createElement("canvas");
+        canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;" +
+            "pointer-events:none;z-index:2000;";
+        document.body.appendChild(canvas);
+        var ctx = canvas.getContext("2d");
+        function size() { canvas.width = innerWidth; canvas.height = innerHeight; }
+        size();
+        window.addEventListener("resize", size);
+
+        var colors = ["#5bc0be", "#3a506b", "#27a567", "#d98a00", "#e0584b", "#1c2541"];
+        var pieces = [];
+        for (var i = 0; i < 160; i++) {
+            pieces.push({
+                x: Math.random() * canvas.width,
+                y: -20 - Math.random() * canvas.height,
+                r: 5 + Math.random() * 6,
+                c: colors[(Math.random() * colors.length) | 0],
+                vy: 2 + Math.random() * 3.5,
+                vx: -1.5 + Math.random() * 3,
+                rot: Math.random() * Math.PI,
+                vr: -0.2 + Math.random() * 0.4
+            });
+        }
+        var start = performance.now();
+        (function frame(now) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pieces.forEach(function (p) {
+                p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+                ctx.fillStyle = p.c;
+                ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
+                ctx.restore();
+            });
+            if (now - start < 3500) {
+                requestAnimationFrame(frame);
+            } else {
+                window.removeEventListener("resize", size);
+                canvas.remove();
+            }
+        })(start);
+    }
+    window.launchConfetti = launchConfetti;
 </script>
 </body>
 </html>

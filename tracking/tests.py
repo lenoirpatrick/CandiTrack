@@ -4,7 +4,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .forms import CVForm
+from .forms import CandidatureForm, CVForm
 from .models import (
     ApiToken,
     Canal,
@@ -259,3 +259,75 @@ class FooterTests(TestCase):
         self.assertContains(resp, "site-footer")
         self.assertContains(resp, "Patrick Lenoir")
         self.assertContains(resp, "Claude Code")
+
+
+class CandidatureDeleteTests(TestCase):
+    """Issue #21 — suppression d'une candidature."""
+
+    def test_post_supprime(self):
+        c = Candidature.objects.create(poste="Dev")
+        resp = self.client.post(reverse("tracking:candidature_delete", args=[c.pk]))
+        self.assertRedirects(resp, reverse("tracking:candidature_list"))
+        self.assertFalse(Candidature.objects.filter(pk=c.pk).exists())
+
+    def test_get_affiche_confirmation(self):
+        c = Candidature.objects.create(poste="Dev")
+        resp = self.client.get(reverse("tracking:candidature_delete", args=[c.pk]))
+        self.assertContains(resp, "Supprimer définitivement")
+
+
+class SiteDisableDeleteTests(TestCase):
+    """Issue #22 — désactiver les sites par défaut, supprimer les manuels."""
+
+    def test_site_par_defaut_non_supprimable(self):
+        s = JobSite.objects.create(name="Défaut", is_builtin=True)
+        resp = self.client.post(reverse("tracking:site_delete", args=[s.pk]))
+        self.assertRedirects(resp, reverse("tracking:site_list"))
+        self.assertTrue(JobSite.objects.filter(pk=s.pk).exists())
+
+    def test_site_manuel_supprimable(self):
+        s = JobSite.objects.create(name="Manuel", is_builtin=False)
+        resp = self.client.post(reverse("tracking:site_delete", args=[s.pk]))
+        self.assertRedirects(resp, reverse("tracking:site_list"))
+        self.assertFalse(JobSite.objects.filter(pk=s.pk).exists())
+
+    def test_toggle_desactive_et_reactive(self):
+        s = JobSite.objects.create(name="Défaut", is_builtin=True)
+        self.client.post(reverse("tracking:site_toggle_active", args=[s.pk]))
+        s.refresh_from_db()
+        self.assertFalse(s.actif)
+        self.client.post(reverse("tracking:site_toggle_active", args=[s.pk]))
+        s.refresh_from_db()
+        self.assertTrue(s.actif)
+
+    def test_site_inactif_absent_du_formulaire(self):
+        actif = JobSite.objects.create(name="Actif")
+        inactif = JobSite.objects.create(name="Inactif", actif=False)
+        qs = CandidatureForm().fields["site"].queryset
+        self.assertIn(actif, qs)
+        self.assertNotIn(inactif, qs)
+
+
+class AcceptationConfettiTests(TestCase):
+    """Issue #23 — acceptation : barre verte à 100 % et confettis."""
+
+    def test_progression_acceptee_verte_100(self):
+        c = Candidature(poste="X", acceptation=True)
+        p = c.progression()
+        self.assertEqual(p["percent"], 100)
+        self.assertTrue(p["accepted"])
+        self.assertIn("120", p["color"])
+
+    def test_message_confetti_a_l_acceptation(self):
+        c = Candidature.objects.create(poste="X", acceptation=False)
+        data = {
+            "poste": "X",
+            "source": Source.AUTRE,
+            "canal_envoi": Canal.EMAIL,
+            "statut": Statut.ENVOYEE,
+            "acceptation": "on",
+        }
+        resp = self.client.post(
+            reverse("tracking:candidature_update", args=[c.pk]), data, follow=True
+        )
+        self.assertContains(resp, "confetti")

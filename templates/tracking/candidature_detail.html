@@ -3,7 +3,10 @@
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
     <h1 style="margin:0;">{{ candidature }}</h1>
-    <a class="btn" href="{% url 'tracking:candidature_update' candidature.pk %}">Modifier</a>
+    <div style="display:flex; gap:0.5rem;">
+        <a class="btn" href="{% url 'tracking:candidature_update' candidature.pk %}">Modifier</a>
+        <a class="btn secondary" href="{% url 'tracking:candidature_delete' candidature.pk %}">Supprimer</a>
+    </div>
 </div>
 
 {% with progress=candidature.progression %}

@@ -48,6 +48,7 @@
                 <td>{{ c.date_envoi|date:"d/m/Y"|default:"—" }}</td>
                 <td class="row-actions">
                     <a class="js-modal-link" href="{% url 'tracking:candidature_update' c.pk %}">Modifier</a>
+                    <a href="{% url 'tracking:candidature_delete' c.pk %}">Supprimer</a>
                 </td>
             </tr>
             {% endwith %}

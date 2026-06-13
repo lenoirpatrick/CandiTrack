@@ -44,6 +44,16 @@ class CandidatureForm(forms.ModelForm):
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ne proposer que les sites actifs (issue #22), mais conserver le site
+        # déjà associé à la candidature même s'il a été désactivé depuis.
+        qs = JobSite.objects.filter(actif=True)
+        current = getattr(self.instance, "site_id", None)
+        if current:
+            qs = (qs | JobSite.objects.filter(pk=current)).distinct()
+        self.fields["site"].queryset = qs
+
     def save(self, commit=True):
         instance = super().save(commit=False)
         # Auto-remplir le libellé si laissé vide (issue #3).

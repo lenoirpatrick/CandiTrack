@@ -14,9 +14,11 @@
         <thead><tr><th>Logo</th><th>Nom</th><th>URL</th><th>Identifiant</th><th>Mot de passe</th><th>Actions</th></tr></thead>
         <tbody>
             {% for s in sites %}
-            <tr>
+            <tr{% if not s.actif %} class="closed-row"{% endif %}>
                 <td>{% if s.logo_url %}<img src="{{ s.logo_url }}" alt="" height="24" style="vertical-align:middle;">{% else %}<span class="muted">—</span>{% endif %}</td>
-                <td>{{ s.name }}{% if s.is_builtin %} <span class="badge">défaut</span>{% endif %}</td>
+                <td>{{ s.name }}
+                    {% if s.is_builtin %} <span class="badge">défaut</span>{% endif %}
+                    {% if not s.actif %} <span class="badge">désactivé</span>{% endif %}</td>
                 <td>{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a>{% else %}—{% endif %}</td>
                 <td>{{ s.username|default:"—" }}</td>
                 <td>{% if s.password %}<span class="muted">••••••</span>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -26,7 +28,11 @@
                         {% csrf_token %}
                         <button type="submit" class="linklike" title="Récupérer le logo depuis l'URL">Logo</button>
                     </form>
-                    <a href="{% url 'tracking:site_delete' s.pk %}">Supprimer</a>
+                    <form method="post" action="{% url 'tracking:site_toggle_active' s.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="linklike">{% if s.actif %}Désactiver{% else %}Activer{% endif %}</button>
+                    </form>
+                    {% if not s.is_builtin %}<a href="{% url 'tracking:site_delete' s.pk %}">Supprimer</a>{% endif %}
                 </td>
             </tr>
             {% endfor %}

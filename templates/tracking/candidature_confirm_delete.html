@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Supprimer la candidature — CandiTrack{% endblock %}
+{% block content %}
+<h1>Supprimer la candidature</h1>
+<div class="card">
+    <p>Supprimer définitivement la candidature <strong>{{ candidature }}</strong> ?
+        Son historique de statuts sera également supprimé.</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn" style="background:#c0392b;">Supprimer</button>
+        <a class="btn secondary" href="{% url 'tracking:candidature_detail' candidature.pk %}">Annuler</a>
+    </form>
+</div>
+{% endblock %}

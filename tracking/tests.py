@@ -341,7 +341,10 @@ class SiteFaviconTests(TestCase):
             "https://www.google.com/s2/favicons?domain=www.exemple.fr&sz=64",
         )
 
-    def test_logo_manuel_respecte(self):
+    def test_logo_url_non_demande(self):
+        """Issue #50 — le champ logo n'est plus proposé ; le favicon prime."""
+        self.assertNotIn("logo_url", JobSiteForm().fields)
+        # Même si un logo_url est posté, il est ignoré au profit du favicon.
         form = JobSiteForm(data={
             "name": "Exemple",
             "url": "https://www.exemple.fr/",
@@ -349,7 +352,26 @@ class SiteFaviconTests(TestCase):
         })
         self.assertTrue(form.is_valid(), form.errors)
         site = form.save()
-        self.assertEqual(site.logo_url, "https://cdn.exemple.fr/logo.png")
+        self.assertEqual(
+            site.logo_url,
+            "https://www.google.com/s2/favicons?domain=www.exemple.fr&sz=64",
+        )
+
+    def test_logo_resuit_si_url_modifiee(self):
+        """Issue #50 — changer l'URL régénère le logo depuis le nouveau favicon."""
+        site = JobSite.objects.create(
+            name="Exemple", url="https://www.exemple.fr/",
+            logo_url="https://ancien/logo.png",
+        )
+        form = JobSiteForm(
+            data={"name": "Exemple", "url": "https://www.autre.fr/"}, instance=site
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        site = form.save()
+        self.assertEqual(
+            site.logo_url,
+            "https://www.google.com/s2/favicons?domain=www.autre.fr&sz=64",
+        )
 
     def test_liste_sans_lien_logo(self):
         JobSite.objects.create(name="Exemple", url="https://www.exemple.fr/")
@@ -1325,6 +1347,115 @@ class CVAnalysisTests(TestCase):
         # Word n'est pas joignable : le texte extrait part dans le prompt, sans pièce jointe.
         self.assertIsNone(gen.call_args.kwargs.get("attachments"))
         self.assertIn("Ingénieur logiciel", gen.call_args.args[0])
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CVArchiveTests(TestCase):
+    """Issue #48 — un CV peut être actif ou archivé."""
+
+    def _make_cv(self, label="CV", actif=True):
+        cv = CV.objects.create(
+            label=label, file=SimpleUploadedFile(f"{label}.txt", b"x")
+        )
+        if not actif:
+            cv.actif = False
+            cv.save(update_fields=["actif"])
+        return cv
+
+    def test_cv_actif_par_defaut(self):
+        self.assertTrue(self._make_cv().actif)
+
+    def test_archiver_puis_reactiver(self):
+        cv = self._make_cv()
+        self.client.post(reverse("tracking:cv_toggle_active", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertFalse(cv.actif)
+        self.client.post(reverse("tracking:cv_toggle_active", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertTrue(cv.actif)
+
+    def test_liste_separe_actifs_et_archives(self):
+        self._make_cv("Actif")
+        self._make_cv("Vieux", actif=False)
+        resp = self.client.get(reverse("tracking:cv_list"))
+        self.assertEqual([c.label for c in resp.context["cvs"]], ["Actif"])
+        self.assertEqual([c.label for c in resp.context["cvs_archives"]], ["Vieux"])
+        self.assertContains(resp, "CV archivés")
+
+    def test_toggle_refuse_get(self):
+        cv = self._make_cv()
+        resp = self.client.get(reverse("tracking:cv_toggle_active", args=[cv.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_toggle_next_local_respecte(self):
+        cv = self._make_cv()
+        cible = reverse("tracking:cv_detail", args=[cv.pk])
+        resp = self.client.post(
+            reverse("tracking:cv_toggle_active", args=[cv.pk]), {"next": cible}
+        )
+        self.assertRedirects(resp, cible, fetch_redirect_response=False)
+
+    def test_toggle_next_externe_ignore(self):
+        """Un « next » hors site est ignoré (anti open-redirect, S5146)."""
+        cv = self._make_cv()
+        resp = self.client.post(
+            reverse("tracking:cv_toggle_active", args=[cv.pk]),
+            {"next": "https://evil.example/phish"},
+        )
+        self.assertRedirects(resp, reverse("tracking:cv_list"))
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CVCandidatureLinkTests(TestCase):
+    """Issue #49 — lier un CV à une candidature."""
+
+    def _make_cv(self, label="CV", actif=True):
+        cv = CV.objects.create(
+            label=label, file=SimpleUploadedFile(f"{label}.txt", b"x")
+        )
+        if not actif:
+            CV.objects.filter(pk=cv.pk).update(actif=False)
+        return cv
+
+    def test_form_ne_propose_que_les_cv_actifs(self):
+        actif = self._make_cv("Actif")
+        archive = self._make_cv("Archivé", actif=False)
+        choices = list(CandidatureForm().fields["cv"].queryset)
+        self.assertIn(actif, choices)
+        self.assertNotIn(archive, choices)
+
+    def test_form_conserve_le_cv_archive_deja_lie(self):
+        archive = self._make_cv("Archivé", actif=False)
+        cand = Candidature.objects.create(poste="Dev", cv=archive)
+        self.assertIn(archive, list(CandidatureForm(instance=cand).fields["cv"].queryset))
+
+    def test_creation_lie_le_cv(self):
+        cv = self._make_cv()
+        self.client.post(reverse("tracking:candidature_create"), {
+            "poste": "Dev", "cv": cv.pk, "source": "autre",
+            "canal_envoi": "email", "statut": Statut.ENVOYEE,
+        })
+        self.assertEqual(Candidature.objects.get().cv, cv)
+
+    def test_detail_candidature_affiche_le_cv(self):
+        cv = self._make_cv("Mon CV")
+        cand = Candidature.objects.create(poste="Dev", cv=cv)
+        resp = self.client.get(reverse("tracking:candidature_detail", args=[cand.pk]))
+        self.assertContains(resp, "Mon CV")
+
+    def test_detail_cv_affiche_les_candidatures(self):
+        cv = self._make_cv()
+        Candidature.objects.create(libelle="ACME — Dev", poste="Dev", cv=cv)
+        resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
+        self.assertContains(resp, "Candidatures liées")
+        self.assertContains(resp, "ACME — Dev")
+
+    def test_supprimer_cv_delie_la_candidature(self):
+        cv = self._make_cv()
+        cand = Candidature.objects.create(poste="Dev", cv=cv)
+        cv.delete()  # on_delete=SET_NULL
+        cand.refresh_from_db()
+        self.assertIsNone(cand.cv)
 
 
 def io_bytes(data):

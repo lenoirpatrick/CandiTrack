@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.db.models import Case, IntegerField, Q, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -124,7 +125,7 @@ def _celebrer_acceptation(request):
 @require_GET
 def candidature_detail(request, pk):
     candidature = get_object_or_404(
-        Candidature.objects.select_related("site"), pk=pk
+        Candidature.objects.select_related("site", "cv"), pk=pk
     )
     return render(
         request,
@@ -293,7 +294,31 @@ def stats(request):
 def cv_list(request):
     """Issue #368 — liste des CV chargés (analyse IA optionnelle, issue #44)."""
     cvs = CV.objects.all()
-    return render(request, "tracking/cv_list.html", {"cvs": cvs})
+    return render(
+        request,
+        "tracking/cv_list.html",
+        {
+            "cvs": [cv for cv in cvs if cv.actif],
+            "cvs_archives": [cv for cv in cvs if not cv.actif],
+        },
+    )
+
+
+@require_POST
+def cv_toggle_active(request, pk):
+    """Archive ou réactive un CV (issue #48)."""
+    cv = get_object_or_404(CV, pk=pk)
+    cv.actif = not cv.actif
+    cv.save(update_fields=["actif"])
+    etat = "réactivé" if cv.actif else "archivé"
+    messages.success(request, f"CV « {cv.label} » {etat}.")
+    # On ne redirige vers « next » que s'il pointe vers ce site (anti open-redirect).
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
+    return redirect("tracking:cv_list")
 
 
 def _cv_localisations(cv):

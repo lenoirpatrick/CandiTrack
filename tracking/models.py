@@ -120,6 +120,17 @@ class Candidature(models.Model):
     )
     notes = models.TextField("notes", blank=True)
 
+    # CV joint à la candidature (issue #49). Référence par chaîne car CV est
+    # défini plus bas dans le module.
+    cv = models.ForeignKey(
+        "CV",
+        verbose_name="CV",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="candidatures",
+    )
+
     # Étapes d'avancement (issue #3) — la barre de progression en découle.
     envoyee = models.BooleanField("candidature envoyée", default=False)
     traitee = models.BooleanField("candidature traitée", default=False)
@@ -362,6 +373,9 @@ class CV(models.Model):
     label = models.CharField(LIBELLE_VERBOSE, max_length=200)
     file = models.FileField("fichier", upload_to=cv_upload_path)
     uploaded_at = models.DateTimeField("ajouté le", auto_now_add=True)
+    # Un CV archivé reste en base mais n'est plus proposé pour de nouvelles
+    # candidatures (issues #48, #49).
+    actif = models.BooleanField("actif", default=True)
 
     # Analyse IA du contenu du CV (issue #44).
     analysis = models.JSONField("analyse IA", default=dict, blank=True)

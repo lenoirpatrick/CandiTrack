@@ -14,6 +14,7 @@ class CandidatureForm(forms.ModelForm):
             "entreprise",
             "poste",
             "site",
+            "cv",
             "source",
             "url_offre",
             "date_envoi",
@@ -54,6 +55,14 @@ class CandidatureForm(forms.ModelForm):
             qs = (qs | JobSite.objects.filter(pk=current)).distinct()
         self.fields["site"].queryset = qs
 
+        # Idem pour les CV : on ne propose que les CV actifs (issue #48), tout en
+        # conservant celui déjà lié à la candidature (issue #49).
+        cv_qs = CV.objects.filter(actif=True)
+        current_cv = getattr(self.instance, "cv_id", None)
+        if current_cv:
+            cv_qs = (cv_qs | CV.objects.filter(pk=current_cv)).distinct()
+        self.fields["cv"].queryset = cv_qs
+
     def save(self, commit=True):
         instance = super().save(commit=False)
         # Auto-remplir le libellé si laissé vide (issue #3).
@@ -69,26 +78,23 @@ class CandidatureForm(forms.ModelForm):
 class JobSiteForm(forms.ModelForm):
     """Manual create/edit form for a job site (issue #366).
 
-    Les identifiants/mots de passe ne sont plus gérés (issue #43). Le logo est
-    récupéré depuis le favicon du site quand l'utilisateur n'en saisit pas.
+    Les identifiants/mots de passe ne sont plus gérés (issue #43). Le logo n'est
+    plus saisi : il est déduit automatiquement du favicon du site (issue #50).
     """
 
     class Meta:
         model = JobSite
-        fields = ["name", "url", "logo_url"]
+        fields = ["name", "url"]
         widgets = {
             "url": forms.URLInput(attrs={"placeholder": "https://www.exemple.fr/"}),
-            "logo_url": forms.URLInput(
-                attrs={"placeholder": "Laisser vide pour utiliser le favicon du site"}
-            ),
         }
 
     def save(self, commit=True):
         instance = super().save(commit=False)
 
-        # Logo par défaut : le favicon du site (issue #27). On ne l'impose que si
-        # l'utilisateur n'a pas saisi de logo manuel.
-        if not instance.logo_url and instance.url:
+        # Logo dérivé automatiquement du favicon du site (issues #27, #50). On le
+        # (re)calcule à la création, quand il manque, ou si l'URL a changé.
+        if instance.url and (not instance.logo_url or "url" in self.changed_data):
             instance.logo_url = favicon_service_url(instance.url)
 
         if commit:

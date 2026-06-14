@@ -186,9 +186,8 @@ chacun renseigne **sa propre clé API**.
    **Options → IA**, à côté des infos de quota du tier gratuit).
 2. Dans **Options → IA**, choisir le **fournisseur** et coller la clé (et,
    facultativement, le modèle dans le menu déroulant). Chaque fournisseur garde
-   sa propre clé, son modèle et sa limite, stockés **chiffrés** en base (Fernet,
-   comme les mots de passe des sites) ; on bascule de l'un à l'autre sans
-   ressaisie.
+   sa propre clé, son modèle et sa limite, stockés **chiffrés** en base
+   (Fernet) ; on bascule de l'un à l'autre sans ressaisie.
 3. Depuis la liste des candidatures, **« ✨ Coaching IA »** ouvre une fenêtre
    modale : à partir du dernier CV chargé (analysé par Gemini) et des statistiques
    (volume, motifs de refus, délais…), l'IA propose un positionnement et des

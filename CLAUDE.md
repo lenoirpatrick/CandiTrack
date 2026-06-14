@@ -50,7 +50,8 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 
 ## Modèles (`tracking/models.py`)
 
-`JobSite` (mot de passe chiffré, `is_builtin`, `logo_url`), `Candidature` (cœur
+`JobSite` (nom, URL, `is_builtin`, `logo_url` — plus d'identifiants depuis
+l'issue #43), `Candidature` (cœur
 du suivi, étapes de progression + `motif_cloture` = clôture), `StatusHistory`,
 `Reminder`, `Interview`, `Contact`, `ApiToken`, `CV`, `AIConfig` (singleton de
 config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations

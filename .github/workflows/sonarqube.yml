@@ -43,7 +43,7 @@ jobs:
 
       - name: Lancer les tests avec couverture
         env:
-          # Clé Fernet éphémère : les tests chiffrent des mots de passe de sites.
+          # Clé Fernet éphémère : les tests chiffrent des clés API IA.
           CANDITRACK_FERNET_KEY: ${{ secrets.SONAR_FERNET_KEY }}
         run: |
           # Génère une clé Fernet jetable si aucun secret n'est fourni.

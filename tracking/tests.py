@@ -1270,10 +1270,24 @@ class CVAnalysisTests(TestCase):
     def test_parse_ecarte_les_liens_dangereux(self):
         """Un schéma non http(s) est écarté (issue #44)."""
         text = json.dumps(
-            {"experiences": [{"poste": "Dev", "lien": "javascript:alert(1)"}]}
+            {
+                "experiences": [
+                    {"poste": "A", "lien": "javascript:alert(1)"},
+                    {"poste": "B", "lien": "ftp://host.example/x"},
+                ]
+            }
         )
         data = coaching._parse_cv_analysis(text)
         self.assertEqual(data["experiences"][0]["lien"], "")
+        self.assertEqual(data["experiences"][1]["lien"], "")
+
+    def test_parse_promeut_les_liens_http_en_https(self):
+        """Un lien http est promu en https pour éviter le contenu mixte (issue #44)."""
+        text = json.dumps(
+            {"experiences": [{"poste": "Dev", "lien": "http://acme.example/x"}]}
+        )
+        data = coaching._parse_cv_analysis(text)
+        self.assertEqual(data["experiences"][0]["lien"], "https://acme.example/x")
 
     def _docx_bytes(self, text):
         import io

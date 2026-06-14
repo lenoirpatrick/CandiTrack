@@ -249,12 +249,18 @@ def _as_str_list(value):
 
 
 def _as_url(value):
-    """URL http(s) nettoyée, ou chaîne vide (écarte les schémas douteux)."""
+    """URL https nettoyée, ou chaîne vide.
+
+    Seuls les schémas http/https sont acceptés ; un lien http est promu en https
+    (évite tout contenu mixte sur une page servie en https) et les schémas
+    douteux (``javascript:``…) sont écartés.
+    """
     url = _as_text(value)
     if not url:
         return ""
-    if url.startswith(("http://", "https://")):
-        return url
+    scheme, sep, rest = url.partition("://")
+    if sep:
+        return "https://" + rest if scheme.lower() in {"http", "https"} else ""
     # Tolère une URL sans schéma (« exemple.com ») en la préfixant en https.
     if "." in url and " " not in url and ":" not in url:
         return "https://" + url

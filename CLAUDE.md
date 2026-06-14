@@ -10,6 +10,11 @@ commentaires, messages de commit).
 - Templates avec **CSS inline** dans `templates/base.html` (pas de dossier
   `static/` source) ; thème clair/sombre via variables CSS + attribut
   `data-theme` (voir `docs/palette.md`).
+- Mise en page : **sidebar latérale rétractable** (issue #35) — état desktop
+  `data-sidebar="expanded|collapsed"` sur `<html>` (persisté dans localStorage,
+  pré-appliqué en `<head>` anti-flash), tiroir mobile via `.sidebar-open` +
+  bouton `#menu-btn`. L'entrée Options est épinglée en bas (`.sidebar-foot`).
+  Variables `--radius`, `--shadow*`, `--sidebar-*` pour le style corporate.
 - Aucune authentification sur les vues : l'application est mono-utilisateur.
 
 ## Configuration (`.env`)

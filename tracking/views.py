@@ -8,6 +8,7 @@ from django.contrib import messages
 from django.db.models import Case, IntegerField, Q, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -311,7 +312,13 @@ def cv_toggle_active(request, pk):
     cv.save(update_fields=["actif"])
     etat = "réactivé" if cv.actif else "archivé"
     messages.success(request, f"CV « {cv.label} » {etat}.")
-    return redirect(request.POST.get("next") or "tracking:cv_list")
+    # On ne redirige vers « next » que s'il pointe vers ce site (anti open-redirect).
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
+    return redirect("tracking:cv_list")
 
 
 def _cv_localisations(cv):

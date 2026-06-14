@@ -1387,6 +1387,23 @@ class CVArchiveTests(TestCase):
         resp = self.client.get(reverse("tracking:cv_toggle_active", args=[cv.pk]))
         self.assertEqual(resp.status_code, 405)
 
+    def test_toggle_next_local_respecte(self):
+        cv = self._make_cv()
+        cible = reverse("tracking:cv_detail", args=[cv.pk])
+        resp = self.client.post(
+            reverse("tracking:cv_toggle_active", args=[cv.pk]), {"next": cible}
+        )
+        self.assertRedirects(resp, cible, fetch_redirect_response=False)
+
+    def test_toggle_next_externe_ignore(self):
+        """Un « next » hors site est ignoré (anti open-redirect, S5146)."""
+        cv = self._make_cv()
+        resp = self.client.post(
+            reverse("tracking:cv_toggle_active", args=[cv.pk]),
+            {"next": "https://evil.example/phish"},
+        )
+        self.assertRedirects(resp, reverse("tracking:cv_list"))
+
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class CVCandidatureLinkTests(TestCase):

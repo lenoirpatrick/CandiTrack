@@ -8,7 +8,7 @@
         {{ form.as_p }}
         <p class="muted">Formats acceptés : PDF, DOC, DOCX, ODT, RTF, TXT.</p>
         {% if ai_config.is_configured %}
-        <div class="toast info" style="margin:1rem 0;">
+        <div style="margin:1rem 0; padding:0.8rem 1rem; border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:8px;">
             <p style="margin:0 0 0.5rem;">⚠️ Ce CV sera analysé par l'IA configurée
                 (<strong>{{ ai_config.get_provider_display }}</strong>) pour en extraire
                 automatiquement les informations principales (expériences, formations…).</p>

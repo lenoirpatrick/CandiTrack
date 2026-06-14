@@ -1053,6 +1053,43 @@ class CVAnalysisTests(TestCase):
     def test_parse_json_invalide_renvoie_none(self):
         self.assertIsNone(coaching._parse_cv_analysis("pas du json"))
 
+    def _docx_bytes(self, text):
+        import io
+        import zipfile
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as archive:
+            archive.writestr(
+                "word/document.xml",
+                '<?xml version="1.0"?><w:document><w:body>'
+                f"<w:p><w:r><w:t>{text}</w:t></w:r></w:p>"
+                "</w:body></w:document>",
+            )
+        return buf.getvalue()
+
+    def test_extrait_le_texte_d_un_docx(self):
+        cv = CV.objects.create(
+            label="x",
+            file=SimpleUploadedFile("cv.docx", self._docx_bytes("Ingénieur logiciel")),
+        )
+        self.assertIn("Ingénieur logiciel", coaching._cv_text(cv))
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(CV_ANALYSIS_JSON, 1, 1, 2),
+    )
+    def test_analyse_docx_passe_le_texte_dans_le_prompt(self, gen):
+        self._configure_ai()  # Gemini par défaut
+        cv = CV.objects.create(
+            label="x",
+            file=SimpleUploadedFile("cv.docx", self._docx_bytes("Ingénieur logiciel")),
+        )
+        coaching.analyze_cv(cv)
+        self.assertTrue(cv.is_analyzed)
+        # Word n'est pas joignable : le texte extrait part dans le prompt, sans pièce jointe.
+        self.assertIsNone(gen.call_args.kwargs.get("attachments"))
+        self.assertIn("Ingénieur logiciel", gen.call_args.args[0])
+
 
 def io_bytes(data):
     """Petit helper : un flux binaire lisible pour simuler HTTPError.read()."""

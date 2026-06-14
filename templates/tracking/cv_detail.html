@@ -23,7 +23,7 @@
 </div>
 
 {% if cv.analysis_error %}
-<div class="toast error" style="margin-top:1rem;">⚠️ {{ cv.analysis_error }}</div>
+<div style="margin-top:1rem; padding:0.8rem 1rem; border:1px solid var(--border); border-left:4px solid #e0584b; border-radius:8px;">⚠️ {{ cv.analysis_error }}</div>
 {% endif %}
 
 {% if cv.is_analyzed %}

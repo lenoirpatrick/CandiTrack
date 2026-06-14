@@ -9,7 +9,11 @@ du client HTTP brut (:mod:`tracking.ai`). Deux usages :
 - :func:`analyze_cv` — extraction des informations principales d'un CV (issue #44).
 """
 
+import html
+import io
 import json
+import re
+import zipfile
 
 from django.db.models import Count
 from django.utils import timezone
@@ -44,19 +48,42 @@ def _latest_cv_attachment():
     return cv_attachment(CV.objects.order_by("-uploaded_at").first())
 
 
+def _office_xml_text(raw, member, para_close):
+    """Texte d'un document Office (zip + XML), paragraphes séparés (stdlib)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            xml = archive.read(member).decode("utf-8", errors="replace")
+    except (zipfile.BadZipFile, KeyError, OSError, ValueError):
+        return ""
+    # Saut de ligne en fin de paragraphe, puis suppression de toutes les balises.
+    xml = xml.replace(para_close, "\n")
+    text = re.sub(r"<[^>]+>", "", xml)
+    return html.unescape(text).strip()
+
+
 def _cv_text(cv):
-    """Texte brut d'un CV au format texte (fournisseurs autres que Gemini)."""
+    """Texte brut d'un CV pour les fournisseurs qui ne lisent pas les pièces jointes.
+
+    Gère, en bibliothèque standard uniquement, les formats texte (.txt), Word
+    (.docx) et OpenDocument (.odt). Renvoie une chaîne vide pour les formats non
+    extractibles (ex. PDF, à confier à Gemini).
+    """
     if not cv or not cv.file:
         return ""
-    mime = ai.guess_mime(cv.file.name) or ""
-    if not mime.startswith("text/"):
-        return ""
+    name = (cv.file.name or "").lower()
     try:
         with cv.file.open("rb") as handle:
             raw = handle.read(MAX_CV_BYTES)
     except (OSError, ValueError):
         return ""
-    return raw.decode("utf-8", errors="replace").strip()
+    if name.endswith(".docx"):
+        return _office_xml_text(raw, "word/document.xml", "</w:p>")
+    if name.endswith(".odt"):
+        return _office_xml_text(raw, "content.xml", "</text:p>")
+    mime = ai.guess_mime(cv.file.name) or ""
+    if mime.startswith("text/"):
+        return raw.decode("utf-8", errors="replace").strip()
+    return ""
 
 
 def _run(config, prompt, attachments=None):
@@ -283,8 +310,10 @@ def analyze_cv(cv, config=None):
         text = _cv_text(cv)
         if not text:
             cv.analysis_error = (
-                "Ce format de CV ne peut être lu que par Google Gemini. "
-                "Choisis Gemini dans Options → IA, ou charge un CV au format texte."
+                "Ce format de CV n'a pas pu être lu par le fournisseur actif "
+                f"({config.get_provider_display()}). Les PDF sont lus directement "
+                "par Google Gemini ; les formats Word (.docx), OpenDocument (.odt) "
+                "et texte (.txt) sont lus par tous les fournisseurs."
             )
             cv.save(update_fields=cv.ANALYSIS_FIELDS)
             return cv

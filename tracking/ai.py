@@ -18,7 +18,16 @@ import urllib.request
 from dataclasses import dataclass
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
+# Fournisseurs partageant le format « chat completions » d'OpenAI.
+CHAT_COMPLETIONS_URLS = {
+    "mistral": "https://api.mistral.ai/v1/chat/completions",
+    "openai": "https://api.openai.com/v1/chat/completions",
+    "perplexity": "https://api.perplexity.ai/chat/completions",
+}
+# Plafond de tokens de sortie (requis par l'API Anthropic).
+MAX_OUTPUT_TOKENS = 4096
 
 # Types de pièces jointes que Gemini sait lire directement (issue #33).
 SUPPORTED_MIME_PREFIXES = ("application/pdf", "image/", "text/")
@@ -58,11 +67,17 @@ def generate(prompt, *, api_key, model, provider="gemini", attachments=None):
     """
     if not api_key:
         raise AIError("Aucune clé API configurée.")
-    if provider == "mistral":
-        return _mistral_generate(prompt, api_key=api_key, model=model)
-    return _gemini_generate(
-        prompt, api_key=api_key, model=model, attachments=attachments
-    )
+    if provider == "gemini":
+        return _gemini_generate(
+            prompt, api_key=api_key, model=model, attachments=attachments
+        )
+    if provider == "anthropic":
+        return _anthropic_generate(prompt, api_key=api_key, model=model)
+    if provider in CHAT_COMPLETIONS_URLS:
+        return _chat_completions_generate(
+            prompt, api_key=api_key, model=model, provider=provider
+        )
+    raise AIError(f"Fournisseur d'IA inconnu : {provider}.")
 
 
 def _request_json(url, headers, payload):
@@ -102,7 +117,8 @@ def _gemini_generate(prompt, *, api_key, model, attachments=None):
     return _parse_gemini(body)
 
 
-def _mistral_generate(prompt, *, api_key, model):
+def _chat_completions_generate(prompt, *, api_key, model, provider):
+    """Mistral / OpenAI / Perplexity : API « chat completions » identique."""
     payload = json.dumps(
         {
             "model": model,
@@ -114,8 +130,27 @@ def _mistral_generate(prompt, *, api_key, model):
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
     }
-    body = _request_json(MISTRAL_URL, headers, payload)
-    return _parse_mistral(body)
+    body = _request_json(CHAT_COMPLETIONS_URLS[provider], headers, payload)
+    return _parse_chat_completions(body)
+
+
+def _anthropic_generate(prompt, *, api_key, model):
+    """Anthropic (Claude) : API Messages."""
+    payload = json.dumps(
+        {
+            "model": model,
+            "max_tokens": MAX_OUTPUT_TOKENS,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+        }
+    ).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": api_key,
+        "anthropic-version": ANTHROPIC_VERSION,
+    }
+    body = _request_json(ANTHROPIC_URL, headers, payload)
+    return _parse_anthropic(body)
 
 
 def _http_error_message(exc):
@@ -160,8 +195,8 @@ def _parse_gemini(body):
     )
 
 
-def _parse_mistral(body):
-    """Texte + tokens du premier message de la réponse Mistral (issue #36)."""
+def _parse_chat_completions(body):
+    """Texte + tokens d'une réponse « chat completions » (Mistral/OpenAI/Perplexity)."""
     choices = body.get("choices") or []
     if not choices:
         raise AIError("L'IA n'a renvoyé aucune réponse.")
@@ -174,4 +209,23 @@ def _parse_mistral(body):
         prompt_tokens=usage.get("prompt_tokens", 0),
         completion_tokens=usage.get("completion_tokens", 0),
         total_tokens=usage.get("total_tokens", 0),
+    )
+
+
+def _parse_anthropic(body):
+    """Texte + tokens d'une réponse Anthropic (API Messages)."""
+    blocks = body.get("content") or []
+    text = "".join(
+        block.get("text", "") for block in blocks if block.get("type") == "text"
+    ).strip()
+    if not text:
+        raise AIError("L'IA n'a renvoyé aucune réponse.")
+    usage = body.get("usage", {})
+    prompt_tokens = usage.get("input_tokens", 0)
+    completion_tokens = usage.get("output_tokens", 0)
+    return GenerationResult(
+        text=text,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=prompt_tokens + completion_tokens,
     )

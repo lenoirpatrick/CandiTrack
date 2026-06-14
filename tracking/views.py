@@ -343,65 +343,79 @@ def help_page(request):
             _clear_ai_key(request, AIConfig.load())
         return redirect("tracking:help")
 
+    config = AIConfig.load()
     return render(
         request,
         "tracking/help.html",
         {
             "tokens": ApiToken.objects.all(),
             "settings_token": settings.CANDITRACK_API_TOKEN,
-            "ai_config": AIConfig.load(),
-            "ai_usage": _ai_usage_context(),
+            "ai_config": config,
+            "ai_providers": _ai_providers_context(config),
         },
     )
 
 
-def _ai_usage_context():
-    """Consommation du mois courant par fournisseur, vs limite (issue #36)."""
-    config = AIConfig.load()
-    limits = {
-        "gemini": config.gemini_monthly_limit,
-        "mistral": config.mistral_monthly_limit,
+def _provider_usage(provider, limit):
+    """Consommation du mois courant d'un fournisseur, vs sa limite (issue #36)."""
+    summary = AIUsage.month_summary(provider)
+    tokens = summary["tokens"]
+    percent = round(100 * tokens / limit) if limit else 0
+    return {
+        "calls": summary["calls"],
+        "tokens": tokens,
+        "limit": limit,
+        "percent": min(percent, 100),
+        "reached": bool(limit) and tokens >= limit,
     }
-    usage = {}
-    for provider, limit in limits.items():
-        summary = AIUsage.month_summary(provider)
-        tokens = summary["tokens"]
-        percent = round(100 * tokens / limit) if limit else 0
-        usage[provider] = {
-            "calls": summary["calls"],
-            "tokens": tokens,
-            "limit": limit,
-            "percent": min(percent, 100),
-            "reached": bool(limit) and tokens >= limit,
-        }
-    return usage
+
+
+def _ai_providers_context(config):
+    """Données par fournisseur pour la page Options → IA (issues #34, #36, #39)."""
+    providers = []
+    for value, label in AIConfig.Provider.choices:
+        model = getattr(config, f"{value}_model")
+        models = AIConfig.MODELS_BY_PROVIDER[value]
+        limit = getattr(config, f"{value}_monthly_limit")
+        providers.append({
+            "value": value,
+            "label": label,
+            "active": config.provider == value,
+            "key_set": bool(getattr(config, f"{value}_api_key")),
+            "key_field": f"{value}_api_key",
+            "model_field": f"{value}_model",
+            "limit_field": f"{value}_monthly_limit",
+            "model": model,
+            "models": models,
+            "model_in_choices": model in dict(models),
+            "monthly_limit": limit,
+            "usage": _provider_usage(value, limit),
+            "info": AIConfig.PROVIDER_INFO.get(value, {}),
+        })
+    return providers
 
 
 def _save_ai_config(request):
-    """Enregistre la config IA (issues #33, #34).
+    """Enregistre la config IA (issues #33, #34, #36, #39).
 
-    Le fournisseur actif et les modèles sont mis à jour ; chaque clé n'est
-    remplacée que si une valeur non vide est fournie (on conserve sinon la clé
-    déjà saisie pour chaque fournisseur).
+    Le fournisseur actif, les modèles et les limites sont mis à jour pour tous
+    les fournisseurs ; chaque clé n'est remplacée que si une valeur non vide est
+    fournie (on conserve sinon la clé déjà saisie pour chaque fournisseur).
     """
     config = AIConfig.load()
     provider = (request.POST.get("provider") or "").strip()
     if provider in AIConfig.Provider.values:
         config.provider = provider
-    config.gemini_model = (
-        (request.POST.get("gemini_model") or "").strip() or AIConfig.DEFAULT_GEMINI_MODEL
-    )
-    config.mistral_model = (
-        (request.POST.get("mistral_model") or "").strip() or AIConfig.DEFAULT_MISTRAL_MODEL
-    )
-    config.gemini_monthly_limit = _positive_int(request.POST.get("gemini_monthly_limit"))
-    config.mistral_monthly_limit = _positive_int(request.POST.get("mistral_monthly_limit"))
-    gemini_key = (request.POST.get("gemini_api_key") or "").strip()
-    if gemini_key:
-        config.gemini_api_key = gemini_key
-    mistral_key = (request.POST.get("mistral_api_key") or "").strip()
-    if mistral_key:
-        config.mistral_api_key = mistral_key
+    for value, _ in AIConfig.Provider.choices:
+        model = (request.POST.get(f"{value}_model") or "").strip()
+        setattr(config, f"{value}_model", model or AIConfig.DEFAULTS[value])
+        setattr(
+            config, f"{value}_monthly_limit",
+            _positive_int(request.POST.get(f"{value}_monthly_limit")),
+        )
+        key = (request.POST.get(f"{value}_api_key") or "").strip()
+        if key:
+            setattr(config, f"{value}_api_key", key)
     config.save()
     messages.success(request, "Configuration IA enregistrée.")
 
@@ -415,15 +429,11 @@ def _positive_int(value):
 
 
 def _clear_ai_key(request, config):
-    """Supprime la clé du fournisseur actif (issue #34)."""
-    if config.provider == AIConfig.Provider.MISTRAL:
-        config.mistral_api_key = ""
-        config.save(update_fields=["mistral_api_key", "updated_at"])
-        messages.success(request, "Clé Mistral supprimée.")
-    else:
-        config.gemini_api_key = ""
-        config.save(update_fields=["gemini_api_key", "updated_at"])
-        messages.success(request, "Clé Gemini supprimée.")
+    """Supprime la clé du fournisseur actif (issues #34, #39)."""
+    field = f"{config.provider}_api_key"
+    setattr(config, field, "")
+    config.save(update_fields=[field, "updated_at"])
+    messages.success(request, f"Clé {config.get_provider_display()} supprimée.")
 
 
 # --- Coaching IA (issue #33) ----------------------------------------------

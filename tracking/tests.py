@@ -470,6 +470,24 @@ class AIConfigModelTests(TestCase):
     def test_mistral_default_model(self):
         self.assertEqual(AIConfig.DEFAULT_MISTRAL_MODEL, "mistral-small-latest")
 
+    def test_all_providers_available(self):
+        """Issue #39 — ChatGPT, Claude et Perplexity s'ajoutent à Gemini/Mistral."""
+        values = AIConfig.Provider.values
+        for provider in ("gemini", "mistral", "openai", "anthropic", "perplexity"):
+            self.assertIn(provider, values)
+            self.assertIn(provider, AIConfig.MODELS_BY_PROVIDER)
+            self.assertIn(provider, AIConfig.PROVIDER_INFO)
+
+    def test_openai_provider_active_key_and_model(self):
+        config = AIConfig.load()
+        config.provider = AIConfig.Provider.OPENAI
+        config.openai_api_key = "sk-test"
+        config.save()
+        config = AIConfig.load()
+        self.assertEqual(config.api_key, "sk-test")
+        self.assertEqual(config.model, AIConfig.DEFAULTS["openai"])
+        self.assertTrue(config.is_configured)
+
 
 @override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
 class AIConfigViewTests(TestCase):
@@ -478,7 +496,7 @@ class AIConfigViewTests(TestCase):
     def test_help_page_shows_ai_section(self):
         resp = self.client.get(reverse("tracking:help"))
         self.assertContains(resp, "Coaching IA")
-        self.assertContains(resp, "Clé API Gemini")
+        self.assertContains(resp, "Google Gemini")
 
     def test_default_model_is_25_flash(self):
         self.assertEqual(AIConfig.DEFAULT_MODEL, "gemini-2.5-flash")
@@ -491,6 +509,29 @@ class AIConfigViewTests(TestCase):
         self.assertContains(resp, "gemini-2.5-flash")
         self.assertContains(resp, "mistral-small-latest")
         self.assertContains(resp, "Mistral AI")
+
+    def test_help_page_shows_new_providers(self):
+        """Issue #39 — OpenAI, Anthropic et Perplexity et leurs liens doc."""
+        resp = self.client.get(reverse("tracking:help"))
+        self.assertContains(resp, "OpenAI (ChatGPT)")
+        self.assertContains(resp, "Anthropic (Claude)")
+        self.assertContains(resp, "Perplexity")
+        self.assertContains(resp, "platform.openai.com/docs/guides/rate-limits")
+        self.assertContains(resp, "platform.claude.com/docs/en/api/rate-limits")
+        self.assertContains(resp, "docs.perplexity.ai")
+
+    def test_ai_save_anthropic_provider(self):
+        self.client.post(
+            reverse("tracking:help"),
+            {
+                "action": "ai_save", "provider": "anthropic",
+                "anthropic_api_key": "sk-ant", "anthropic_model": "claude-opus-4-8",
+            },
+        )
+        config = AIConfig.load()
+        self.assertEqual(config.provider, "anthropic")
+        self.assertEqual(config.api_key, "sk-ant")
+        self.assertEqual(config.model, "claude-opus-4-8")
 
     def test_options_page_has_theme_picker(self):
         resp = self.client.get(reverse("tracking:help"))
@@ -811,6 +852,55 @@ class MistralClientTests(TestCase):
         urlopen.return_value = self._response({"choices": []})
         with self.assertRaises(ai.AIError):
             ai.generate("hi", api_key="k", model="m", provider="mistral")
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_openai_uses_openai_url(self, urlopen):
+        urlopen.return_value = self._response(
+            {"choices": [{"message": {"content": "Hello"}}],
+             "usage": {"total_tokens": 7}}
+        )
+        out = ai.generate("hi", api_key="k", model="gpt-4o-mini", provider="openai")
+        self.assertEqual(out.text, "Hello")
+        self.assertIn("api.openai.com", urlopen.call_args.args[0].full_url)
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_perplexity_uses_perplexity_url(self, urlopen):
+        urlopen.return_value = self._response(
+            {"choices": [{"message": {"content": "Hi"}}], "usage": {"total_tokens": 3}}
+        )
+        ai.generate("hi", api_key="k", model="sonar", provider="perplexity")
+        self.assertIn("api.perplexity.ai", urlopen.call_args.args[0].full_url)
+
+
+class AnthropicClientTests(TestCase):
+    """Issue #39 — client HTTP Anthropic (API Messages), réseau simulé."""
+
+    def _response(self, payload):
+        cm = mock.MagicMock()
+        cm.__enter__.return_value.read.return_value = json.dumps(payload).encode()
+        return cm
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_extracts_text_and_tokens(self, urlopen):
+        urlopen.return_value = self._response(
+            {
+                "content": [{"type": "text", "text": "Bonjour"}],
+                "usage": {"input_tokens": 7, "output_tokens": 5},
+            }
+        )
+        out = ai.generate("hi", api_key="k", model="claude-haiku-4-5", provider="anthropic")
+        self.assertEqual(out.text, "Bonjour")
+        self.assertEqual(out.total_tokens, 12)
+        # En-tête de version Anthropic + bonne URL.
+        req = urlopen.call_args.args[0]
+        self.assertIn("api.anthropic.com", req.full_url)
+        self.assertEqual(req.headers.get("Anthropic-version"), ai.ANTHROPIC_VERSION)
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_empty_content_raises(self, urlopen):
+        urlopen.return_value = self._response({"content": []})
+        with self.assertRaises(ai.AIError):
+            ai.generate("hi", api_key="k", model="m", provider="anthropic")
 
 
 @override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)

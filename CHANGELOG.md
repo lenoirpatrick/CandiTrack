@@ -30,6 +30,9 @@ release du même nom.
   qui ont généré le texte (ex. « Généré par 🔵 Google Gemini · gemini-2.5-flash »).
 - #38 — Options → IA : rappel des **quotas du tier gratuit** de chaque fournisseur
   (Gemini, Mistral) avec un **lien vers la documentation officielle**.
+- #39 — Trois fournisseurs d'IA supplémentaires : **OpenAI (ChatGPT)**,
+  **Anthropic (Claude)** et **Perplexity**, chacun avec sa clé, son modèle, sa
+  limite mensuelle, ses infos de tier gratuit et son lien doc/clé.
 
 ## [Non publié] — 1.0.2
 

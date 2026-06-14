@@ -134,9 +134,9 @@
                 <h2 style="margin-top:0;">Coaching IA</h2>
                 <p>CandiTrack peut proposer un <strong>coaching</strong> et des <strong>mails de
                     relance</strong> générés par l'IA. Choisissez votre <strong>fournisseur</strong>
-                    (Google Gemini ou Mistral AI) et renseignez <strong>votre propre clé API</strong>
-                    (vos crédits, vos données — chaque clé est stockée chiffrée et n'est jamais
-                    réaffichée).</p>
+                    (Gemini, Mistral, OpenAI/ChatGPT, Anthropic/Claude ou Perplexity) et renseignez
+                    <strong>votre propre clé API</strong> (vos crédits, vos données — chaque clé est
+                    stockée chiffrée et n'est jamais réaffichée).</p>
 
                 {% if ai_config.is_configured %}
                 <p>État : <span class="badge">✅ configuré</span> —
@@ -158,51 +158,31 @@
                         </select>
                     </div>
 
-                    <!-- Bloc Gemini -->
-                    <div class="provider-block" data-provider="gemini"{% if ai_config.provider != "gemini" %} hidden{% endif %}>
-                        <p class="muted">Clé gratuite sur
-                            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
+                    {% for p in ai_providers %}
+                    <div class="provider-block" data-provider="{{ p.value }}"{% if not p.active %} hidden{% endif %}>
+                        {% if p.info.key_url %}
+                        <p class="muted">Obtenir une clé :
+                            <a href="{{ p.info.key_url }}" target="_blank" rel="noopener">{{ p.label }} ↗</a></p>
+                        {% endif %}
                         <div class="field">
-                            <label for="gemini_api_key">Clé API Gemini</label>
-                            <input id="gemini_api_key" name="gemini_api_key" type="password" autocomplete="off"
-                                   placeholder="{% if ai_config.gemini_api_key %}•••••••• (laisser vide pour conserver){% else %}Collez votre clé{% endif %}">
+                            <label for="{{ p.key_field }}">Clé API — {{ p.label }}</label>
+                            <input id="{{ p.key_field }}" name="{{ p.key_field }}" type="password" autocomplete="off"
+                                   placeholder="{% if p.key_set %}•••••••• (laisser vide pour conserver){% else %}Collez votre clé{% endif %}">
                         </div>
                         <div class="field">
-                            <label for="gemini_model">Modèle Gemini</label>
-                            <select id="gemini_model" name="gemini_model">
-                                {% if not ai_config.gemini_model_in_choices %}
-                                <option value="{{ ai_config.gemini_model }}" selected>{{ ai_config.gemini_model }} (personnalisé)</option>
+                            <label for="{{ p.model_field }}">Modèle</label>
+                            <select id="{{ p.model_field }}" name="{{ p.model_field }}">
+                                {% if not p.model_in_choices %}
+                                <option value="{{ p.model }}" selected>{{ p.model }} (personnalisé)</option>
                                 {% endif %}
-                                {% for value, label in ai_config.GEMINI_MODELS %}
-                                <option value="{{ value }}" {% if value == ai_config.gemini_model %}selected{% endif %}>{{ label }}</option>
+                                {% for value, label in p.models %}
+                                <option value="{{ value }}" {% if value == p.model %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        {% include "tracking/_ai_usage.html" with usage=ai_usage.gemini limit_value=ai_config.gemini_monthly_limit field="gemini_monthly_limit" info=ai_config.PROVIDER_INFO.gemini %}
+                        {% include "tracking/_ai_usage.html" with usage=p.usage limit_value=p.monthly_limit field=p.limit_field info=p.info %}
                     </div>
-
-                    <!-- Bloc Mistral -->
-                    <div class="provider-block" data-provider="mistral"{% if ai_config.provider != "mistral" %} hidden{% endif %}>
-                        <p class="muted">Clé sur
-                            <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">la console Mistral</a>.</p>
-                        <div class="field">
-                            <label for="mistral_api_key">Clé API Mistral</label>
-                            <input id="mistral_api_key" name="mistral_api_key" type="password" autocomplete="off"
-                                   placeholder="{% if ai_config.mistral_api_key %}•••••••• (laisser vide pour conserver){% else %}Collez votre clé{% endif %}">
-                        </div>
-                        <div class="field">
-                            <label for="mistral_model">Modèle Mistral</label>
-                            <select id="mistral_model" name="mistral_model">
-                                {% if not ai_config.mistral_model_in_choices %}
-                                <option value="{{ ai_config.mistral_model }}" selected>{{ ai_config.mistral_model }} (personnalisé)</option>
-                                {% endif %}
-                                {% for value, label in ai_config.MISTRAL_MODELS %}
-                                <option value="{{ value }}" {% if value == ai_config.mistral_model %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        {% include "tracking/_ai_usage.html" with usage=ai_usage.mistral limit_value=ai_config.mistral_monthly_limit field="mistral_monthly_limit" info=ai_config.PROVIDER_INFO.mistral %}
-                    </div>
+                    {% endfor %}
 
                     <div class="form-actions">
                         <button class="btn" type="submit">Enregistrer</button>

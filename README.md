@@ -178,16 +178,17 @@ l'extension ; l'hôte doit figurer dans les `host_permissions` du `manifest.json
 ## Coaching IA (issues #33, #34)
 
 CandiTrack peut générer un **coaching** et des **mails de relance** via l'IA, au
-choix avec **Google Gemini** ou **Mistral AI**. La fonctionnalité est désactivée
-par défaut : chacun renseigne **sa propre clé API**.
+choix avec **Google Gemini**, **Mistral AI**, **OpenAI (ChatGPT)**, **Anthropic
+(Claude)** ou **Perplexity**. La fonctionnalité est désactivée par défaut :
+chacun renseigne **sa propre clé API**.
 
-1. Obtenir une clé sur [Google AI Studio](https://aistudio.google.com/apikey)
-   (Gemini) ou sur la [console Mistral](https://console.mistral.ai/api-keys).
+1. Obtenir une clé chez le fournisseur voulu (le lien est rappelé dans
+   **Options → IA**, à côté des infos de quota du tier gratuit).
 2. Dans **Options → IA**, choisir le **fournisseur** et coller la clé (et,
-   facultativement, le modèle dans le menu déroulant — défaut `gemini-2.5-flash`
-   pour Gemini, `mistral-small-latest` pour Mistral). Chaque fournisseur garde sa
-   propre clé, stockée **chiffrée** en base (Fernet, comme les mots de passe des
-   sites) et jamais réaffichée ; on bascule de l'un à l'autre sans ressaisie.
+   facultativement, le modèle dans le menu déroulant). Chaque fournisseur garde
+   sa propre clé, son modèle et sa limite, stockés **chiffrés** en base (Fernet,
+   comme les mots de passe des sites) ; on bascule de l'un à l'autre sans
+   ressaisie.
 3. Depuis la liste des candidatures, **« ✨ Coaching IA »** ouvre une fenêtre
    modale : à partir du dernier CV chargé (analysé par Gemini) et des statistiques
    (volume, motifs de refus, délais…), l'IA propose un positionnement et des

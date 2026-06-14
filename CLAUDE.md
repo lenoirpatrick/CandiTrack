@@ -57,11 +57,15 @@ emoji dans le libellé pour les menus).
 - Logos dérivés du favicon : `tracking/logos.py` (`favicon_service_url`, stdlib
   uniquement) ; chargé par défaut à l'enregistrement d'un site (issue #27).
 - Géométrie du donut de stats : `tracking/statistics.py`.
-- Coaching IA (issues #33, #34) : `tracking/ai.py` (clients REST **Gemini et
-  Mistral**, stdlib, `generate(..., provider=...)` aiguille) + `tracking/coaching.py`
+- Coaching IA (issues #33, #34, #39) : `tracking/ai.py` (clients REST stdlib pour
+  **Gemini, Mistral, OpenAI/ChatGPT, Anthropic/Claude, Perplexity** ;
+  `generate(..., provider=...)` aiguille — OpenAI/Mistral/Perplexity partagent le
+  format « chat completions », Anthropic a l'API Messages) + `tracking/coaching.py`
   (collecte du contexte CV/stats et prompts ; le CV n'est joint que pour Gemini).
-  `AIConfig` garde une clé + un modèle **par fournisseur** (chiffrés), le
-  `provider` actif détermine `api_key`/`model`. Config via `/aide/` (page Options,
+  `AIConfig` garde une clé + un modèle + une limite **par fournisseur** (champs
+  `<provider>_api_key/_model/_monthly_limit`, accès générique par getattr), le
+  `provider` actif détermine `api_key`/`model`. `MODELS_BY_PROVIDER`, `DEFAULTS`
+  et `PROVIDER_INFO` (tier gratuit + liens doc/clé) pilotent l'UI. Config via `/aide/` (page Options,
   catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan) et
   `api/candidatures/<pk>/relance/` (mail de relance) ; UI = modal partagé
   `#ai-modal` dans `base.html` (spinner + rendu Markdown).

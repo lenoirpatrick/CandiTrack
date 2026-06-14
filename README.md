@@ -212,7 +212,7 @@ données.
 | `/` (`/candidatures/`) | Liste des candidatures (créer / modifier / consulter) |
 | `/sites/` | Sites d'emploi : ajout, modification, suppression, logo (#366) |
 | `/stats/` | Statistiques (#367 — premiers KPI) |
-| `/cv/` | CV : chargement et suppression (#368) |
+| `/cv/` | CV : chargement, analyse IA des informations principales et suppression (#368, #44) |
 | `/aide/` | **Options** : apparence (thème), jetons de l'extension Chrome et configuration du coaching IA (#33) |
 
 ## Prochaines itérations
@@ -220,3 +220,6 @@ données.
 - #367 : KPI complets (taux de réponse par source, délais moyens, graphes)
 - #368 : reformatage du CV (technique/pro) + import LinkedIn
 - #365 : intégration API France Travail, rappels actifs et notifications
+
+> L'analyse IA du CV (extraction des informations principales) est disponible
+> depuis l'issue #44.

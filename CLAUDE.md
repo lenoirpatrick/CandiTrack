@@ -53,7 +53,9 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 `JobSite` (nom, URL, `is_builtin`, `logo_url` — plus d'identifiants depuis
 l'issue #43), `Candidature` (cœur
 du suivi, étapes de progression + `motif_cloture` = clôture), `StatusHistory`,
-`Reminder`, `Interview`, `Contact`, `ApiToken`, `CV`, `AIConfig` (singleton de
+`Reminder`, `Interview`, `Contact`, `ApiToken`, `CV` (avec analyse IA des
+informations principales — champs `analysis`/`analyzed_at`/… , issue #44),
+`AIConfig` (singleton de
 config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations
 `TextChoices` : `Source`, `Canal`, `Statut`, `MotifCloture` (certaines avec icône
 emoji dans le libellé pour les menus).
@@ -75,6 +77,12 @@ emoji dans le libellé pour les menus).
   catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan) et
   `api/candidatures/<pk>/relance/` (mail de relance) ; UI = modal partagé
   `#ai-modal` dans `base.html` (spinner + rendu Markdown).
+- Analyse de CV (issue #44) : `coaching.analyze_cv(cv)` demande à l'IA un JSON
+  structuré (profil, expériences, formations, compétences, langues, infos),
+  normalisé et stocké dans `CV.analysis`. CV joint pour Gemini, texte brut pour
+  les autres fournisseurs (formats texte seulement). Déclenchée au chargement via
+  la case « Analyser » (vue `cv_create`) ou à la demande (`cv_analyze`) ;
+  résultat affiché sur la fiche `cv_detail`.
 - Quotas IA (issue #36) : `ai.generate` renvoie un `GenerationResult` (texte +
   tokens) ; `coaching._run` journalise chaque appel dans `AIUsage`. `AIConfig`
   porte une limite mensuelle de tokens par fournisseur (0 = illimitée) ; la

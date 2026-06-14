@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ cv.label }} — CandiTrack{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <h1 style="margin:0;">{{ cv.label }}</h1>
+    <a class="btn secondary" href="{% url 'tracking:cv_list' %}">← Retour</a>
+</div>
+
+<div class="card">
+    <p>
+        <a href="{{ cv.file.url }}" target="_blank" rel="noopener">Télécharger le fichier</a>
+        · <span class="muted">Ajouté le {{ cv.uploaded_at|date:"d/m/Y H:i" }}</span>
+    </p>
+    <form method="post" action="{% url 'tracking:cv_analyze' cv.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn"{% if not ai_config.is_configured %} disabled{% endif %}>
+            {% if cv.is_analyzed %}Ré-analyser avec l'IA{% else %}Analyser avec l'IA{% endif %}
+        </button>
+    </form>
+    {% if not ai_config.is_configured %}
+    <span class="muted">Configurez une IA dans <a href="{% url 'tracking:help' %}#ia">Options → IA</a> pour analyser ce CV.</span>
+    {% endif %}
+</div>
+
+{% if cv.analysis_error %}
+<div class="toast error" style="margin-top:1rem;">⚠️ {{ cv.analysis_error }}</div>
+{% endif %}
+
+{% if cv.is_analyzed %}
+{% with a=cv.analysis %}
+<div class="card" style="margin-top:1rem;">
+    <h2 style="margin-top:0;">Analyse IA</h2>
+    {% if a.titre_profil %}<p><strong>Profil :</strong> {{ a.titre_profil }}</p>{% endif %}
+
+    {% if a.experiences %}
+    <h3>Expériences</h3>
+    <ul>
+        {% for exp in a.experiences %}
+        <li>
+            <strong>{{ exp.poste }}</strong>{% if exp.entreprise %} — {{ exp.entreprise }}{% endif %}
+            {% if exp.periode %} <span class="muted">({{ exp.periode }})</span>{% endif %}
+            {% if exp.description %}<br>{{ exp.description }}{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if a.formations %}
+    <h3>Formations</h3>
+    <ul>
+        {% for f in a.formations %}
+        <li>
+            <strong>{{ f.intitule }}</strong>{% if f.etablissement %} — {{ f.etablissement }}{% endif %}
+            {% if f.periode %} <span class="muted">({{ f.periode }})</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if a.competences %}
+    <h3>Compétences</h3>
+    <p>{{ a.competences|join:" · " }}</p>
+    {% endif %}
+
+    {% if a.langues %}
+    <h3>Langues</h3>
+    <p>{{ a.langues|join:" · " }}</p>
+    {% endif %}
+
+    {% if a.infos %}
+    <h3>Informations diverses</h3>
+    <p>{{ a.infos|linebreaksbr }}</p>
+    {% endif %}
+
+    <p class="ai-meta muted" style="margin-top:1rem;">
+        Analysé le {{ cv.analyzed_at|date:"d/m/Y H:i" }}
+        {% if cv.analysis_provider_label %}par {{ cv.analysis_provider_label }}{% endif %}
+        {% if cv.analysis_model %} · {{ cv.analysis_model }}{% endif %}
+    </p>
+</div>
+{% endwith %}
+{% elif not cv.analysis_error %}
+<p class="muted" style="margin-top:1rem;">Ce CV n'a pas encore été analysé.</p>
+{% endif %}
+{% endblock %}

@@ -1,4 +1,5 @@
 import json
+import tempfile
 import urllib.error
 from unittest import mock
 
@@ -7,9 +8,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from . import ai
+from . import ai, coaching
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
+    CV,
     AIConfig,
     AIUsage,
     ApiToken,
@@ -918,6 +920,138 @@ class CoachingProviderTests(TestCase):
         self.assertEqual(gen.call_args.kwargs["api_key"], "m-key")
         # Pas de pièce jointe CV pour Mistral (texte seul).
         self.assertIsNone(gen.call_args.kwargs.get("attachments"))
+
+
+CV_ANALYSIS_JSON = json.dumps(
+    {
+        "titre_profil": "Développeur Python",
+        "experiences": [
+            {
+                "poste": "Développeur backend",
+                "entreprise": "ACME",
+                "periode": "2020-2023",
+                "description": "APIs Django",
+            }
+        ],
+        "formations": [
+            {"intitule": "Master Informatique", "etablissement": "Univ", "periode": "2018"}
+        ],
+        "competences": ["Python", "Django"],
+        "langues": ["Français", "Anglais"],
+        "infos": "Permis B",
+    }
+)
+
+
+@override_settings(
+    CANDITRACK_FERNET_KEY=TEST_FERNET_KEY, MEDIA_ROOT=tempfile.mkdtemp()
+)
+class CVAnalysisTests(TestCase):
+    """Issue #44 — analyse IA des CV au chargement et à la demande."""
+
+    def _configure_ai(self):
+        config = AIConfig.load()
+        config.gemini_api_key = "k"
+        config.save()
+        return config
+
+    def _upload(self, analyser=True, content=b"Contenu du CV"):
+        upload = SimpleUploadedFile("cv.txt", content, content_type="text/plain")
+        data = {"label": "Mon CV", "file": upload}
+        if analyser:
+            data["analyser"] = "on"
+        return self.client.post(reverse("tracking:cv_create"), data)
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(CV_ANALYSIS_JSON, 10, 20, 30),
+    )
+    def test_upload_avec_analyse_stocke_les_infos(self, gen):
+        self._configure_ai()
+        self._upload(analyser=True)
+        self.assertTrue(gen.called)
+        cv = CV.objects.get()
+        self.assertTrue(cv.is_analyzed)
+        self.assertEqual(cv.analysis["titre_profil"], "Développeur Python")
+        self.assertEqual(len(cv.analysis["experiences"]), 1)
+        self.assertIn("Python", cv.analysis["competences"])
+        self.assertEqual(cv.analysis_provider, "gemini")
+        # La consommation de tokens est journalisée (issue #36).
+        self.assertEqual(AIUsage.objects.count(), 1)
+
+    @mock.patch("tracking.coaching.ai.generate")
+    def test_upload_sans_case_cochee_pas_d_analyse(self, gen):
+        self._configure_ai()
+        self._upload(analyser=False)
+        self.assertFalse(gen.called)
+        self.assertFalse(CV.objects.get().is_analyzed)
+
+    @mock.patch("tracking.coaching.ai.generate")
+    def test_upload_sans_ia_configuree_pas_d_analyse(self, gen):
+        self._upload(analyser=True)
+        self.assertFalse(gen.called)
+        self.assertFalse(CV.objects.get().is_analyzed)
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("ceci n'est pas du JSON", 1, 1, 2),
+    )
+    def test_reponse_illisible_enregistre_une_erreur(self, _gen):
+        self._configure_ai()
+        self._upload(analyser=True)
+        cv = CV.objects.get()
+        self.assertFalse(cv.is_analyzed)
+        self.assertTrue(cv.analysis_error)
+
+    @mock.patch("tracking.coaching.ai.generate")
+    def test_reanalyse_remet_a_zero_et_met_a_jour(self, gen):
+        config = self._configure_ai()
+        # Première analyse.
+        gen.return_value = ai.GenerationResult(CV_ANALYSIS_JSON, 1, 1, 2)
+        self._upload(analyser=True)
+        cv = CV.objects.get()
+        # Ré-analyse avec un autre contenu.
+        autre = json.dumps({"titre_profil": "Chef de projet", "competences": ["Agile"]})
+        gen.return_value = ai.GenerationResult(autre, 1, 1, 2)
+        self.client.post(reverse("tracking:cv_analyze", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertEqual(cv.analysis["titre_profil"], "Chef de projet")
+        self.assertEqual(cv.analysis["experiences"], [])
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(CV_ANALYSIS_JSON, 1, 1, 2),
+    )
+    def test_detail_affiche_les_sections(self, _gen):
+        self._configure_ai()
+        self._upload(analyser=True)
+        cv = CV.objects.get()
+        resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
+        self.assertContains(resp, "Expériences")
+        self.assertContains(resp, "Développeur Python")
+        self.assertContains(resp, "Python")
+
+    def test_formulaire_propose_la_case_si_ia_configuree(self):
+        self._configure_ai()
+        resp = self.client.get(reverse("tracking:cv_create"))
+        self.assertContains(resp, 'name="analyser"')
+
+    def test_formulaire_sans_case_si_pas_d_ia(self):
+        resp = self.client.get(reverse("tracking:cv_create"))
+        self.assertNotContains(resp, 'name="analyser"')
+
+    def test_liste_ne_montre_plus_la_note_future(self):
+        resp = self.client.get(reverse("tracking:cv_list"))
+        self.assertNotContains(resp, "prochaine itération")
+
+    def test_parse_tolere_les_balises_de_code(self):
+        text = "```json\n" + CV_ANALYSIS_JSON + "\n```"
+        data = coaching._parse_cv_analysis(text)
+        self.assertIsNotNone(data)
+        self.assertEqual(data["titre_profil"], "Développeur Python")
+
+    def test_parse_json_invalide_renvoie_none(self):
+        self.assertIsNone(coaching._parse_cv_analysis("pas du json"))
 
 
 def io_bytes(data):

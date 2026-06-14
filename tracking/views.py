@@ -289,25 +289,70 @@ def stats(request):
 
 @require_GET
 def cv_list(request):
-    """Issue #368 — list uploaded CVs (reformat/LinkedIn import come later)."""
+    """Issue #368 — liste des CV chargés (analyse IA optionnelle, issue #44)."""
     cvs = CV.objects.all()
     return render(request, "tracking/cv_list.html", {"cvs": cvs})
 
 
+@require_GET
+def cv_detail(request, pk):
+    """Détail d'un CV et de son analyse IA (issue #44)."""
+    cv = get_object_or_404(CV, pk=pk)
+    return render(
+        request,
+        "tracking/cv_detail.html",
+        {"cv": cv, "ai_config": AIConfig.load()},
+    )
+
+
+def _analyze_cv_safely(request, cv):
+    """Analyse un CV en convertissant les erreurs en messages (issue #44)."""
+    try:
+        coaching.analyze_cv(cv)
+    except AIError as exc:
+        messages.warning(request, f"CV chargé, mais l'analyse IA a échoué : {exc}")
+        return
+    if cv.analysis_error:
+        messages.warning(
+            request, f"CV chargé, mais l'analyse n'a pu aboutir : {cv.analysis_error}"
+        )
+    else:
+        messages.success(request, "CV chargé et analysé par l'IA.")
+
+
 def cv_create(request):
+    config = AIConfig.load()
     if request.method == "POST":
         form = CVForm(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
-            messages.success(request, "CV chargé.")
+            cv = form.save()
+            # Analyse IA optionnelle, si une IA est configurée et acceptée (issue #44).
+            if config.is_configured and request.POST.get("analyser"):
+                _analyze_cv_safely(request, cv)
+            else:
+                messages.success(request, "CV chargé.")
             return redirect("tracking:cv_list")
     else:
         form = CVForm()
     return render(
         request,
         "tracking/cv_form.html",
-        {"form": form, "title": "Charger un CV"},
+        {"form": form, "title": "Charger un CV", "ai_config": config},
     )
+
+
+@require_POST
+def cv_analyze(request, pk):
+    """(Ré)analyse un CV à la demande (issue #44)."""
+    cv = get_object_or_404(CV, pk=pk)
+    config = AIConfig.load()
+    if not config.is_configured:
+        messages.error(
+            request, "Aucune clé IA configurée. Renseignez-la dans Options → IA."
+        )
+    else:
+        _analyze_cv_safely(request, cv)
+    return redirect("tracking:cv_detail", pk=pk)
 
 
 def cv_delete(request, pk):

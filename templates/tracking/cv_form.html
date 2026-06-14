@@ -7,6 +7,17 @@
         {% csrf_token %}
         {{ form.as_p }}
         <p class="muted">Formats acceptés : PDF, DOC, DOCX, ODT, RTF, TXT.</p>
+        {% if ai_config.is_configured %}
+        <div class="toast info" style="margin:1rem 0;">
+            <p style="margin:0 0 0.5rem;">⚠️ Ce CV sera analysé par l'IA configurée
+                (<strong>{{ ai_config.get_provider_display }}</strong>) pour en extraire
+                automatiquement les informations principales (expériences, formations…).</p>
+            <label style="display:flex; gap:0.5rem; align-items:center; margin:0;">
+                <input type="checkbox" name="analyser" checked>
+                Analyser ce CV avec l'IA
+            </label>
+        </div>
+        {% endif %}
         <div style="margin-top:1rem;">
             <button type="submit" class="btn">Charger</button>
             <a class="btn secondary" href="{% url 'tracking:cv_list' %}">Annuler</a>

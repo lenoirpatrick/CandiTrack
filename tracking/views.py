@@ -293,7 +293,25 @@ def stats(request):
 def cv_list(request):
     """Issue #368 — liste des CV chargés (analyse IA optionnelle, issue #44)."""
     cvs = CV.objects.all()
-    return render(request, "tracking/cv_list.html", {"cvs": cvs})
+    return render(
+        request,
+        "tracking/cv_list.html",
+        {
+            "cvs": [cv for cv in cvs if cv.actif],
+            "cvs_archives": [cv for cv in cvs if not cv.actif],
+        },
+    )
+
+
+@require_POST
+def cv_toggle_active(request, pk):
+    """Archive ou réactive un CV (issue #48)."""
+    cv = get_object_or_404(CV, pk=pk)
+    cv.actif = not cv.actif
+    cv.save(update_fields=["actif"])
+    etat = "réactivé" if cv.actif else "archivé"
+    messages.success(request, f"CV « {cv.label} » {etat}.")
+    return redirect(request.POST.get("next") or "tracking:cv_list")
 
 
 def _cv_localisations(cv):

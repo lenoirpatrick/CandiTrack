@@ -362,6 +362,9 @@ class CV(models.Model):
     label = models.CharField(LIBELLE_VERBOSE, max_length=200)
     file = models.FileField("fichier", upload_to=cv_upload_path)
     uploaded_at = models.DateTimeField("ajouté le", auto_now_add=True)
+    # Un CV archivé reste en base mais n'est plus proposé pour de nouvelles
+    # candidatures (issues #48, #49).
+    actif = models.BooleanField("actif", default=True)
 
     # Analyse IA du contenu du CV (issue #44).
     analysis = models.JSONField("analyse IA", default=dict, blank=True)

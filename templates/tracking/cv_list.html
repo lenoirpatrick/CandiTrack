@@ -18,6 +18,10 @@
                 <td>{{ cv.uploaded_at|date:"d/m/Y H:i" }}</td>
                 <td class="row-actions">
                     <a href="{% url 'tracking:cv_detail' cv.pk %}">Détails</a>
+                    <form method="post" action="{% url 'tracking:cv_toggle_active' cv.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="linklike" title="Archiver ce CV">Archiver</button>
+                    </form>
                     <a href="{% url 'tracking:cv_delete' cv.pk %}">Supprimer</a>
                 </td>
             </tr>
@@ -25,7 +29,32 @@
         </tbody>
     </table>
     {% else %}
-    <p class="muted">Aucun CV chargé. <a href="{% url 'tracking:cv_create' %}">Chargez-en un</a>.</p>
+    <p class="muted">Aucun CV actif. <a href="{% url 'tracking:cv_create' %}">Chargez-en un</a>.</p>
     {% endif %}
 </div>
+
+{% if cvs_archives %}
+<div class="card">
+    <h2 style="margin-top:0;">📦 CV archivés</h2>
+    <table>
+        <thead><tr><th>Libellé</th><th>Fichier</th><th>Ajouté le</th><th>Actions</th></tr></thead>
+        <tbody>
+            {% for cv in cvs_archives %}
+            <tr class="closed-row">
+                <td><a href="{% url 'tracking:cv_detail' cv.pk %}">{{ cv.label }}</a> <span class="badge">archivé</span></td>
+                <td><a href="{{ cv.file.url }}" target="_blank" rel="noopener">Télécharger</a></td>
+                <td>{{ cv.uploaded_at|date:"d/m/Y H:i" }}</td>
+                <td class="row-actions">
+                    <form method="post" action="{% url 'tracking:cv_toggle_active' cv.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="linklike" title="Réactiver ce CV">Réactiver</button>
+                    </form>
+                    <a href="{% url 'tracking:cv_delete' cv.pk %}">Supprimer</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
 {% endblock %}

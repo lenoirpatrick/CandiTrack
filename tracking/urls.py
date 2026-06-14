@@ -28,6 +28,7 @@ urlpatterns = [
     path("cv/charger/", views.cv_create, name="cv_create"),
     path("cv/<int:pk>/", views.cv_detail, name="cv_detail"),
     path("cv/<int:pk>/analyser/", views.cv_analyze, name="cv_analyze"),
+    path("cv/<int:pk>/archiver/", views.cv_toggle_active, name="cv_toggle_active"),
     path("cv/<int:pk>/export/<str:fmt>/", views.cv_export, name="cv_export"),
     path("cv/<int:pk>/imprimer/", views.cv_print, name="cv_print"),
     path("cv/<int:pk>/supprimer/", views.cv_delete, name="cv_delete"),

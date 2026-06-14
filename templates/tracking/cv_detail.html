@@ -83,13 +83,18 @@
 </style>
 
 <div class="cv-head">
-    <h1>{{ cv.label }}</h1>
+    <h1>{{ cv.label }}{% if not cv.actif %} <span class="badge">archivé</span>{% endif %}</h1>
     <div class="cv-actions">
         <form method="post" action="{% url 'tracking:cv_analyze' cv.pk %}" style="display:inline;">
             {% csrf_token %}
             <button type="submit" class="btn"{% if not ai_config.is_configured %} disabled{% endif %}>
                 {% if cv.is_analyzed %}🔄 Ré-analyser{% else %}✨ Analyser avec l'IA{% endif %}
             </button>
+        </form>
+        <form method="post" action="{% url 'tracking:cv_toggle_active' cv.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="btn secondary">{% if cv.actif %}📦 Archiver{% else %}♻️ Réactiver{% endif %}</button>
         </form>
         <a class="btn secondary" href="{% url 'tracking:cv_list' %}">← Retour</a>
     </div>

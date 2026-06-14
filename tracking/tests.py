@@ -1349,6 +1349,45 @@ class CVAnalysisTests(TestCase):
         self.assertIn("Ingénieur logiciel", gen.call_args.args[0])
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CVArchiveTests(TestCase):
+    """Issue #48 — un CV peut être actif ou archivé."""
+
+    def _make_cv(self, label="CV", actif=True):
+        cv = CV.objects.create(
+            label=label, file=SimpleUploadedFile(f"{label}.txt", b"x")
+        )
+        if not actif:
+            cv.actif = False
+            cv.save(update_fields=["actif"])
+        return cv
+
+    def test_cv_actif_par_defaut(self):
+        self.assertTrue(self._make_cv().actif)
+
+    def test_archiver_puis_reactiver(self):
+        cv = self._make_cv()
+        self.client.post(reverse("tracking:cv_toggle_active", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertFalse(cv.actif)
+        self.client.post(reverse("tracking:cv_toggle_active", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertTrue(cv.actif)
+
+    def test_liste_separe_actifs_et_archives(self):
+        self._make_cv("Actif")
+        self._make_cv("Vieux", actif=False)
+        resp = self.client.get(reverse("tracking:cv_list"))
+        self.assertEqual([c.label for c in resp.context["cvs"]], ["Actif"])
+        self.assertEqual([c.label for c in resp.context["cvs_archives"]], ["Vieux"])
+        self.assertContains(resp, "CV archivés")
+
+    def test_toggle_refuse_get(self):
+        cv = self._make_cv()
+        resp = self.client.get(reverse("tracking:cv_toggle_active", args=[cv.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+
 def io_bytes(data):
     """Petit helper : un flux binaire lisible pour simuler HTTPError.read()."""
     import io

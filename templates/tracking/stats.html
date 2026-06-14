@@ -18,7 +18,7 @@
     {% for row in by_status %}
     <div class="bar-row">
         <span class="bar-label">{{ row.label }}</span>
-        <span class="bar-track"><span class="bar-fill" style="width:{% widthratio row.count max_status 100 %}%;"></span></span>
+        <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_status 100 %}"></span></span>
         <span class="bar-count">{{ row.count }}</span>
     </div>
     {% endfor %}
@@ -30,9 +30,9 @@
         <svg viewBox="0 0 42 42" class="donut" role="img" aria-label="Répartition des candidatures par source">
             <circle cx="21" cy="21" r="15.91549431" fill="transparent" stroke="var(--track)" stroke-width="5"></circle>
             {% for row in by_source %}
-            <circle cx="21" cy="21" r="15.91549431" fill="transparent"
+            <circle class="js-seg" data-index="{{ forloop.counter0 }}" cx="21" cy="21" r="15.91549431" fill="transparent"
                     stroke="{{ row.color }}" stroke-width="5" pathLength="100"
-                    stroke-dasharray="{{ row.dash }} {{ row.gap }}"
+                    stroke-dasharray="0 100" data-dash="{{ row.dash }}" data-gap="{{ row.gap }}"
                     stroke-dashoffset="{{ row.offset }}">
                 <title>{{ row.label }} : {{ row.count }} ({{ row.percent }} %)</title>
             </circle>
@@ -42,7 +42,7 @@
         </svg>
         <ul class="legend">
             {% for row in by_source %}
-            <li><span class="swatch" style="background:{{ row.color }};"></span>
+            <li class="js-leg" data-index="{{ forloop.counter0 }}"><span class="swatch" style="background:{{ row.color }};"></span>
                 {{ row.label }} <span class="muted">— {{ row.count }} ({{ row.percent }} %)</span></li>
             {% endfor %}
         </ul>
@@ -55,7 +55,7 @@
     {% for row in by_month %}
     <div class="bar-row">
         <span class="bar-label">{{ row.month|date:"M Y" }}</span>
-        <span class="bar-track"><span class="bar-fill" style="width:{% widthratio row.count max_month 100 %}%;"></span></span>
+        <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_month 100 %}"></span></span>
         <span class="bar-count">{{ row.count }}</span>
     </div>
     {% endfor %}
@@ -70,20 +70,72 @@
 
 <style>
     .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:1rem; margin-bottom:1rem; }
-    .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1rem 1.25rem; }
+    .kpi { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem;
+           box-shadow:var(--shadow); transition:transform .15s ease, box-shadow .15s ease;
+           animation:kpi-in .5s both; }
+    .kpi:hover { transform:translateY(-3px); box-shadow:var(--shadow-lg); }
+    @keyframes kpi-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+    .kpi:nth-child(1){animation-delay:.04s} .kpi:nth-child(2){animation-delay:.10s}
+    .kpi:nth-child(3){animation-delay:.16s} .kpi:nth-child(4){animation-delay:.22s}
+    .kpi:nth-child(5){animation-delay:.28s} .kpi:nth-child(6){animation-delay:.34s}
     .kpi-value { font-size:1.9rem; font-weight:700; color:var(--accent); line-height:1; }
     .kpi-value small { font-size:1rem; color:var(--muted); }
     .kpi-label { color:var(--muted); margin-top:0.35rem; font-size:0.9rem; }
     .bar-row { display:flex; align-items:center; gap:0.75rem; margin:0.4rem 0; }
     .bar-label { flex:0 0 9rem; font-size:0.9rem; }
     .bar-row .bar-track { flex:1; }
+    /* Apparition progressive des barres (issue #35) */
+    .bar-fill { transition:width .9s cubic-bezier(.22,.61,.36,1); }
     .bar-count { flex:0 0 2.5rem; text-align:right; font-variant-numeric:tabular-nums; }
-    /* Donut (répartition par source, issue #15) */
+    /* Donut (répartition par source, issue #15) + animations (issue #35) */
     .donut-wrap { display:flex; gap:1.75rem; align-items:center; flex-wrap:wrap; }
     .donut { width:190px; height:190px; flex:0 0 auto; }
+    .donut .js-seg { transition:stroke-dasharray 1s cubic-bezier(.22,.61,.36,1), stroke-width .15s ease, opacity .15s ease; cursor:pointer; }
+    .donut .js-seg:hover, .donut .js-seg.hl { stroke-width:6.5; }
+    .donut .js-seg.dim { opacity:0.35; }
     .donut-total { font-size:7px; font-weight:700; fill:var(--text); }
     .donut-cap { font-size:2.6px; fill:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
     .legend { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.4rem; }
+    .legend li { cursor:default; border-radius:6px; padding:0.1rem 0.3rem; transition:background .15s; }
+    .legend li:hover { background:var(--accent-soft); }
     .legend .swatch { display:inline-block; width:0.8rem; height:0.8rem; border-radius:3px; vertical-align:middle; margin-right:0.45rem; }
 </style>
+
+<script>
+(function () {
+    // Barres : largeur animée de 0 vers la cible au chargement (issue #35).
+    function animateBars() {
+        document.querySelectorAll(".js-bar").forEach(function (el) {
+            requestAnimationFrame(function () { el.style.width = el.dataset.width + "%"; });
+        });
+    }
+    // Donut : tracé progressif des segments (stroke-dasharray 0 -> valeur).
+    function animateDonut() {
+        document.querySelectorAll(".js-seg").forEach(function (el) {
+            requestAnimationFrame(function () {
+                el.setAttribute("stroke-dasharray", el.dataset.dash + " " + el.dataset.gap);
+            });
+        });
+    }
+    // Survol interactif : la légende met en valeur le segment correspondant.
+    function linkLegend() {
+        var segs = document.querySelectorAll(".js-seg");
+        document.querySelectorAll(".js-leg").forEach(function (li) {
+            var idx = li.dataset.index;
+            li.addEventListener("mouseenter", function () {
+                segs.forEach(function (s) {
+                    if (s.dataset.index === idx) s.classList.add("hl");
+                    else s.classList.add("dim");
+                });
+            });
+            li.addEventListener("mouseleave", function () {
+                segs.forEach(function (s) { s.classList.remove("hl", "dim"); });
+            });
+        });
+    }
+    function start() { animateBars(); animateDonut(); linkLegend(); }
+    if (document.readyState !== "loading") { requestAnimationFrame(start); }
+    else { document.addEventListener("DOMContentLoaded", start); }
+})();
+</script>
 {% endblock %}

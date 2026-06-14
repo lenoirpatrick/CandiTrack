@@ -12,6 +12,10 @@ release du même nom.
   passe**. Seuls le nom, l'URL et le logo d'un site sont désormais conservés ;
   les champs `username`/`password` (et leur stockage chiffré) sont retirés du
   modèle, du formulaire et de la liste.
+- #41 — Ajout d'un skill Claude Code `web-development`
+  (`.claude/skills/web-development/`) qui formalise les principes de conception
+  de CandiTrack (thème clair/sombre, connexion aux IA, présentation UI,
+  graphiques, workflow CI SonarQube) pour les réutiliser sur de nouveaux projets.
 
 ## [Non publié] — 1.1.0
 

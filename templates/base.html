@@ -171,7 +171,7 @@
         <a href="{% url 'tracking:site_list' %}">Sites</a>
         <a href="{% url 'tracking:stats' %}">Stats</a>
         <a href="{% url 'tracking:cv_list' %}">CV</a>
-        <a href="{% url 'tracking:help' %}" style="margin-left:auto;">Options</a>
+        <a href="{% url 'tracking:help' %}" style="margin-left:auto;">⚙️ Options</a>
     </nav>
 </header>
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -186,6 +186,7 @@
     <a href="https://github.com/lenoirpatrick" target="_blank" rel="noopener">Patrick Lenoir</a>
     avec <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>.
 </footer>
+<dialog id="ai-modal"><div class="modal-body" id="ai-modal-body"></div></dialog>
 <script>
     // Le thème se choisit désormais depuis la page Options (issue #33) ; le
     // pré-réglage anti-flash en <head> applique la préférence stockée.
@@ -374,6 +375,5 @@
         modal.addEventListener("click", function (e) { if (e.target === modal) modal.close(); });
     })();
 </script>
-<dialog id="ai-modal"><div class="modal-body" id="ai-modal-body"></div></dialog>
 </body>
 </html>

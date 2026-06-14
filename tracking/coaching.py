@@ -212,15 +212,27 @@ CV_ANALYSIS_PROMPT = (
     "les informations principales et renvoie UNIQUEMENT un objet JSON valide, "
     "sans texte autour ni balises de code, avec exactement ces clés :\n"
     '- "titre_profil" : chaîne (intitulé/poste principal du profil) ;\n'
+    '- "localisation" : chaîne (ville/région du candidat) ;\n'
     '- "experiences" : liste d\'objets '
-    '{"poste", "entreprise", "periode", "description"} ;\n'
-    '- "formations" : liste d\'objets {"intitule", "etablissement", "periode"} ;\n'
+    '{"poste", "entreprise", "lieu", "lien", "periode", "description"} ;\n'
+    '- "formations" : liste d\'objets '
+    '{"intitule", "etablissement", "lieu", "lien", "periode"} ;\n'
     '- "competences" : liste de chaînes ;\n'
     '- "langues" : liste de chaînes ;\n'
-    '- "infos" : chaîne (informations diverses : contact, certifications, '
-    "centres d'intérêt…).\n"
+    '- "coordonnees" : objet {"adresse", "telephone", "email", "permis"} '
+    "(coordonnées et références personnelles du candidat) ;\n"
+    '- "loisirs" : liste de chaînes (centres d\'intérêt, hobbies) ;\n'
+    '- "infos" : chaîne (autres informations diverses : certifications, '
+    "distinctions… qui ne sont ni des coordonnées ni des loisirs).\n"
+    'Pour chaque "lieu", indique la localisation (ville, pays) de l\'entreprise '
+    "ou du centre de formation si elle figure dans le CV. "
+    'Pour chaque "lien", indique l\'URL du site officiel de l\'entreprise ou du '
+    "centre de formation : reprends-la si elle figure dans le CV, sinon déduis "
+    "l'URL officielle la plus plausible quand tu la connais avec certitude "
+    "(format https://…), et laisse vide en cas de doute.\n"
     "Utilise une liste vide ou une chaîne vide quand l'information est absente. "
-    "N'invente rien. Réponds en français."
+    "N'invente pas d'expériences, de formations ni de coordonnées. "
+    "Réponds en français."
 )
 
 
@@ -236,6 +248,19 @@ def _as_str_list(value):
     return [_as_text(item) for item in value if _as_text(item)]
 
 
+def _as_url(value):
+    """URL http(s) nettoyée, ou chaîne vide (écarte les schémas douteux)."""
+    url = _as_text(value)
+    if not url:
+        return ""
+    if url.startswith(("http://", "https://")):
+        return url
+    # Tolère une URL sans schéma (« exemple.com ») en la préfixant en https.
+    if "." in url and " " not in url and ":" not in url:
+        return "https://" + url
+    return ""
+
+
 def _as_dict_list(value, keys):
     """Liste de dictionnaires restreints à ``keys`` (entrées vides ignorées)."""
     if not isinstance(value, list):
@@ -244,25 +269,43 @@ def _as_dict_list(value, keys):
     for item in value:
         if not isinstance(item, dict):
             continue
-        row = {key: _as_text(item.get(key)) for key in keys}
+        row = {
+            key: (_as_url(item.get(key)) if key == "lien" else _as_text(item.get(key)))
+            for key in keys
+        }
         if any(row.values()):
             rows.append(row)
     return rows
+
+
+COORDONNEES_KEYS = ["adresse", "telephone", "email", "permis"]
+
+
+def _as_coordonnees(value):
+    """Coordonnées/références normalisées, ou ``{}`` si toutes vides (issue #44)."""
+    if not isinstance(value, dict):
+        return {}
+    coords = {key: _as_text(value.get(key)) for key in COORDONNEES_KEYS}
+    return coords if any(coords.values()) else {}
 
 
 def _normalize_cv_analysis(data):
     """Structure stable de l'analyse, quel que soit le détail renvoyé par l'IA."""
     return {
         "titre_profil": _as_text(data.get("titre_profil")),
+        "localisation": _as_text(data.get("localisation")),
         "experiences": _as_dict_list(
             data.get("experiences"),
-            ["poste", "entreprise", "periode", "description"],
+            ["poste", "entreprise", "lieu", "lien", "periode", "description"],
         ),
         "formations": _as_dict_list(
-            data.get("formations"), ["intitule", "etablissement", "periode"]
+            data.get("formations"),
+            ["intitule", "etablissement", "lieu", "lien", "periode"],
         ),
         "competences": _as_str_list(data.get("competences")),
         "langues": _as_str_list(data.get("langues")),
+        "coordonnees": _as_coordonnees(data.get("coordonnees")),
+        "loisirs": _as_str_list(data.get("loisirs")),
         "infos": _as_text(data.get("infos")),
     }
 

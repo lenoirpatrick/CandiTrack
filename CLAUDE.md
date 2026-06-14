@@ -78,11 +78,22 @@ emoji dans le libellé pour les menus).
   `api/candidatures/<pk>/relance/` (mail de relance) ; UI = modal partagé
   `#ai-modal` dans `base.html` (spinner + rendu Markdown).
 - Analyse de CV (issue #44) : `coaching.analyze_cv(cv)` demande à l'IA un JSON
-  structuré (profil, expériences, formations, compétences, langues, infos),
+  structuré (profil, expériences, formations, compétences, langues, coordonnées/
+  références — adresse, téléphone, email, permis —, loisirs, infos diverses),
   normalisé et stocké dans `CV.analysis`. CV joint pour Gemini, texte brut pour
   les autres fournisseurs (formats texte seulement). Déclenchée au chargement via
   la case « Analyser » (vue `cv_create`) ou à la demande (`cv_analyze`) ;
-  résultat affiché sur la fiche `cv_detail`.
+  résultat affiché sur la fiche `cv_detail`. Le profil donne aussi une
+  `localisation`, et chaque expérience/formation un `lieu` + un `lien` (URL du
+  site, validée http(s) via `_as_url`). La fiche affiche les expériences et
+  formations en timeline et **cartographie les lieux** (`_cv_localisations`) avec
+  **OpenStreetMap/Leaflet** (géocodage **Nominatim**, marqueur emoji par type,
+  popup société) — aucune clé API requise.
+- Exports de CV (issue #44) : `tracking/cv_export.py` convertit `CV.analysis` en
+  **JSON Resume**, **Europass** (SkillsPassport) et **HR-Open Standards**
+  (`EXPORTERS`/`EXPORT_LABELS`, stdlib) ; vues `cv_export` (téléchargement JSON) et
+  `cv_print` (template `cv_print.html` autonome, **PDF via impression navigateur**).
+  Boutons sur la fiche `cv_detail`.
 - Quotas IA (issue #36) : `ai.generate` renvoie un `GenerationResult` (texte +
   tokens) ; `coaching._run` journalise chaque appel dans `AIUsage`. `AIConfig`
   porte une limite mensuelle de tokens par fournisseur (0 = illimitée) ; la

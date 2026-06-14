@@ -6,12 +6,14 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib import messages
 from django.db.models import Case, IntegerField, Q, When
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from . import coaching
+from . import cv_export as cv_exporters
 from .ai import AIError
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
@@ -294,6 +296,29 @@ def cv_list(request):
     return render(request, "tracking/cv_list.html", {"cvs": cvs})
 
 
+def _cv_localisations(cv):
+    """Points du parcours (lieu + société + type) pour la carte des lieux (issue #44)."""
+    if not cv.is_analyzed:
+        return []
+    analysis = cv.analysis
+    points = []
+    for exp in analysis.get("experiences", []):
+        if exp.get("lieu"):
+            points.append(
+                {"type": "exp", "lieu": exp["lieu"], "societe": exp.get("entreprise", "")}
+            )
+    for form in analysis.get("formations", []):
+        if form.get("lieu"):
+            points.append(
+                {
+                    "type": "form",
+                    "lieu": form["lieu"],
+                    "societe": form.get("etablissement", ""),
+                }
+            )
+    return points
+
+
 @require_GET
 def cv_detail(request, pk):
     """Détail d'un CV et de son analyse IA (issue #44)."""
@@ -301,8 +326,36 @@ def cv_detail(request, pk):
     return render(
         request,
         "tracking/cv_detail.html",
-        {"cv": cv, "ai_config": AIConfig.load()},
+        {
+            "cv": cv,
+            "ai_config": AIConfig.load(),
+            "localisations": _cv_localisations(cv),
+            "export_formats": cv_exporters.EXPORT_LABELS,
+        },
     )
+
+
+@require_GET
+def cv_export(request, pk, fmt):
+    """Exporte l'analyse d'un CV vers un format standard (issue #44)."""
+    cv = get_object_or_404(CV, pk=pk)
+    exporter = cv_exporters.EXPORTERS.get(fmt)
+    if not cv.is_analyzed or exporter is None:
+        raise Http404("Export indisponible pour ce CV.")
+    payload = json.dumps(exporter(cv), ensure_ascii=False, indent=2)
+    filename = f"{slugify(cv.label) or 'cv'}-{fmt}.json"
+    response = HttpResponse(payload, content_type="application/json; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_GET
+def cv_print(request, pk):
+    """Vue d'impression d'un CV (PDF via l'impression navigateur, issue #44)."""
+    cv = get_object_or_404(CV, pk=pk)
+    if not cv.is_analyzed:
+        raise Http404("Ce CV n'a pas encore été analysé.")
+    return render(request, "tracking/cv_print.html", {"cv": cv})
 
 
 def _analyze_cv_safely(request, cv):

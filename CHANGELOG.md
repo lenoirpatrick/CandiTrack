@@ -6,6 +6,13 @@ versionnage [SemVer](https://semver.org/lang/fr/). Chaque version correspond à
 un milestone GitHub ; la liste des issues traitées est aussi publiée dans la
 release du même nom.
 
+## [Non publié] — 1.2.0
+
+- #41 — Ajout d'un skill Claude Code `web-development`
+  (`.claude/skills/web-development/`) qui formalise les principes de conception
+  de CandiTrack (thème clair/sombre, connexion aux IA, présentation UI,
+  graphiques, workflow CI SonarQube) pour les réutiliser sur de nouveaux projets.
+
 ## [Non publié] — 1.1.0
 
 - #35 — Modernisation de l'interface : navigation déplacée dans une **sidebar

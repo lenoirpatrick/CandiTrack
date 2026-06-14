@@ -399,6 +399,25 @@ class AIConfig(models.Model):
     # Compat historique (issue #33) : modèle par défaut = celui de Gemini.
     DEFAULT_MODEL = DEFAULT_GEMINI_MODEL
 
+    # Rappel des quotas du tier gratuit + doc officielle, par fournisseur (issue #38).
+    PROVIDER_INFO = {
+        "gemini": {
+            "free_tier": (
+                "Tier gratuit (sans carte bancaire) : ~1 500 requêtes/jour, "
+                "15 requêtes/min et 1M tokens/min, contexte jusqu'à 1M tokens "
+                "selon le modèle."
+            ),
+            "doc_url": "https://ai.google.dev/gemini-api/docs/billing",
+        },
+        "mistral": {
+            "free_tier": (
+                "« Free mode » activé par défaut : limites réduites et cap "
+                "mensuel de tokens, pour évaluation/prototypage."
+            ),
+            "doc_url": "https://docs.mistral.ai/admin/user-management-finops/tier",
+        },
+    }
+
     provider = models.CharField(
         "fournisseur", max_length=10, choices=Provider.choices, default=Provider.GEMINI
     )

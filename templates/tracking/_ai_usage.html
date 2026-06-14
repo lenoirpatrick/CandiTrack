@@ -1,8 +1,16 @@
 {% comment %}
-Consommation IA du mois courant + saisie de la limite mensuelle (issue #36).
+Consommation IA du mois courant + saisie de la limite mensuelle (issue #36) et
+rappel des quotas du tier gratuit + lien doc (issue #38).
 Variables attendues : usage (dict calls/tokens/limit/percent/reached),
-limit_value (entier), field (nom du champ de formulaire).
+limit_value (entier), field (nom du champ de formulaire),
+info (dict free_tier/doc_url).
 {% endcomment %}
+{% if info %}
+<p class="ai-quota-info muted">
+    ℹ️ {{ info.free_tier }}
+    <a href="{{ info.doc_url }}" target="_blank" rel="noopener">Documentation officielle ↗</a>
+</p>
+{% endif %}
 <div class="ai-usage">
     <p class="muted" style="margin-bottom:0.3rem;">
         Ce mois-ci : <strong>{{ usage.calls }}</strong> appel{{ usage.calls|pluralize }} ·

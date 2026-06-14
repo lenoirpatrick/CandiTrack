@@ -28,6 +28,8 @@ release du même nom.
   avertit lorsqu'elle est atteinte (limite souple, sans blocage).
 - #37 — La fenêtre modale d'IA indique désormais **le fournisseur et le modèle**
   qui ont généré le texte (ex. « Généré par 🔵 Google Gemini · gemini-2.5-flash »).
+- #38 — Options → IA : rappel des **quotas du tier gratuit** de chaque fournisseur
+  (Gemini, Mistral) avec un **lien vers la documentation officielle**.
 
 ## [Non publié] — 1.0.2
 

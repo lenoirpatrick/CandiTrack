@@ -775,6 +775,13 @@ class AIUsageQuotaTests(TestCase):
         self.assertContains(resp, "Limite mensuelle")
         self.assertContains(resp, 'name="gemini_monthly_limit"')
 
+    def test_help_page_shows_quota_doc_links(self):
+        """Issue #38 — rappel des quotas du tier gratuit + liens doc."""
+        resp = self.client.get(reverse("tracking:help"))
+        self.assertContains(resp, "ai.google.dev/gemini-api/docs/billing")
+        self.assertContains(resp, "docs.mistral.ai/admin/user-management-finops/tier")
+        self.assertContains(resp, "Documentation officielle")
+
 
 class MistralClientTests(TestCase):
     """Issue #34 — client HTTP Mistral (parsing et aiguillage), réseau simulé."""

@@ -196,14 +196,6 @@
                 c.classList.toggle("active", on);
                 c.setAttribute("aria-checked", on ? "true" : "false");
             });
-            // Garde l'icône du bouton clair/sombre cohérente avec le choix.
-            var toggle = document.getElementById("theme-toggle");
-            if (toggle) {
-                var dark = root.getAttribute("data-theme")
-                    ? root.getAttribute("data-theme") === "dark"
-                    : window.matchMedia("(prefers-color-scheme: dark)").matches;
-                toggle.textContent = dark ? "☀️" : "🌙";
-            }
         }
         choices.forEach(function (c) {
             c.addEventListener("click", function () {

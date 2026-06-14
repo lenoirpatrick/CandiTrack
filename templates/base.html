@@ -96,8 +96,6 @@
         .steps { display:flex; flex-wrap:wrap; gap:0.5rem; }
         .step { background:var(--chip-bg); color:var(--muted); padding:0.2rem 0.6rem; border-radius:999px; font-size:0.85rem; }
         .step.done { background:var(--accent); color:#fff; }
-        .theme-toggle { background:none; border:1px solid var(--border); color:var(--nav-link);
-                 border-radius:8px; padding:0.3rem 0.6rem; cursor:pointer; font-size:1rem; }
         /* Forms: sections + grids */
         fieldset { border:1px solid var(--border); border-radius:10px; padding:0.5rem 1rem 1rem; margin:0 0 1rem; }
         legend { font-weight:700; color:var(--accent); padding:0 0.4rem; }
@@ -174,8 +172,6 @@
         <a href="{% url 'tracking:stats' %}">Stats</a>
         <a href="{% url 'tracking:cv_list' %}">CV</a>
         <a href="{% url 'tracking:help' %}" style="margin-left:auto;">Options</a>
-        <button type="button" class="theme-toggle" id="theme-toggle" title="Changer de thème"
-                aria-label="Changer de thème">🌓</button>
     </nav>
 </header>
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -191,23 +187,8 @@
     avec <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>.
 </footer>
 <script>
-    // Theme toggle: cycles the explicit choice and persists it (issue #4).
-    (function () {
-        var root = document.documentElement;
-        var btn = document.getElementById("theme-toggle");
-        function current() {
-            return root.getAttribute("data-theme") ||
-                (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-        }
-        function render() { btn.textContent = current() === "dark" ? "☀️" : "🌙"; }
-        btn.addEventListener("click", function () {
-            var next = current() === "dark" ? "light" : "dark";
-            root.setAttribute("data-theme", next);
-            try { localStorage.setItem("theme", next); } catch (e) {}
-            render();
-        });
-        render();
-    })();
+    // Le thème se choisit désormais depuis la page Options (issue #33) ; le
+    // pré-réglage anti-flash en <head> applique la préférence stockée.
 
     // Toasts (issue #13) : remplace l'ancienne liste de messages.
     (function () {

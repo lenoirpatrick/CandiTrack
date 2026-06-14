@@ -1,12 +1,13 @@
-"""Client minimal pour l'API Gemini (issue #33).
+"""Clients minimaux pour les API d'IA générative (issues #33, #34).
 
-Le module de coaching appelle l'API « generateContent » de Google Generative
-Language en HTTP direct (stdlib uniquement, comme :mod:`tracking.logos`), pour
+Le module de coaching appelle, au choix, l'API Gemini de Google ou l'API
+Mistral, en HTTP direct (stdlib uniquement, comme :mod:`tracking.logos`), pour
 éviter une dépendance lourde. La clé et le modèle proviennent de
-:class:`tracking.models.AIConfig` (saisis par l'utilisateur depuis la page d'aide).
+:class:`tracking.models.AIConfig` (saisis par l'utilisateur depuis la page
+d'options) ; :func:`generate` aiguille vers le bon fournisseur.
 
-L'appel accepte des pièces jointes « inline » (CV en PDF/image/texte) que Gemini
-sait analyser nativement via ``inline_data``.
+Gemini accepte des pièces jointes « inline » (CV en PDF/image/texte) via
+``inline_data`` ; Mistral fonctionne en texte seul ici.
 """
 
 import base64
@@ -15,7 +16,8 @@ import mimetypes
 import urllib.error
 import urllib.request
 
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
 
 # Types de pièces jointes que Gemini sait lire directement (issue #33).
 SUPPORTED_MIME_PREFIXES = ("application/pdf", "image/", "text/")
@@ -36,16 +38,41 @@ def guess_mime(filename):
     return None
 
 
-def generate(prompt, *, api_key, model, attachments=None):
-    """Appelle Gemini et renvoie le texte généré.
+def generate(prompt, *, api_key, model, provider="gemini", attachments=None):
+    """Appelle le fournisseur ``provider`` et renvoie le texte généré.
 
-    ``attachments`` est une liste de tuples ``(mime_type, bytes)`` jointes au
-    prompt (ex. un CV). Lève :class:`AIError` sur tout problème (clé invalide,
-    réseau, réponse vide…).
+    ``attachments`` (liste de tuples ``(mime_type, bytes)``) n'est exploité que
+    par Gemini. Lève :class:`AIError` sur tout problème (clé invalide, réseau,
+    réponse vide…).
     """
     if not api_key:
-        raise AIError("Aucune clé API Gemini configurée.")
+        raise AIError("Aucune clé API configurée.")
+    if provider == "mistral":
+        return _mistral_generate(prompt, api_key=api_key, model=model)
+    return _gemini_generate(
+        prompt, api_key=api_key, model=model, attachments=attachments
+    )
 
+
+def _request_json(url, headers, payload):
+    """POST JSON commun aux fournisseurs : renvoie le corps parsé."""
+    request = urllib.request.Request(
+        url, data=payload, headers=headers, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise AIError(_http_error_message(exc)) from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise AIError(
+            "Impossible de joindre l'API IA (réseau ou délai dépassé)."
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise AIError("Réponse illisible de l'API IA.") from exc
+
+
+def _gemini_generate(prompt, *, api_key, model, attachments=None):
     parts = [{"text": prompt}]
     for mime_type, data in attachments or []:
         parts.append(
@@ -56,37 +83,28 @@ def generate(prompt, *, api_key, model, attachments=None):
                 }
             }
         )
+    payload = json.dumps(
+        {"contents": [{"parts": parts}], "generationConfig": {"temperature": 0.7}}
+    ).encode("utf-8")
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+    body = _request_json(GEMINI_URL.format(model=model), headers, payload)
+    return _extract_gemini_text(body)
 
+
+def _mistral_generate(prompt, *, api_key, model):
     payload = json.dumps(
         {
-            "contents": [{"parts": parts}],
-            "generationConfig": {"temperature": 0.7},
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
         }
     ).encode("utf-8")
-
-    request = urllib.request.Request(
-        API_URL.format(model=model),
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": api_key,
-        },
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-            body = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raise AIError(_http_error_message(exc)) from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
-        raise AIError(
-            "Impossible de joindre l'API Gemini (réseau ou délai dépassé)."
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise AIError("Réponse illisible de l'API Gemini.") from exc
-
-    return _extract_text(body)
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    body = _request_json(MISTRAL_URL, headers, payload)
+    return _extract_mistral_text(body)
 
 
 def _http_error_message(exc):
@@ -94,29 +112,43 @@ def _http_error_message(exc):
     detail = ""
     try:
         body = json.loads(exc.read().decode("utf-8"))
-        detail = body.get("error", {}).get("message", "")
+        error = body.get("error", body)
+        if isinstance(error, dict):
+            detail = error.get("message", "")
+        else:
+            detail = str(error)
     except (ValueError, OSError):
         pass
-    if exc.code in (400, 403):
-        return f"Clé API Gemini refusée ou requête invalide. {detail}".strip()
+    if exc.code in (400, 401, 403):
+        return f"Clé API refusée ou requête invalide. {detail}".strip()
     if exc.code == 404:
-        return f"Modèle Gemini introuvable. {detail}".strip()
+        return f"Modèle introuvable. {detail}".strip()
     if exc.code == 429:
-        return "Quota Gemini dépassé : réessayez plus tard."
-    return f"Erreur Gemini (HTTP {exc.code}). {detail}".strip()
+        return "Quota dépassé : réessayez plus tard."
+    return f"Erreur de l'API IA (HTTP {exc.code}). {detail}".strip()
 
 
-def _extract_text(body):
-    """Concatène le texte des parts de la première réponse."""
+def _extract_gemini_text(body):
+    """Concatène le texte des parts de la première réponse Gemini."""
     candidates = body.get("candidates") or []
     if not candidates:
-        # Réponse bloquée par les filtres de sécurité, ou vide.
         reason = body.get("promptFeedback", {}).get("blockReason")
         if reason:
-            raise AIError(f"Réponse bloquée par Gemini ({reason}).")
+            raise AIError(f"Réponse bloquée par l'IA ({reason}).")
         raise AIError("L'IA n'a renvoyé aucune réponse.")
     parts = candidates[0].get("content", {}).get("parts", [])
     text = "".join(part.get("text", "") for part in parts).strip()
+    if not text:
+        raise AIError("L'IA a renvoyé une réponse vide.")
+    return text
+
+
+def _extract_mistral_text(body):
+    """Extrait le contenu du premier message de la réponse Mistral."""
+    choices = body.get("choices") or []
+    if not choices:
+        raise AIError("L'IA n'a renvoyé aucune réponse.")
+    text = (choices[0].get("message", {}).get("content") or "").strip()
     if not text:
         raise AIError("L'IA a renvoyé une réponse vide.")
     return text

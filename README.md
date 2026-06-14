@@ -175,26 +175,28 @@ L'extension appelle `POST /api/candidatures/` en envoyant le jeton dans l'en-tê
 `X-Api-Token`. L'URL du backend et le jeton se configurent dans les options de
 l'extension ; l'hôte doit figurer dans les `host_permissions` du `manifest.json`.
 
-## Coaching IA (issue #33)
+## Coaching IA (issues #33, #34)
 
-CandiTrack peut générer un **coaching** et des **mails de relance** via l'IA
-**Gemini** de Google. La fonctionnalité est désactivée par défaut : chacun
-renseigne **sa propre clé API**.
+CandiTrack peut générer un **coaching** et des **mails de relance** via l'IA, au
+choix avec **Google Gemini** ou **Mistral AI**. La fonctionnalité est désactivée
+par défaut : chacun renseigne **sa propre clé API**.
 
-1. Obtenir une clé sur [Google AI Studio](https://aistudio.google.com/apikey).
-2. La coller dans la section **« Coaching IA »** de la page `/aide/` (et,
-   facultativement, choisir le modèle dans le menu déroulant — défaut
-   `gemini-2.5-flash`). La clé est
-   stockée **chiffrée** en base (Fernet, comme les mots de passe des sites) et
-   n'est jamais réaffichée.
+1. Obtenir une clé sur [Google AI Studio](https://aistudio.google.com/apikey)
+   (Gemini) ou sur la [console Mistral](https://console.mistral.ai/api-keys).
+2. Dans **Options → IA**, choisir le **fournisseur** et coller la clé (et,
+   facultativement, le modèle dans le menu déroulant — défaut `gemini-2.5-flash`
+   pour Gemini, `mistral-small-latest` pour Mistral). Chaque fournisseur garde sa
+   propre clé, stockée **chiffrée** en base (Fernet, comme les mots de passe des
+   sites) et jamais réaffichée ; on bascule de l'un à l'autre sans ressaisie.
 3. Depuis la liste des candidatures, **« ✨ Coaching IA »** ouvre une fenêtre
-   modale : à partir du dernier CV chargé et des statistiques (volume, motifs de
-   refus, délais…), l'IA propose un positionnement et des actions à réaliser.
+   modale : à partir du dernier CV chargé (analysé par Gemini) et des statistiques
+   (volume, motifs de refus, délais…), l'IA propose un positionnement et des
+   actions à réaliser.
 4. Sur une candidature, **« ✉️ Mail de relance (IA) »** génère un brouillon de
    mail de relance, régénérable à volonté.
 
-L'appel se fait en HTTP direct vers l'API Gemini (aucune dépendance ajoutée). La
-clé n'est utilisée que pour les appels sortants vers Google ; vos crédits, vos
+Les appels se font en HTTP direct vers l'API du fournisseur choisi (aucune
+dépendance ajoutée). La clé ne sert qu'aux appels sortants ; vos crédits, vos
 données.
 
 ## Pages

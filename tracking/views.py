@@ -339,10 +339,7 @@ def help_page(request):
         elif action == "ai_save":
             _save_ai_config(request)
         elif action == "ai_clear":
-            config = AIConfig.load()
-            config.api_key = ""
-            config.save(update_fields=["api_key", "updated_at"])
-            messages.success(request, "Clé Gemini supprimée.")
+            _clear_ai_key(request, AIConfig.load())
         return redirect("tracking:help")
 
     return render(
@@ -357,14 +354,42 @@ def help_page(request):
 
 
 def _save_ai_config(request):
-    """Enregistre la config IA (issue #33). Une clé vide ne l'écrase pas."""
+    """Enregistre la config IA (issues #33, #34).
+
+    Le fournisseur actif et les modèles sont mis à jour ; chaque clé n'est
+    remplacée que si une valeur non vide est fournie (on conserve sinon la clé
+    déjà saisie pour chaque fournisseur).
+    """
     config = AIConfig.load()
-    config.model = (request.POST.get("model") or "").strip() or AIConfig.DEFAULT_MODEL
-    new_key = (request.POST.get("api_key") or "").strip()
-    if new_key:
-        config.api_key = new_key
+    provider = (request.POST.get("provider") or "").strip()
+    if provider in AIConfig.Provider.values:
+        config.provider = provider
+    config.gemini_model = (
+        (request.POST.get("gemini_model") or "").strip() or AIConfig.DEFAULT_GEMINI_MODEL
+    )
+    config.mistral_model = (
+        (request.POST.get("mistral_model") or "").strip() or AIConfig.DEFAULT_MISTRAL_MODEL
+    )
+    gemini_key = (request.POST.get("gemini_api_key") or "").strip()
+    if gemini_key:
+        config.gemini_api_key = gemini_key
+    mistral_key = (request.POST.get("mistral_api_key") or "").strip()
+    if mistral_key:
+        config.mistral_api_key = mistral_key
     config.save()
     messages.success(request, "Configuration IA enregistrée.")
+
+
+def _clear_ai_key(request, config):
+    """Supprime la clé du fournisseur actif (issue #34)."""
+    if config.provider == AIConfig.Provider.MISTRAL:
+        config.mistral_api_key = ""
+        config.save(update_fields=["mistral_api_key", "updated_at"])
+        messages.success(request, "Clé Mistral supprimée.")
+    else:
+        config.gemini_api_key = ""
+        config.save(update_fields=["gemini_api_key", "updated_at"])
+        messages.success(request, "Clé Gemini supprimée.")
 
 
 # --- Coaching IA (issue #33) ----------------------------------------------

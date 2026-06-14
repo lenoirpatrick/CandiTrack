@@ -131,41 +131,77 @@
         <!-- Catégorie IA > Coaching -->
         <section id="panel-ia" class="options-panel" role="tabpanel" aria-labelledby="tab-ia" hidden>
             <div class="card">
-                <h2 style="margin-top:0;">Coaching IA (Gemini)</h2>
+                <h2 style="margin-top:0;">Coaching IA</h2>
                 <p>CandiTrack peut proposer un <strong>coaching</strong> et des <strong>mails de
-                    relance</strong> générés par l'IA Gemini de Google. La fonctionnalité est
-                    désactivée tant que vous n'avez pas renseigné <strong>votre propre clé API</strong>
-                    (vos crédits, vos données — la clé est stockée chiffrée et n'est jamais réaffichée).</p>
-
-                <p class="muted">Obtenez une clé gratuite sur
-                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
+                    relance</strong> générés par l'IA. Choisissez votre <strong>fournisseur</strong>
+                    (Google Gemini ou Mistral AI) et renseignez <strong>votre propre clé API</strong>
+                    (vos crédits, vos données — chaque clé est stockée chiffrée et n'est jamais
+                    réaffichée).</p>
 
                 {% if ai_config.is_configured %}
-                <p>État : <span class="badge">✅ configurée</span> — modèle
-                    <code>{{ ai_config.model }}</code>.</p>
+                <p>État : <span class="badge">✅ configuré</span> —
+                    {{ ai_config.get_provider_display }}, modèle <code>{{ ai_config.model }}</code>.</p>
                 {% else %}
-                <p>État : <span class="badge">⚪ non configurée</span></p>
+                <p>État : <span class="badge">⚪ non configuré</span> pour
+                    {{ ai_config.get_provider_display }}.</p>
                 {% endif %}
 
                 <form method="post" style="margin-top:1rem; max-width:520px;">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="ai_save">
                     <div class="field">
-                        <label for="api_key">Clé API Gemini</label>
-                        <input id="api_key" name="api_key" type="password" autocomplete="off"
-                               placeholder="{% if ai_config.is_configured %}•••••••• (laisser vide pour conserver){% else %}Collez votre clé{% endif %}">
-                    </div>
-                    <div class="field">
-                        <label for="model">Modèle</label>
-                        <select id="model" name="model">
-                            {% if not ai_config.model_in_choices %}
-                            <option value="{{ ai_config.model }}" selected>{{ ai_config.model }} (personnalisé)</option>
-                            {% endif %}
-                            {% for value, label in ai_config.GEMINI_MODELS %}
-                            <option value="{{ value }}" {% if value == ai_config.model %}selected{% endif %}>{{ label }}</option>
+                        <label for="provider">Fournisseur d'IA</label>
+                        <select id="provider" name="provider">
+                            {% for value, label in ai_config.Provider.choices %}
+                            <option value="{{ value }}" {% if value == ai_config.provider %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>
+
+                    <!-- Bloc Gemini -->
+                    <div class="provider-block" data-provider="gemini"{% if ai_config.provider != "gemini" %} hidden{% endif %}>
+                        <p class="muted">Clé gratuite sur
+                            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
+                        <div class="field">
+                            <label for="gemini_api_key">Clé API Gemini</label>
+                            <input id="gemini_api_key" name="gemini_api_key" type="password" autocomplete="off"
+                                   placeholder="{% if ai_config.gemini_api_key %}•••••••• (laisser vide pour conserver){% else %}Collez votre clé{% endif %}">
+                        </div>
+                        <div class="field">
+                            <label for="gemini_model">Modèle Gemini</label>
+                            <select id="gemini_model" name="gemini_model">
+                                {% if not ai_config.gemini_model_in_choices %}
+                                <option value="{{ ai_config.gemini_model }}" selected>{{ ai_config.gemini_model }} (personnalisé)</option>
+                                {% endif %}
+                                {% for value, label in ai_config.GEMINI_MODELS %}
+                                <option value="{{ value }}" {% if value == ai_config.gemini_model %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Bloc Mistral -->
+                    <div class="provider-block" data-provider="mistral"{% if ai_config.provider != "mistral" %} hidden{% endif %}>
+                        <p class="muted">Clé sur
+                            <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">la console Mistral</a>.</p>
+                        <div class="field">
+                            <label for="mistral_api_key">Clé API Mistral</label>
+                            <input id="mistral_api_key" name="mistral_api_key" type="password" autocomplete="off"
+                                   placeholder="{% if ai_config.mistral_api_key %}•••••••• (laisser vide pour conserver){% else %}Collez votre clé{% endif %}">
+                        </div>
+                        <div class="field">
+                            <label for="mistral_model">Modèle Mistral</label>
+                            <select id="mistral_model" name="mistral_model">
+                                {% if not ai_config.mistral_model_in_choices %}
+                                <option value="{{ ai_config.mistral_model }}" selected>{{ ai_config.mistral_model }} (personnalisé)</option>
+                                {% endif %}
+                                {% for value, label in ai_config.MISTRAL_MODELS %}
+                                <option value="{{ value }}" {% if value == ai_config.mistral_model %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="form-actions">
                         <button class="btn" type="submit">Enregistrer</button>
                     </div>
@@ -173,10 +209,10 @@
 
                 {% if ai_config.is_configured %}
                 <form method="post" style="margin-top:0.5rem;"
-                      onsubmit="return confirm('Supprimer la clé Gemini ? Le coaching IA sera désactivé.');">
+                      onsubmit="return confirm('Supprimer la clé du fournisseur actif ? Le coaching IA sera désactivé pour celui-ci.');">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="ai_clear">
-                    <button type="submit" class="linklike">Supprimer la clé</button>
+                    <button type="submit" class="linklike">Supprimer la clé active</button>
                 </form>
                 {% endif %}
             </div>
@@ -226,6 +262,20 @@
             });
         });
     });
+
+    // Fournisseur d'IA (issue #34) : n'afficher que le bloc clé/modèle du
+    // fournisseur sélectionné.
+    var providerSelect = document.getElementById("provider");
+    if (providerSelect) {
+        var blocks = document.querySelectorAll(".provider-block");
+        function syncProvider() {
+            blocks.forEach(function (b) {
+                b.hidden = b.dataset.provider !== providerSelect.value;
+            });
+        }
+        providerSelect.addEventListener("change", syncProvider);
+        syncProvider();
+    }
 
     // Sélecteur de thème par vignettes (issue #33) : « Système » suit l'OS
     // (aucune préférence stockée), « Clair »/« Sombre » forcent le thème.

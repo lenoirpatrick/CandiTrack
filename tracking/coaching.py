@@ -81,11 +81,14 @@ def _context_summary():
 def coaching_advice(config=None):
     """Demande un bilan de coaching à l'IA et renvoie le texte (Markdown)."""
     config = config or AIConfig.load()
-    attachment = _latest_cv_attachment()
+    # Seul Gemini analyse le CV en pièce jointe ; Mistral reste en texte seul.
+    attachment = None
+    if config.provider == AIConfig.Provider.GEMINI:
+        attachment = _latest_cv_attachment()
     cv_note = (
         "Le CV de la personne est joint à ce message ; appuie-toi dessus."
         if attachment
-        else "Aucun CV n'est disponible : raisonne uniquement sur les statistiques."
+        else "Aucun CV exploitable n'est disponible : raisonne sur les statistiques."
     )
 
     prompt = (
@@ -105,6 +108,7 @@ def coaching_advice(config=None):
 
     return ai.generate(
         prompt,
+        provider=config.provider,
         api_key=config.api_key,
         model=config.model,
         attachments=[attachment] if attachment else None,
@@ -139,4 +143,6 @@ def relance_email(candidature, config=None):
         "factuelle absente ci-dessus (laisse des crochets [à compléter] au besoin)."
     )
 
-    return ai.generate(prompt, api_key=config.api_key, model=config.model)
+    return ai.generate(
+        prompt, provider=config.provider, api_key=config.api_key, model=config.model
+    )

@@ -57,11 +57,14 @@ emoji dans le libellé pour les menus).
 - Logos dérivés du favicon : `tracking/logos.py` (`favicon_service_url`, stdlib
   uniquement) ; chargé par défaut à l'enregistrement d'un site (issue #27).
 - Géométrie du donut de stats : `tracking/statistics.py`.
-- Coaching IA (issue #33) : `tracking/ai.py` (client Gemini REST, stdlib) +
-  `tracking/coaching.py` (collecte du contexte CV/stats et prompts). Clé saisie
-  par l'utilisateur via `/aide/` (`AIConfig`, chiffrée). Endpoints POST AJAX
-  `api/coaching/` (bilan) et `api/candidatures/<pk>/relance/` (mail de relance) ;
-  UI = modal partagé `#ai-modal` dans `base.html` (spinner + rendu Markdown).
+- Coaching IA (issues #33, #34) : `tracking/ai.py` (clients REST **Gemini et
+  Mistral**, stdlib, `generate(..., provider=...)` aiguille) + `tracking/coaching.py`
+  (collecte du contexte CV/stats et prompts ; le CV n'est joint que pour Gemini).
+  `AIConfig` garde une clé + un modèle **par fournisseur** (chiffrés), le
+  `provider` actif détermine `api_key`/`model`. Config via `/aide/` (page Options,
+  catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan) et
+  `api/candidatures/<pk>/relance/` (mail de relance) ; UI = modal partagé
+  `#ai-modal` dans `base.html` (spinner + rendu Markdown).
 
 ## Extension Chrome (`chrome-extension/`)
 

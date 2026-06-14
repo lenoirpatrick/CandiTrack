@@ -369,27 +369,48 @@ class CV(models.Model):
 
 
 class AIConfig(models.Model):
-    """Configuration du module de coaching IA (issue #33).
+    """Configuration du module de coaching IA (issues #33, #34).
 
-    Mono-utilisateur : une seule ligne (chargée via :meth:`load`). La clé
-    Gemini est stockée chiffrée au repos (comme les mots de passe des sites),
-    de sorte que l'utilisateur saisit ses propres credentials depuis la page
-    d'aide sans toucher au ``.env``.
+    Mono-utilisateur : une seule ligne (chargée via :meth:`load`). Deux
+    fournisseurs sont gérés (Google Gemini et Mistral AI) : chacun garde sa
+    propre clé (chiffrée au repos, comme les mots de passe des sites) et son
+    propre modèle, ce qui permet de basculer de l'un à l'autre sans ressaisie.
+    Le fournisseur actif (`provider`) détermine la clé et le modèle utilisés.
     """
 
-    # Modèles Gemini proposés dans le menu déroulant (issue #33).
+    class Provider(models.TextChoices):
+        GEMINI = "gemini", "🔵 Google Gemini"
+        MISTRAL = "mistral", "🟠 Mistral AI"
+
+    # Modèles proposés dans les menus déroulants par fournisseur (issues #33, #34).
     GEMINI_MODELS = [
         ("gemini-2.5-flash", "Gemini 2.5 Flash — rapide et économique (recommandé)"),
         ("gemini-2.5-pro", "Gemini 2.5 Pro — plus puissant"),
         ("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite — le plus rapide"),
         ("gemini-2.0-flash", "Gemini 2.0 Flash"),
     ]
-    # « flash » = rapide et économique, adapté au coaching.
-    DEFAULT_MODEL = "gemini-2.5-flash"
+    MISTRAL_MODELS = [
+        ("mistral-small-latest", "Mistral Small — rapide et économique (recommandé)"),
+        ("mistral-large-latest", "Mistral Large — le plus puissant"),
+        ("open-mistral-nemo", "Open Mistral Nemo"),
+    ]
+    DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+    DEFAULT_MISTRAL_MODEL = "mistral-small-latest"
+    # Compat historique (issue #33) : modèle par défaut = celui de Gemini.
+    DEFAULT_MODEL = DEFAULT_GEMINI_MODEL
 
-    api_key = EncryptedCharField("clé API Gemini", blank=True, default="")
-    model = models.CharField(
-        "modèle", max_length=100, choices=GEMINI_MODELS, default=DEFAULT_MODEL
+    provider = models.CharField(
+        "fournisseur", max_length=10, choices=Provider.choices, default=Provider.GEMINI
+    )
+    gemini_api_key = EncryptedCharField("clé API Gemini", blank=True, default="")
+    mistral_api_key = EncryptedCharField("clé API Mistral", blank=True, default="")
+    gemini_model = models.CharField(
+        "modèle Gemini", max_length=100,
+        choices=GEMINI_MODELS, default=DEFAULT_GEMINI_MODEL,
+    )
+    mistral_model = models.CharField(
+        "modèle Mistral", max_length=100,
+        choices=MISTRAL_MODELS, default=DEFAULT_MISTRAL_MODEL,
     )
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -407,11 +428,40 @@ class AIConfig(models.Model):
         return config
 
     @property
+    def api_key(self):
+        """Clé du fournisseur actif."""
+        if self.provider == self.Provider.MISTRAL:
+            return self.mistral_api_key
+        return self.gemini_api_key
+
+    @property
+    def model(self):
+        """Modèle du fournisseur actif."""
+        if self.provider == self.Provider.MISTRAL:
+            return self.mistral_model
+        return self.gemini_model
+
+    @property
+    def models_for_provider(self):
+        """Liste de modèles proposés pour le fournisseur actif."""
+        if self.provider == self.Provider.MISTRAL:
+            return self.MISTRAL_MODELS
+        return self.GEMINI_MODELS
+
+    @property
     def is_configured(self):
-        """Vrai dès qu'une clé API est renseignée."""
+        """Vrai dès qu'une clé est renseignée pour le fournisseur actif."""
         return bool(self.api_key)
 
     @property
     def model_in_choices(self):
-        """Vrai si le modèle courant figure dans le menu déroulant."""
-        return self.model in dict(self.GEMINI_MODELS)
+        """Vrai si le modèle actif figure dans le menu déroulant du fournisseur."""
+        return self.model in dict(self.models_for_provider)
+
+    @property
+    def gemini_model_in_choices(self):
+        return self.gemini_model in dict(self.GEMINI_MODELS)
+
+    @property
+    def mistral_model_in_choices(self):
+        return self.mistral_model in dict(self.MISTRAL_MODELS)

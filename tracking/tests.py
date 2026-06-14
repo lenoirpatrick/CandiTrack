@@ -428,7 +428,7 @@ class AIConfigModelTests(TestCase):
 
     def test_api_key_round_trips_and_configures(self):
         config = AIConfig.load()
-        config.api_key = "secret-gemini-key"
+        config.gemini_api_key = "secret-gemini-key"
         config.save()
         reloaded = AIConfig.load()
         self.assertEqual(reloaded.api_key, "secret-gemini-key")
@@ -438,15 +438,36 @@ class AIConfigModelTests(TestCase):
         from django.db import connection
 
         config = AIConfig.load()
-        config.api_key = "plain-key-123"
+        config.gemini_api_key = "plain-key-123"
         config.save()
         # La valeur brute en base ne contient pas le secret en clair (chiffrée).
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT api_key FROM tracking_aiconfig WHERE id = %s", [config.pk]
+                "SELECT gemini_api_key FROM tracking_aiconfig WHERE id = %s", [config.pk]
             )
             raw = cursor.fetchone()[0]
         self.assertNotIn("plain-key-123", raw)
+
+    def test_provider_switch_picks_right_key_and_model(self):
+        """Issue #34 — fournisseur actif = clé + modèle correspondants."""
+        config = AIConfig.load()
+        config.gemini_api_key = "g-key"
+        config.mistral_api_key = "m-key"
+        config.mistral_model = "mistral-large-latest"
+        config.provider = AIConfig.Provider.GEMINI
+        config.save()
+        config = AIConfig.load()
+        self.assertEqual(config.api_key, "g-key")
+        self.assertEqual(config.model, AIConfig.DEFAULT_GEMINI_MODEL)
+        config.provider = AIConfig.Provider.MISTRAL
+        config.save()
+        config = AIConfig.load()
+        self.assertEqual(config.api_key, "m-key")
+        self.assertEqual(config.model, "mistral-large-latest")
+        self.assertTrue(config.is_configured)
+
+    def test_mistral_default_model(self):
+        self.assertEqual(AIConfig.DEFAULT_MISTRAL_MODEL, "mistral-small-latest")
 
 
 @override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
@@ -461,11 +482,14 @@ class AIConfigViewTests(TestCase):
     def test_default_model_is_25_flash(self):
         self.assertEqual(AIConfig.DEFAULT_MODEL, "gemini-2.5-flash")
 
-    def test_help_page_has_model_dropdown(self):
+    def test_help_page_has_provider_and_model_dropdowns(self):
         resp = self.client.get(reverse("tracking:help"))
-        self.assertContains(resp, '<select id="model" name="model">')
+        self.assertContains(resp, '<select id="provider" name="provider">')
+        self.assertContains(resp, '<select id="gemini_model" name="gemini_model">')
+        self.assertContains(resp, '<select id="mistral_model" name="mistral_model">')
         self.assertContains(resp, "gemini-2.5-flash")
-        self.assertContains(resp, "gemini-2.5-pro")
+        self.assertContains(resp, "mistral-small-latest")
+        self.assertContains(resp, "Mistral AI")
 
     def test_options_page_has_theme_picker(self):
         resp = self.client.get(reverse("tracking:help"))
@@ -473,35 +497,66 @@ class AIConfigViewTests(TestCase):
         self.assertContains(resp, "theme-picker")
         self.assertContains(resp, 'data-theme-choice="dark"')
 
-    def test_ai_save_sets_key_and_model(self):
+    def test_ai_save_sets_gemini_key_and_model(self):
         self.client.post(
             reverse("tracking:help"),
-            {"action": "ai_save", "api_key": "k-123", "model": "gemini-1.5-pro"},
+            {
+                "action": "ai_save", "provider": "gemini",
+                "gemini_api_key": "k-123", "gemini_model": "gemini-2.5-pro",
+            },
         )
         config = AIConfig.load()
+        self.assertEqual(config.provider, "gemini")
         self.assertEqual(config.api_key, "k-123")
-        self.assertEqual(config.model, "gemini-1.5-pro")
+        self.assertEqual(config.model, "gemini-2.5-pro")
 
-    def test_ai_save_empty_key_keeps_existing(self):
+    def test_ai_save_sets_mistral_provider_and_key(self):
+        self.client.post(
+            reverse("tracking:help"),
+            {
+                "action": "ai_save", "provider": "mistral",
+                "mistral_api_key": "m-key", "mistral_model": "mistral-large-latest",
+            },
+        )
         config = AIConfig.load()
-        config.api_key = "keep-me"
+        self.assertEqual(config.provider, "mistral")
+        self.assertEqual(config.api_key, "m-key")
+        self.assertEqual(config.model, "mistral-large-latest")
+        self.assertTrue(config.is_configured)
+
+    def test_ai_save_keeps_other_provider_key(self):
+        """Basculer de fournisseur ne perd pas la clé du précédent (issue #34)."""
+        config = AIConfig.load()
+        config.gemini_api_key = "g-key"
         config.save()
         self.client.post(
             reverse("tracking:help"),
-            {"action": "ai_save", "api_key": "", "model": "gemini-2.0-flash"},
+            {"action": "ai_save", "provider": "mistral", "mistral_api_key": "m-key"},
+        )
+        config = AIConfig.load()
+        self.assertEqual(config.gemini_api_key, "g-key")
+        self.assertEqual(config.mistral_api_key, "m-key")
+
+    def test_ai_save_empty_key_keeps_existing(self):
+        config = AIConfig.load()
+        config.gemini_api_key = "keep-me"
+        config.save()
+        self.client.post(
+            reverse("tracking:help"),
+            {"action": "ai_save", "provider": "gemini", "gemini_api_key": ""},
         )
         self.assertEqual(AIConfig.load().api_key, "keep-me")
 
     def test_ai_save_blank_model_falls_back_to_default(self):
         self.client.post(
             reverse("tracking:help"),
-            {"action": "ai_save", "api_key": "k", "model": "  "},
+            {"action": "ai_save", "provider": "gemini", "gemini_api_key": "k", "gemini_model": "  "},
         )
-        self.assertEqual(AIConfig.load().model, AIConfig.DEFAULT_MODEL)
+        self.assertEqual(AIConfig.load().model, AIConfig.DEFAULT_GEMINI_MODEL)
 
-    def test_ai_clear_removes_key(self):
+    def test_ai_clear_removes_active_key(self):
         config = AIConfig.load()
-        config.api_key = "to-remove"
+        config.gemini_api_key = "to-remove"
         config.save()
         self.client.post(reverse("tracking:help"), {"action": "ai_clear"})
         self.assertFalse(AIConfig.load().is_configured)
@@ -513,7 +568,7 @@ class AICoachingViewTests(TestCase):
 
     def _configure(self):
         config = AIConfig.load()
-        config.api_key = "k"
+        config.gemini_api_key = "k"
         config.save()
 
     def test_requires_configuration(self):
@@ -551,7 +606,7 @@ class AIRelanceViewTests(TestCase):
     def setUp(self):
         self.cand = Candidature.objects.create(entreprise="ACME", poste="Dev")
         config = AIConfig.load()
-        config.api_key = "k"
+        config.gemini_api_key = "k"
         config.save()
 
     @mock.patch("tracking.coaching.ai.generate", return_value="Objet : relance\n…")
@@ -613,6 +668,49 @@ class GeminiClientTests(TestCase):
     def test_missing_key_raises(self):
         with self.assertRaises(ai.AIError):
             ai.generate("hi", api_key="", model="m")
+
+
+class MistralClientTests(TestCase):
+    """Issue #34 — client HTTP Mistral (parsing et aiguillage), réseau simulé."""
+
+    def _response(self, payload):
+        cm = mock.MagicMock()
+        cm.__enter__.return_value.read.return_value = json.dumps(payload).encode()
+        return cm
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_extracts_message_content(self, urlopen):
+        urlopen.return_value = self._response(
+            {"choices": [{"message": {"content": "Salut"}}]}
+        )
+        out = ai.generate("hi", api_key="k", model="mistral-small-latest", provider="mistral")
+        self.assertEqual(out, "Salut")
+        # L'URL appelée est bien celle de Mistral.
+        called_url = urlopen.call_args.args[0].full_url
+        self.assertIn("api.mistral.ai", called_url)
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_empty_choices_raise(self, urlopen):
+        urlopen.return_value = self._response({"choices": []})
+        with self.assertRaises(ai.AIError):
+            ai.generate("hi", api_key="k", model="m", provider="mistral")
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class CoachingProviderTests(TestCase):
+    """Issue #34 — le fournisseur configuré est transmis au client IA."""
+
+    @mock.patch("tracking.ai.generate", return_value="ok")
+    def test_provider_passed_to_client(self, gen):
+        config = AIConfig.load()
+        config.provider = AIConfig.Provider.MISTRAL
+        config.mistral_api_key = "m-key"
+        config.save()
+        self.client.post(reverse("tracking:ai_coaching"))
+        self.assertEqual(gen.call_args.kwargs["provider"], "mistral")
+        self.assertEqual(gen.call_args.kwargs["api_key"], "m-key")
+        # Pas de pièce jointe CV pour Mistral (texte seul).
+        self.assertIsNone(gen.call_args.kwargs.get("attachments"))
 
 
 def io_bytes(data):

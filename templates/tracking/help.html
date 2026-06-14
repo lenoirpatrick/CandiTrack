@@ -1,7 +1,45 @@
 {% extends "base.html" %}
-{% block title %}Aide — CandiTrack{% endblock %}
+{% block title %}Options — CandiTrack{% endblock %}
 {% block content %}
-<h1>Aide</h1>
+<h1>Options</h1>
+
+<div class="card">
+    <h2 style="margin-top:0;">Apparence</h2>
+    <p>Choisissez le thème de l'interface.</p>
+    <div class="theme-picker" role="radiogroup" aria-label="Thème">
+        <button type="button" class="theme-choice" data-theme-choice="system" role="radio" aria-checked="false">
+            <svg viewBox="0 0 64 44" width="64" height="44" aria-hidden="true">
+                <rect x="1" y="1" width="62" height="42" rx="5" fill="#f4f6fa"/>
+                <path d="M32 1 H58 a5 5 0 0 1 5 5 V38 a5 5 0 0 1 -5 5 H32 Z" fill="#0b132b"/>
+                <rect x="6" y="7" width="22" height="5" rx="2" fill="#3a506b"/>
+                <rect x="6" y="17" width="20" height="3" rx="1.5" fill="#5a6b85"/>
+                <rect x="36" y="7" width="22" height="5" rx="2" fill="#5bc0be"/>
+                <rect x="36" y="17" width="20" height="3" rx="1.5" fill="#8fa3bf"/>
+            </svg>
+            <span>Système</span>
+        </button>
+        <button type="button" class="theme-choice" data-theme-choice="light" role="radio" aria-checked="false">
+            <svg viewBox="0 0 64 44" width="64" height="44" aria-hidden="true">
+                <rect x="1" y="1" width="62" height="42" rx="5" fill="#f4f6fa" stroke="#dce3ec"/>
+                <rect x="1" y="1" width="62" height="11" rx="5" fill="#ffffff"/>
+                <rect x="6" y="18" width="34" height="4" rx="2" fill="#3a506b"/>
+                <rect x="6" y="26" width="50" height="3" rx="1.5" fill="#5a6b85"/>
+                <rect x="6" y="33" width="40" height="3" rx="1.5" fill="#5a6b85"/>
+            </svg>
+            <span>Clair</span>
+        </button>
+        <button type="button" class="theme-choice" data-theme-choice="dark" role="radio" aria-checked="false">
+            <svg viewBox="0 0 64 44" width="64" height="44" aria-hidden="true">
+                <rect x="1" y="1" width="62" height="42" rx="5" fill="#0b132b" stroke="#3a506b"/>
+                <rect x="1" y="1" width="62" height="11" rx="5" fill="#1c2541"/>
+                <rect x="6" y="18" width="34" height="4" rx="2" fill="#5bc0be"/>
+                <rect x="6" y="26" width="50" height="3" rx="1.5" fill="#8fa3bf"/>
+                <rect x="6" y="33" width="40" height="3" rx="1.5" fill="#8fa3bf"/>
+            </svg>
+            <span>Sombre</span>
+        </button>
+    </div>
+</div>
 
 <div class="card">
     <h2 style="margin-top:0;">1. Installer l'extension Chrome</h2>
@@ -100,8 +138,14 @@
         </div>
         <div class="field">
             <label for="model">Modèle</label>
-            <input id="model" name="model" type="text" value="{{ ai_config.model }}"
-                   placeholder="gemini-2.0-flash">
+            <select id="model" name="model">
+                {% if not ai_config.model_in_choices %}
+                <option value="{{ ai_config.model }}" selected>{{ ai_config.model }} (personnalisé)</option>
+                {% endif %}
+                {% for value, label in ai_config.GEMINI_MODELS %}
+                <option value="{{ value }}" {% if value == ai_config.model %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
         </div>
         <div class="form-actions">
             <button class="btn" type="submit">Enregistrer</button>
@@ -136,6 +180,48 @@
             });
         });
     });
+
+    // Sélecteur de thème par vignettes (issue #33) : « Système » suit l'OS
+    // (aucune préférence stockée), « Clair »/« Sombre » forcent le thème.
+    (function () {
+        var root = document.documentElement;
+        var choices = document.querySelectorAll(".theme-choice");
+        function stored() {
+            try { return localStorage.getItem("theme"); } catch (e) { return null; }
+        }
+        function highlight() {
+            var active = stored() || "system";
+            choices.forEach(function (c) {
+                var on = c.dataset.themeChoice === active;
+                c.classList.toggle("active", on);
+                c.setAttribute("aria-checked", on ? "true" : "false");
+            });
+            // Garde l'icône du bouton clair/sombre cohérente avec le choix.
+            var toggle = document.getElementById("theme-toggle");
+            if (toggle) {
+                var dark = root.getAttribute("data-theme")
+                    ? root.getAttribute("data-theme") === "dark"
+                    : window.matchMedia("(prefers-color-scheme: dark)").matches;
+                toggle.textContent = dark ? "☀️" : "🌙";
+            }
+        }
+        choices.forEach(function (c) {
+            c.addEventListener("click", function () {
+                var choice = c.dataset.themeChoice;
+                try {
+                    if (choice === "system") {
+                        localStorage.removeItem("theme");
+                        root.removeAttribute("data-theme");
+                    } else {
+                        localStorage.setItem("theme", choice);
+                        root.setAttribute("data-theme", choice);
+                    }
+                } catch (e) {}
+                highlight();
+            });
+        });
+        highlight();
+    })();
 })();
 </script>
 {% endblock %}

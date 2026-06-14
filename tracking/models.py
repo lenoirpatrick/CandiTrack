@@ -377,11 +377,20 @@ class AIConfig(models.Model):
     d'aide sans toucher au ``.env``.
     """
 
-    # Modèle Gemini par défaut : « flash » = rapide et économique, adapté au coaching.
-    DEFAULT_MODEL = "gemini-2.0-flash"
+    # Modèles Gemini proposés dans le menu déroulant (issue #33).
+    GEMINI_MODELS = [
+        ("gemini-2.5-flash", "Gemini 2.5 Flash — rapide et économique (recommandé)"),
+        ("gemini-2.5-pro", "Gemini 2.5 Pro — plus puissant"),
+        ("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite — le plus rapide"),
+        ("gemini-2.0-flash", "Gemini 2.0 Flash"),
+    ]
+    # « flash » = rapide et économique, adapté au coaching.
+    DEFAULT_MODEL = "gemini-2.5-flash"
 
     api_key = EncryptedCharField("clé API Gemini", blank=True, default="")
-    model = models.CharField("modèle", max_length=100, default=DEFAULT_MODEL)
+    model = models.CharField(
+        "modèle", max_length=100, choices=GEMINI_MODELS, default=DEFAULT_MODEL
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -401,3 +410,8 @@ class AIConfig(models.Model):
     def is_configured(self):
         """Vrai dès qu'une clé API est renseignée."""
         return bool(self.api_key)
+
+    @property
+    def model_in_choices(self):
+        """Vrai si le modèle courant figure dans le menu déroulant."""
+        return self.model in dict(self.GEMINI_MODELS)

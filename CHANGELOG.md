@@ -12,8 +12,10 @@ release du même nom.
   reçus (volume, motifs de refus…), un bilan de coaching et des actions à
   réaliser s'affichent dans une fenêtre modale (avec spinner d'attente). Sur
   chaque candidature, un bouton génère un brouillon de mail de relance. La
-  fonctionnalité s'active en renseignant sa propre clé API Gemini dans la
-  section « Configuration IA » de la page d'aide (clé stockée chiffrée).
+  fonctionnalité s'active en renseignant sa propre clé API Gemini (clé stockée
+  chiffrée), avec choix du modèle dans un menu déroulant (défaut Gemini 2.5
+  Flash). Le menu « Aide » devient « Options » (déplacé près du bouton de thème)
+  et regroupe désormais le choix d'apparence clair/sombre/système par vignettes.
 
 ## [Non publié] — 1.0.2
 

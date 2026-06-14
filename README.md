@@ -183,7 +183,8 @@ renseigne **sa propre clé API**.
 
 1. Obtenir une clé sur [Google AI Studio](https://aistudio.google.com/apikey).
 2. La coller dans la section **« Coaching IA »** de la page `/aide/` (et,
-   facultativement, choisir le modèle — défaut `gemini-2.0-flash`). La clé est
+   facultativement, choisir le modèle dans le menu déroulant — défaut
+   `gemini-2.5-flash`). La clé est
    stockée **chiffrée** en base (Fernet, comme les mots de passe des sites) et
    n'est jamais réaffichée.
 3. Depuis la liste des candidatures, **« ✨ Coaching IA »** ouvre une fenêtre
@@ -204,7 +205,7 @@ données.
 | `/sites/` | Sites d'emploi : ajout, modification, suppression, logo (#366) |
 | `/stats/` | Statistiques (#367 — premiers KPI) |
 | `/cv/` | CV : chargement et suppression (#368) |
-| `/aide/` | Aide, jetons de l'extension Chrome et configuration du coaching IA (#33) |
+| `/aide/` | **Options** : apparence (thème), jetons de l'extension Chrome et configuration du coaching IA (#33) |
 
 ## Prochaines itérations
 

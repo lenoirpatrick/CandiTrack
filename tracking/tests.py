@@ -448,6 +448,21 @@ class AIConfigViewTests(TestCase):
         self.assertContains(resp, "Coaching IA")
         self.assertContains(resp, "Clé API Gemini")
 
+    def test_default_model_is_25_flash(self):
+        self.assertEqual(AIConfig.DEFAULT_MODEL, "gemini-2.5-flash")
+
+    def test_help_page_has_model_dropdown(self):
+        resp = self.client.get(reverse("tracking:help"))
+        self.assertContains(resp, '<select id="model" name="model">')
+        self.assertContains(resp, "gemini-2.5-flash")
+        self.assertContains(resp, "gemini-2.5-pro")
+
+    def test_options_page_has_theme_picker(self):
+        resp = self.client.get(reverse("tracking:help"))
+        self.assertContains(resp, "Options")
+        self.assertContains(resp, "theme-picker")
+        self.assertContains(resp, 'data-theme-choice="dark"')
+
     def test_ai_save_sets_key_and_model(self):
         self.client.post(
             reverse("tracking:help"),

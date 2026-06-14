@@ -150,6 +150,14 @@
         .ai-result ul { margin:0.3rem 0 0.6rem; padding-left:1.2rem; }
         .ai-error { color:#e0584b; }
         .ai-actions { display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap; }
+        /* Sélecteur de thème par vignettes (page Options, issue #33) */
+        .theme-picker { display:flex; gap:0.75rem; flex-wrap:wrap; }
+        .theme-choice { display:flex; flex-direction:column; align-items:center; gap:0.35rem;
+                 background:var(--card); border:2px solid var(--border); border-radius:10px;
+                 padding:0.5rem; cursor:pointer; color:var(--text); font:inherit; font-size:0.85rem; }
+        .theme-choice svg { border-radius:6px; display:block; box-shadow:0 1px 4px rgba(0,0,0,0.15); }
+        .theme-choice:hover { border-color:var(--accent); }
+        .theme-choice.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
         /* Pied de page (issue #20) */
         .site-footer { max-width:1000px; margin:2.5rem auto 1.5rem; padding:1rem;
                  text-align:center; color:var(--muted); font-size:0.85rem;
@@ -165,9 +173,9 @@
         <a href="{% url 'tracking:site_list' %}">Sites</a>
         <a href="{% url 'tracking:stats' %}">Stats</a>
         <a href="{% url 'tracking:cv_list' %}">CV</a>
-        <a href="{% url 'tracking:help' %}">Aide</a>
+        <a href="{% url 'tracking:help' %}" style="margin-left:auto;">Options</a>
         <button type="button" class="theme-toggle" id="theme-toggle" title="Changer de thème"
-                aria-label="Changer de thème" style="margin-left:auto;">🌓</button>
+                aria-label="Changer de thème">🌓</button>
     </nav>
 </header>
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>

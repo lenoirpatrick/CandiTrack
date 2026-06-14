@@ -69,20 +69,13 @@ class CandidatureForm(forms.ModelForm):
 class JobSiteForm(forms.ModelForm):
     """Manual create/edit form for a job site (issue #366).
 
-    - The password is never pre-filled; leaving it blank on edit keeps the
-      stored (encrypted) value.
-    - When ``auto_logo`` is checked the logo is (re)fetched from the URL.
+    Les identifiants/mots de passe ne sont plus gérés (issue #43). Le logo est
+    récupéré depuis le favicon du site quand l'utilisateur n'en saisit pas.
     """
 
-    password = forms.CharField(
-        label="Mot de passe",
-        required=False,
-        widget=forms.PasswordInput(render_value=False),
-        help_text="Laisser vide pour conserver le mot de passe actuel.",
-    )
     class Meta:
         model = JobSite
-        fields = ["name", "url", "username", "password", "logo_url"]
+        fields = ["name", "url", "logo_url"]
         widgets = {
             "url": forms.URLInput(attrs={"placeholder": "https://www.exemple.fr/"}),
             "logo_url": forms.URLInput(
@@ -90,16 +83,8 @@ class JobSiteForm(forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Capture the current (decrypted) password so a blank submission keeps it.
-        self._original_password = self.instance.password if self.instance.pk else ""
-
     def save(self, commit=True):
         instance = super().save(commit=False)
-
-        if not self.cleaned_data.get("password"):
-            instance.password = self._original_password
 
         # Logo par défaut : le favicon du site (issue #27). On ne l'impose que si
         # l'utilisateur n'a pas saisi de logo manuel.

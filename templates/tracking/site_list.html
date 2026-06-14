@@ -5,13 +5,12 @@
     <h1 style="margin:0;">Sites d'emploi</h1>
     <a class="btn" href="{% url 'tracking:site_create' %}">+ Ajouter un site</a>
 </div>
-<p class="muted">Les identifiants sont stockés avec le mot de passe <strong>chiffré au repos</strong>.
-    Le logo (favicon du site) est récupéré automatiquement à l'enregistrement.</p>
+<p class="muted">Le logo (favicon du site) est récupéré automatiquement à l'enregistrement.</p>
 
 <div class="card">
     {% if sites %}
     <table>
-        <thead><tr><th>Logo</th><th>Nom</th><th>URL</th><th>Identifiant</th><th>Mot de passe</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Logo</th><th>Nom</th><th>URL</th><th>Actions</th></tr></thead>
         <tbody>
             {% for s in sites %}
             <tr{% if not s.actif %} class="closed-row"{% endif %}>
@@ -20,8 +19,6 @@
                     {% if s.is_builtin %} <span class="badge">défaut</span>{% endif %}
                     {% if not s.actif %} <span class="badge">désactivé</span>{% endif %}</td>
                 <td>{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a>{% else %}—{% endif %}</td>
-                <td>{{ s.username|default:"—" }}</td>
-                <td>{% if s.password %}<span class="muted">••••••</span>{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td class="row-actions" style="white-space:nowrap;">
                     <a href="{% url 'tracking:site_update' s.pk %}">Modifier</a>
                     <form method="post" action="{% url 'tracking:site_toggle_active' s.pk %}" style="display:inline;">

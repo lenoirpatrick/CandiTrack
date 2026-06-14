@@ -2,7 +2,7 @@
 
 The schema anticipates the four board issues:
 - #365 master plan: Candidature, StatusHistory, Reminder, Interview, Contact
-- #366 job sites:   JobSite (with an encrypted password)
+- #366 job sites:   JobSite (name, URL, logo)
 - #367 statistics:  built on top of Candidature aggregates
 - #368 CV upload:   CV
 """
@@ -23,14 +23,12 @@ ENVOYEE_LABEL = "Envoyée"
 class JobSite(models.Model):
     """A job board where applications are submitted (issue #366).
 
-    Credentials are optional; when a password is provided it is stored
-    encrypted at rest via :class:`EncryptedCharField`.
+    Les identifiants/mots de passe ne sont plus stockés (issue #43) : on ne
+    conserve que l'identité du site (nom, URL, logo) et son état.
     """
 
     name = models.CharField("nom", max_length=100, unique=True)
     url = models.URLField("URL", blank=True)
-    username = models.CharField("identifiant", max_length=200, blank=True)
-    password = EncryptedCharField("mot de passe", blank=True, default="")
     logo_url = models.URLField("URL du logo", blank=True)
     is_builtin = models.BooleanField("site par défaut", default=False)
     # Un site désactivé reste en base mais n'est plus proposé pour de nouvelles

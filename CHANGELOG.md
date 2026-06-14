@@ -6,8 +6,23 @@ versionnage [SemVer](https://semver.org/lang/fr/). Chaque version correspond à
 un milestone GitHub ; la liste des issues traitées est aussi publiée dans la
 release du même nom.
 
+## [Non publié] — 1.2.0
+
+- #43 — Sites d'emploi : suppression de la gestion des **identifiants et mots de
+  passe**. Seuls le nom, l'URL et le logo d'un site sont désormais conservés ;
+  les champs `username`/`password` (et leur stockage chiffré) sont retirés du
+  modèle, du formulaire et de la liste.
+
 ## [Non publié] — 1.1.0
 
+- #35 — Modernisation de l'interface : navigation déplacée dans une **sidebar
+  latérale rétractable** (étendue avec icônes + libellés, réduite en icônes
+  seules avec tooltips au survol, transition animée, bouton de bascule ; état
+  mémorisé). L'entrée **Options** reste épinglée en bas dans les deux états.
+  Design corporate (ombres subtiles, coins arrondis, focus accessibles),
+  **animations des graphiques** de statistiques (barres et donut qui se
+  tracent, survol interactif de la légende, KPI en cascade) et **affichage
+  mobile réactif** (tiroir avec voile).
 - #33 — Coaching IA (Gemini) : à partir du CV, des postes visés et des retours
   reçus (volume, motifs de refus…), un bilan de coaching et des actions à
   réaliser s'affichent dans une fenêtre modale (avec spinner d'attente). Sur

@@ -341,7 +341,10 @@ class SiteFaviconTests(TestCase):
             "https://www.google.com/s2/favicons?domain=www.exemple.fr&sz=64",
         )
 
-    def test_logo_manuel_respecte(self):
+    def test_logo_url_non_demande(self):
+        """Issue #50 — le champ logo n'est plus proposé ; le favicon prime."""
+        self.assertNotIn("logo_url", JobSiteForm().fields)
+        # Même si un logo_url est posté, il est ignoré au profit du favicon.
         form = JobSiteForm(data={
             "name": "Exemple",
             "url": "https://www.exemple.fr/",
@@ -349,7 +352,26 @@ class SiteFaviconTests(TestCase):
         })
         self.assertTrue(form.is_valid(), form.errors)
         site = form.save()
-        self.assertEqual(site.logo_url, "https://cdn.exemple.fr/logo.png")
+        self.assertEqual(
+            site.logo_url,
+            "https://www.google.com/s2/favicons?domain=www.exemple.fr&sz=64",
+        )
+
+    def test_logo_resuit_si_url_modifiee(self):
+        """Issue #50 — changer l'URL régénère le logo depuis le nouveau favicon."""
+        site = JobSite.objects.create(
+            name="Exemple", url="https://www.exemple.fr/",
+            logo_url="https://ancien/logo.png",
+        )
+        form = JobSiteForm(
+            data={"name": "Exemple", "url": "https://www.autre.fr/"}, instance=site
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        site = form.save()
+        self.assertEqual(
+            site.logo_url,
+            "https://www.google.com/s2/favicons?domain=www.autre.fr&sz=64",
+        )
 
     def test_liste_sans_lien_logo(self):
         JobSite.objects.create(name="Exemple", url="https://www.exemple.fr/")

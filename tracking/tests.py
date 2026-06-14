@@ -924,3 +924,40 @@ def io_bytes(data):
     """Petit helper : un flux binaire lisible pour simuler HTTPError.read()."""
     import io
     return io.BytesIO(data)
+
+
+class SidebarTests(TestCase):
+    """Issue #35 — sidebar rétractable, responsive, Options en bas."""
+
+    def test_sidebar_structure(self):
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, 'class="sidebar"')
+        self.assertContains(resp, 'id="sidebar-toggle"')
+        self.assertContains(resp, "sidebar-nav")
+        # Tooltips en mode réduit : libellé porté par data-label.
+        self.assertContains(resp, 'data-label="Candidatures"')
+
+    def test_options_pinned_in_footer(self):
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, "sidebar-foot")
+        self.assertContains(resp, 'data-label="Options"')
+
+    def test_active_link_marked(self):
+        resp = self.client.get(reverse("tracking:stats"))
+        self.assertContains(resp, "nav-item active")
+
+    def test_mobile_topbar_present(self):
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, 'id="menu-btn"')
+        self.assertContains(resp, 'id="sb-backdrop"')
+
+
+class StatsAnimationTests(TestCase):
+    """Issue #35 — hooks d'animation des graphiques de statistiques."""
+
+    def test_chart_animation_hooks(self):
+        Candidature.objects.create(poste="Dev", source=Source.LINKEDIN, statut=Statut.ENVOYEE)
+        resp = self.client.get(reverse("tracking:stats"))
+        self.assertContains(resp, "js-bar")
+        self.assertContains(resp, "js-seg")
+        self.assertContains(resp, "data-dash")

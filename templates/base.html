@@ -7,11 +7,13 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}CandiTrack{% endblock %}</title>
     <script>
-        // Apply the saved theme before paint to avoid a flash (issue #4).
+        // Pré-réglages avant paint pour éviter tout flash (thème #4, sidebar #35).
         (function () {
             try {
                 var t = localStorage.getItem("theme");
                 if (t) document.documentElement.setAttribute("data-theme", t);
+                if (localStorage.getItem("sidebar") === "collapsed")
+                    document.documentElement.setAttribute("data-sidebar", "collapsed");
             } catch (e) {}
         })();
     </script>
@@ -23,6 +25,10 @@
             --muted:#5a6b85; --text:#0b132b; --nav-link:#1c2541;
             --chip-bg:#e7ecf4; --chip-text:#1c2541; --track:#e7ecf4;
             --msg-bg:#e3f4f3; --msg-border:#bfe3e2; --input-bg:#ffffff;
+            --sidebar-bg:#ffffff; --sidebar-hover:#eef2f8; --accent-soft:rgba(58,80,107,0.12);
+            --radius:12px; --radius-sm:8px;
+            --shadow:0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.08);
+            --shadow-lg:0 10px 30px rgba(16,24,40,0.12);
         }
         /* Follow the OS preference unless the user explicitly chose light. */
         @media (prefers-color-scheme: dark) {
@@ -31,6 +37,9 @@
                 --muted:#8fa3bf; --text:#e6ecf5; --nav-link:#c7d2e2;
                 --chip-bg:#243156; --chip-text:#c7d2e2; --track:#1c2541;
                 --msg-bg:#123a39; --msg-border:#2e5d5b; --input-bg:#0a1127;
+                --sidebar-bg:#0e1730; --sidebar-hover:#1c2541; --accent-soft:rgba(91,192,190,0.16);
+                --shadow:0 1px 2px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.35);
+                --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
             }
         }
         /* Explicit dark choice always wins. */
@@ -39,6 +48,9 @@
             --muted:#8fa3bf; --text:#e6ecf5; --nav-link:#c7d2e2;
             --chip-bg:#243156; --chip-text:#c7d2e2; --track:#1c2541;
             --msg-bg:#123a39; --msg-border:#2e5d5b; --input-bg:#0a1127;
+            --sidebar-bg:#0e1730; --sidebar-hover:#1c2541; --accent-soft:rgba(91,192,190,0.16);
+            --shadow:0 1px 2px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.35);
+            --shadow-lg:0 16px 40px rgba(0,0,0,0.5);
         }
         * { box-sizing: border-box; }
         body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -47,24 +59,77 @@
         a { color: var(--accent); }
         a:visited { color: var(--accent); }
         a:hover { color: var(--text); }
-        header { background: var(--card); border-bottom:1px solid var(--border); }
-        nav { max-width: 1000px; margin:0 auto; padding:0 1rem; display:flex; gap:1rem; align-items:center; }
-        nav .brand { font-weight:700; padding:1rem 0; margin-right:1rem; color:var(--accent); }
-        nav a { color:var(--nav-link); text-decoration:none; padding:1rem 0.25rem; }
-        nav a:hover { color: var(--accent); }
-        main { max-width: 1000px; margin:1.5rem auto; padding:0 1rem; }
-        main.wide { max-width: 1400px; }
-        .card { background:var(--card); border:1px solid var(--border); border-radius:10px;
-                padding:1rem 1.25rem; margin-bottom:1rem; }
+
+        /* ===== Mise en page : sidebar rétractable (issue #35) ===== */
+        .app { display:flex; min-height:100vh; }
+        .sidebar {
+            --sb-w:240px;
+            flex:0 0 var(--sb-w); width:var(--sb-w);
+            background:var(--sidebar-bg); border-right:1px solid var(--border);
+            display:flex; flex-direction:column; position:sticky; top:0; height:100vh;
+            transition:flex-basis .22s ease, width .22s ease; z-index:1100;
+        }
+        :root[data-sidebar="collapsed"] .sidebar { --sb-w:72px; }
+        .sidebar-top { display:flex; align-items:center; gap:0.6rem; padding:0.9rem 0.8rem;
+                 min-height:60px; border-bottom:1px solid var(--border); }
+        .sidebar-toggle { background:none; border:1px solid var(--border); color:var(--text);
+                 width:38px; height:38px; flex:0 0 38px; border-radius:var(--radius-sm); cursor:pointer;
+                 font-size:1.1rem; display:flex; align-items:center; justify-content:center; transition:background .15s; }
+        .sidebar-toggle:hover { background:var(--sidebar-hover); }
+        .brand { font-weight:800; color:var(--accent); font-size:1.15rem; letter-spacing:0.2px;
+                 white-space:nowrap; overflow:hidden; }
+        .sidebar-nav { display:flex; flex-direction:column; gap:0.15rem; padding:0.6rem 0.5rem; flex:1; }
+        .sidebar-foot { padding:0.6rem 0.5rem; border-top:1px solid var(--border);
+                 display:flex; flex-direction:column; gap:0.15rem; }
+        .nav-item { position:relative; display:flex; align-items:center; gap:0.8rem;
+                 padding:0.6rem 0.7rem; border-radius:var(--radius-sm); text-decoration:none;
+                 color:var(--nav-link); font-weight:600; font-size:0.95rem; white-space:nowrap;
+                 transition:background .15s, color .15s; }
+        .nav-item:hover { background:var(--sidebar-hover); color:var(--accent); }
+        .nav-item.active { background:var(--accent-soft); color:var(--accent); }
+        .nav-item.active::before { content:""; position:absolute; left:0; top:18%; bottom:18%;
+                 width:3px; border-radius:3px; background:var(--accent); }
+        .nav-ico { flex:0 0 24px; width:24px; text-align:center; font-size:1.15rem; line-height:1; }
+        .nav-label { overflow:hidden; transition:opacity .15s ease; }
+        /* État réduit : icônes centrées, labels cachés, tooltip au survol */
+        :root[data-sidebar="collapsed"] .brand,
+        :root[data-sidebar="collapsed"] .nav-label { opacity:0; width:0; }
+        :root[data-sidebar="collapsed"] .nav-item { justify-content:center; gap:0; }
+        :root[data-sidebar="collapsed"] .nav-item:hover::after {
+            content:attr(data-label); position:absolute; left:calc(100% + 10px); top:50%;
+            transform:translateY(-50%); background:var(--text); color:var(--bg);
+            padding:0.3rem 0.55rem; border-radius:6px; font-size:0.82rem; font-weight:600;
+            white-space:nowrap; z-index:1200; box-shadow:var(--shadow-lg); pointer-events:none;
+        }
+        .app-main { flex:1; min-width:0; display:flex; flex-direction:column; }
+        .topbar { display:none; align-items:center; gap:0.6rem; padding:0.55rem 1rem;
+                 background:var(--sidebar-bg); border-bottom:1px solid var(--border);
+                 position:sticky; top:0; z-index:1000; }
+        .menu-btn { background:none; border:1px solid var(--border); color:var(--text);
+                 width:40px; height:40px; border-radius:var(--radius-sm); cursor:pointer; font-size:1.2rem; }
+        .sb-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1050; }
+
+        main { width:100%; max-width:1080px; margin:1.75rem auto; padding:0 1.5rem; flex:1;
+               animation:page-in .35s ease both; }
+        main.wide { max-width:1400px; }
+        @keyframes page-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+        .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+                padding:1.1rem 1.35rem; margin-bottom:1.1rem; box-shadow:var(--shadow); }
         table { width:100%; border-collapse: collapse; }
         th, td { text-align:left; padding:0.5rem 0.6rem; border-bottom:1px solid var(--border); }
         th { color:var(--muted); font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em; }
+        tbody tr { transition:background .12s; }
+        tbody tr:hover td { background:var(--accent-soft); }
         /* Couleur du texte verrouillée pour tous les états : les boutons sont des
            liens <a>, sans quoi les règles a:visited/a:hover (plus spécifiques que
            .btn) repeignent le texte en --accent — identique au fond (issue #26). */
         .btn, .btn:visited, .btn:hover { display:inline-block; background:var(--accent);
-               color:#fff; padding:0.5rem 0.9rem; border-radius:8px; text-decoration:none;
-               border:none; cursor:pointer; font-size:0.95rem; }
+               color:#fff; padding:0.5rem 0.95rem; border-radius:var(--radius-sm); text-decoration:none;
+               border:none; cursor:pointer; font-size:0.95rem; box-shadow:var(--shadow);
+               transition:transform .12s ease, filter .15s ease, box-shadow .15s ease; }
+        .btn:hover { transform:translateY(-1px); filter:brightness(1.06); box-shadow:var(--shadow-lg); }
+        .btn:active { transform:translateY(0); }
         .btn.secondary, .btn.secondary:visited, .btn.secondary:hover {
                background:var(--chip-bg); color:var(--chip-text); }
         .badge { display:inline-block; background:var(--chip-bg); color:var(--chip-text); padding:0.15rem 0.55rem;
@@ -80,12 +145,15 @@
         .switch input:checked + .slider::before { transform:translateX(18px); }
         form p { margin:0.6rem 0; }
         label { display:block; font-weight:600; font-size:0.9rem; margin-bottom:0.2rem; }
-        input, select, textarea { width:100%; padding:0.45rem 0.55rem; border:1px solid var(--border);
-                 border-radius:8px; font:inherit; background:var(--input-bg); color:var(--text); }
+        input, select, textarea { width:100%; padding:0.5rem 0.6rem; border:1px solid var(--border);
+                 border-radius:var(--radius-sm); font:inherit; background:var(--input-bg); color:var(--text);
+                 transition:border-color .15s, box-shadow .15s; }
+        input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent);
+                 box-shadow:0 0 0 3px var(--accent-soft); }
         input[type=checkbox] { width:auto; }
         .messages { list-style:none; padding:0; }
         .messages li { background:var(--msg-bg); border:1px solid var(--msg-border); padding:0.6rem 0.9rem;
-                 border-radius:8px; margin-bottom:0.5rem; }
+                 border-radius:var(--radius-sm); margin-bottom:0.5rem; }
         .muted { color: var(--muted); }
         .row-actions a, .row-actions form { margin-right:0.5rem; }
         .linklike { background:none; border:none; padding:0; color:var(--accent); cursor:pointer;
@@ -97,7 +165,7 @@
         .step { background:var(--chip-bg); color:var(--muted); padding:0.2rem 0.6rem; border-radius:999px; font-size:0.85rem; }
         .step.done { background:var(--accent); color:#fff; }
         /* Forms: sections + grids */
-        fieldset { border:1px solid var(--border); border-radius:10px; padding:0.5rem 1rem 1rem; margin:0 0 1rem; }
+        fieldset { border:1px solid var(--border); border-radius:var(--radius); padding:0.5rem 1rem 1rem; margin:0 0 1rem; }
         legend { font-weight:700; color:var(--accent); padding:0 0.4rem; }
         .field { margin:0.5rem 0; }
         .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 1rem; }
@@ -108,9 +176,9 @@
         .form-actions { display:flex; gap:0.5rem; margin-top:0.5rem; }
         @media (max-width:560px) { .grid2, .grid3 { grid-template-columns:1fr; } }
         /* Modal (native dialog) */
-        dialog { border:none; border-radius:12px; padding:0; width:92%; max-width:680px;
+        dialog { border:none; border-radius:var(--radius); padding:0; width:92%; max-width:680px;
                  max-height:88vh; overflow:auto; background:var(--card); color:var(--text);
-                 box-shadow:0 12px 40px rgba(0,0,0,0.3); }
+                 box-shadow:var(--shadow-lg); }
         dialog::backdrop { background:rgba(0,0,0,0.5); }
         .modal-body { padding:1.25rem 1.5rem; }
         .modal-body h2 { margin-top:0; }
@@ -126,11 +194,11 @@
         .closed-row td { background:rgba(224,88,75,0.06); }
         .src-logo { height:16px; width:16px; object-fit:contain; vertical-align:middle; margin-right:0.35rem; border-radius:3px; }
         /* Toasts (issue #13) */
-        .toast-container { position:fixed; top:1rem; right:1rem; z-index:1000;
+        .toast-container { position:fixed; top:1rem; right:1rem; z-index:1500;
                  display:flex; flex-direction:column; gap:0.5rem; max-width:360px; }
         .toast { background:var(--card); color:var(--text); border:1px solid var(--border);
-                 border-left:4px solid var(--accent); border-radius:8px; padding:0.7rem 1rem;
-                 box-shadow:0 6px 20px rgba(0,0,0,0.18); font-size:0.92rem;
+                 border-left:4px solid var(--accent); border-radius:var(--radius-sm); padding:0.7rem 1rem;
+                 box-shadow:var(--shadow-lg); font-size:0.92rem;
                  opacity:0; transform:translateX(20px); transition:opacity .25s ease, transform .25s ease; }
         .toast.show { opacity:1; transform:translateX(0); }
         .toast.success { border-left-color:#27a567; }
@@ -175,39 +243,105 @@
             .options-nav { flex-direction:row; flex-wrap:wrap; width:100%; }
         }
         /* Pied de page (issue #20) */
-        .site-footer { max-width:1000px; margin:2.5rem auto 1.5rem; padding:1rem;
-                 text-align:center; color:var(--muted); font-size:0.85rem;
+        .site-footer { padding:1.25rem; text-align:center; color:var(--muted); font-size:0.85rem;
                  border-top:1px solid var(--border); }
         .site-footer a { color:var(--accent); }
+
+        /* ===== Responsive mobile (issue #35) ===== */
+        @media (max-width:768px) {
+            .topbar { display:flex; }
+            .sidebar { position:fixed; top:0; left:0; height:100vh; --sb-w:264px;
+                     transform:translateX(-100%); transition:transform .25s ease; }
+            :root[data-sidebar="collapsed"] .sidebar { --sb-w:264px; }
+            :root[data-sidebar="collapsed"] .brand,
+            :root[data-sidebar="collapsed"] .nav-label { opacity:1; width:auto; }
+            :root[data-sidebar="collapsed"] .nav-item { justify-content:flex-start; gap:0.8rem; }
+            :root.sidebar-open .sidebar { transform:none; box-shadow:var(--shadow-lg); }
+            :root.sidebar-open .sb-backdrop { display:block; }
+            .sidebar .sidebar-toggle { display:none; }  /* sur mobile : fermeture via backdrop ou lien */
+            main { margin:1.1rem auto; padding:0 1rem; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+        }
     </style>
 </head>
 <body>
-<header>
-    <nav>
-        <span class="brand">CandiTrack</span>
-        <a href="{% url 'tracking:candidature_list' %}">Candidatures</a>
-        <a href="{% url 'tracking:site_list' %}">Sites</a>
-        <a href="{% url 'tracking:stats' %}">Stats</a>
-        <a href="{% url 'tracking:cv_list' %}">CV</a>
-        <a href="{% url 'tracking:help' %}" style="margin-left:auto;">⚙️ Options</a>
-    </nav>
-</header>
+<div class="app">
+    <aside class="sidebar" aria-label="Navigation principale">
+        <div class="sidebar-top">
+            <button type="button" class="sidebar-toggle" id="sidebar-toggle"
+                    title="Réduire / étendre le menu" aria-label="Réduire ou étendre le menu">☰</button>
+            <span class="brand">CandiTrack</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a class="nav-item {% if request.path == '/' or '/candidatures' in request.path %}active{% endif %}"
+               href="{% url 'tracking:candidature_list' %}" data-label="Candidatures">
+               <span class="nav-ico" aria-hidden="true">📋</span><span class="nav-label">Candidatures</span></a>
+            <a class="nav-item {% if '/sites' in request.path %}active{% endif %}"
+               href="{% url 'tracking:site_list' %}" data-label="Sites">
+               <span class="nav-ico" aria-hidden="true">🌐</span><span class="nav-label">Sites</span></a>
+            <a class="nav-item {% if '/stats' in request.path %}active{% endif %}"
+               href="{% url 'tracking:stats' %}" data-label="Statistiques">
+               <span class="nav-ico" aria-hidden="true">📊</span><span class="nav-label">Statistiques</span></a>
+            <a class="nav-item {% if '/cv' in request.path %}active{% endif %}"
+               href="{% url 'tracking:cv_list' %}" data-label="CV">
+               <span class="nav-ico" aria-hidden="true">📄</span><span class="nav-label">CV</span></a>
+        </nav>
+        <div class="sidebar-foot">
+            <a class="nav-item {% if '/aide' in request.path %}active{% endif %}"
+               href="{% url 'tracking:help' %}" data-label="Options">
+               <span class="nav-ico" aria-hidden="true">⚙️</span><span class="nav-label">Options</span></a>
+        </div>
+    </aside>
+
+    <div class="app-main">
+        <div class="topbar">
+            <button type="button" class="menu-btn" id="menu-btn" aria-label="Ouvrir le menu">☰</button>
+            <span class="brand">CandiTrack</span>
+        </div>
+        <main class="{% block main_class %}{% endblock %}">
+            {% block content %}{% endblock %}
+        </main>
+        <footer class="site-footer">
+            © {% now "Y" %} CandiTrack — conçu par
+            <a href="https://github.com/lenoirpatrick" target="_blank" rel="noopener">Patrick Lenoir</a>
+            avec <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>.
+        </footer>
+    </div>
+</div>
+<div class="sb-backdrop" id="sb-backdrop"></div>
+
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 {% if messages %}
 <script id="toast-data" type="application/json">[{% for message in messages %}{"text": "{{ message|escapejs }}", "level": "{{ message.tags|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]</script>
 {% endif %}
-<main class="{% block main_class %}{% endblock %}">
-    {% block content %}{% endblock %}
-</main>
-<footer class="site-footer">
-    © {% now "Y" %} CandiTrack — conçu par
-    <a href="https://github.com/lenoirpatrick" target="_blank" rel="noopener">Patrick Lenoir</a>
-    avec <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>.
-</footer>
 <dialog id="ai-modal"><div class="modal-body" id="ai-modal-body"></div></dialog>
 <script>
-    // Le thème se choisit désormais depuis la page Options (issue #33) ; le
-    // pré-réglage anti-flash en <head> applique la préférence stockée.
+    var root = document.documentElement;
+
+    // Sidebar rétractable (issue #35) : état desktop persistant + tiroir mobile.
+    (function () {
+        var toggle = document.getElementById("sidebar-toggle");
+        var menuBtn = document.getElementById("menu-btn");
+        var backdrop = document.getElementById("sb-backdrop");
+        function isMobile() { return window.matchMedia("(max-width:768px)").matches; }
+        toggle.addEventListener("click", function () {
+            var collapsed = root.getAttribute("data-sidebar") === "collapsed";
+            root.setAttribute("data-sidebar", collapsed ? "expanded" : "collapsed");
+            try { localStorage.setItem("sidebar", collapsed ? "expanded" : "collapsed"); } catch (e) {}
+        });
+        function closeMobile() { root.classList.remove("sidebar-open"); }
+        menuBtn.addEventListener("click", function () { root.classList.toggle("sidebar-open"); });
+        backdrop.addEventListener("click", closeMobile);
+        document.querySelectorAll(".sidebar-nav .nav-item, .sidebar-foot .nav-item").forEach(function (a) {
+            a.addEventListener("click", function () { if (isMobile()) closeMobile(); });
+        });
+    })();
+
+    // Le thème se choisit depuis la page Options (issue #33) ; le pré-réglage
+    // anti-flash en <head> applique la préférence stockée.
 
     // Toasts (issue #13) : remplace l'ancienne liste de messages.
     (function () {

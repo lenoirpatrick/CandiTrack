@@ -14,6 +14,7 @@ class CandidatureForm(forms.ModelForm):
             "entreprise",
             "poste",
             "site",
+            "cv",
             "source",
             "url_offre",
             "date_envoi",
@@ -53,6 +54,14 @@ class CandidatureForm(forms.ModelForm):
         if current:
             qs = (qs | JobSite.objects.filter(pk=current)).distinct()
         self.fields["site"].queryset = qs
+
+        # Idem pour les CV : on ne propose que les CV actifs (issue #48), tout en
+        # conservant celui déjà lié à la candidature (issue #49).
+        cv_qs = CV.objects.filter(actif=True)
+        current_cv = getattr(self.instance, "cv_id", None)
+        if current_cv:
+            cv_qs = (cv_qs | CV.objects.filter(pk=current_cv)).distinct()
+        self.fields["cv"].queryset = cv_qs
 
     def save(self, commit=True):
         instance = super().save(commit=False)

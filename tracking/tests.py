@@ -1388,6 +1388,59 @@ class CVArchiveTests(TestCase):
         self.assertEqual(resp.status_code, 405)
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CVCandidatureLinkTests(TestCase):
+    """Issue #49 — lier un CV à une candidature."""
+
+    def _make_cv(self, label="CV", actif=True):
+        cv = CV.objects.create(
+            label=label, file=SimpleUploadedFile(f"{label}.txt", b"x")
+        )
+        if not actif:
+            CV.objects.filter(pk=cv.pk).update(actif=False)
+        return cv
+
+    def test_form_ne_propose_que_les_cv_actifs(self):
+        actif = self._make_cv("Actif")
+        archive = self._make_cv("Archivé", actif=False)
+        choices = list(CandidatureForm().fields["cv"].queryset)
+        self.assertIn(actif, choices)
+        self.assertNotIn(archive, choices)
+
+    def test_form_conserve_le_cv_archive_deja_lie(self):
+        archive = self._make_cv("Archivé", actif=False)
+        cand = Candidature.objects.create(poste="Dev", cv=archive)
+        self.assertIn(archive, list(CandidatureForm(instance=cand).fields["cv"].queryset))
+
+    def test_creation_lie_le_cv(self):
+        cv = self._make_cv()
+        self.client.post(reverse("tracking:candidature_create"), {
+            "poste": "Dev", "cv": cv.pk, "source": "autre",
+            "canal_envoi": "email", "statut": Statut.ENVOYEE,
+        })
+        self.assertEqual(Candidature.objects.get().cv, cv)
+
+    def test_detail_candidature_affiche_le_cv(self):
+        cv = self._make_cv("Mon CV")
+        cand = Candidature.objects.create(poste="Dev", cv=cv)
+        resp = self.client.get(reverse("tracking:candidature_detail", args=[cand.pk]))
+        self.assertContains(resp, "Mon CV")
+
+    def test_detail_cv_affiche_les_candidatures(self):
+        cv = self._make_cv()
+        Candidature.objects.create(libelle="ACME — Dev", poste="Dev", cv=cv)
+        resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
+        self.assertContains(resp, "Candidatures liées")
+        self.assertContains(resp, "ACME — Dev")
+
+    def test_supprimer_cv_delie_la_candidature(self):
+        cv = self._make_cv()
+        cand = Candidature.objects.create(poste="Dev", cv=cv)
+        cv.delete()  # on_delete=SET_NULL
+        cand.refresh_from_db()
+        self.assertIsNone(cand.cv)
+
+
 def io_bytes(data):
     """Petit helper : un flux binaire lisible pour simuler HTTPError.read()."""
     import io

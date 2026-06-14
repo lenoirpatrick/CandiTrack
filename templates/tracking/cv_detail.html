@@ -110,6 +110,17 @@
     {% endif %}
 </div>
 
+{% if cv.candidatures.all %}
+<div class="card">
+    <h2 class="cv-section-title" style="margin-top:0;"><span class="ico">📨</span> Candidatures liées</h2>
+    <ul style="margin:0; padding-left:1.2rem;">
+        {% for c in cv.candidatures.all %}
+        <li><a href="{% url 'tracking:candidature_detail' c.pk %}">{{ c }}</a></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 {% if cv.analysis_error %}
 <div style="padding:0.8rem 1rem; border:1px solid var(--border); border-left:4px solid #e0584b; border-radius:8px; margin-bottom:1.1rem;">⚠️ {{ cv.analysis_error }}</div>
 {% endif %}

@@ -124,7 +124,7 @@ def _celebrer_acceptation(request):
 @require_GET
 def candidature_detail(request, pk):
     candidature = get_object_or_404(
-        Candidature.objects.select_related("site"), pk=pk
+        Candidature.objects.select_related("site", "cv"), pk=pk
     )
     return render(
         request,

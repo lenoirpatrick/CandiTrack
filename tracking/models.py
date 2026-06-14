@@ -120,6 +120,17 @@ class Candidature(models.Model):
     )
     notes = models.TextField("notes", blank=True)
 
+    # CV joint à la candidature (issue #49). Référence par chaîne car CV est
+    # défini plus bas dans le module.
+    cv = models.ForeignKey(
+        "CV",
+        verbose_name="CV",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="candidatures",
+    )
+
     # Étapes d'avancement (issue #3) — la barre de progression en découle.
     envoyee = models.BooleanField("candidature envoyée", default=False)
     traitee = models.BooleanField("candidature traitée", default=False)

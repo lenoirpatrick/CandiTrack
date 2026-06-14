@@ -15,6 +15,7 @@ import json
 import mimetypes
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
@@ -30,6 +31,16 @@ class AIError(Exception):
     """Erreur d'appel à l'IA, avec un message présentable à l'utilisateur."""
 
 
+@dataclass
+class GenerationResult:
+    """Texte généré et consommation de tokens associée (issue #36)."""
+
+    text: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+
+
 def guess_mime(filename):
     """Type MIME d'une pièce jointe, ``None`` si non géré par Gemini."""
     mime, _ = mimetypes.guess_type(filename)
@@ -39,7 +50,7 @@ def guess_mime(filename):
 
 
 def generate(prompt, *, api_key, model, provider="gemini", attachments=None):
-    """Appelle le fournisseur ``provider`` et renvoie le texte généré.
+    """Appelle le fournisseur ``provider`` et renvoie un :class:`GenerationResult`.
 
     ``attachments`` (liste de tuples ``(mime_type, bytes)``) n'est exploité que
     par Gemini. Lève :class:`AIError` sur tout problème (clé invalide, réseau,
@@ -88,7 +99,7 @@ def _gemini_generate(prompt, *, api_key, model, attachments=None):
     ).encode("utf-8")
     headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
     body = _request_json(GEMINI_URL.format(model=model), headers, payload)
-    return _extract_gemini_text(body)
+    return _parse_gemini(body)
 
 
 def _mistral_generate(prompt, *, api_key, model):
@@ -104,7 +115,7 @@ def _mistral_generate(prompt, *, api_key, model):
         "Authorization": f"Bearer {api_key}",
     }
     body = _request_json(MISTRAL_URL, headers, payload)
-    return _extract_mistral_text(body)
+    return _parse_mistral(body)
 
 
 def _http_error_message(exc):
@@ -128,8 +139,8 @@ def _http_error_message(exc):
     return f"Erreur de l'API IA (HTTP {exc.code}). {detail}".strip()
 
 
-def _extract_gemini_text(body):
-    """Concatène le texte des parts de la première réponse Gemini."""
+def _parse_gemini(body):
+    """Texte + tokens de la première réponse Gemini (issue #36)."""
     candidates = body.get("candidates") or []
     if not candidates:
         reason = body.get("promptFeedback", {}).get("blockReason")
@@ -140,15 +151,27 @@ def _extract_gemini_text(body):
     text = "".join(part.get("text", "") for part in parts).strip()
     if not text:
         raise AIError("L'IA a renvoyé une réponse vide.")
-    return text
+    usage = body.get("usageMetadata", {})
+    return GenerationResult(
+        text=text,
+        prompt_tokens=usage.get("promptTokenCount", 0),
+        completion_tokens=usage.get("candidatesTokenCount", 0),
+        total_tokens=usage.get("totalTokenCount", 0),
+    )
 
 
-def _extract_mistral_text(body):
-    """Extrait le contenu du premier message de la réponse Mistral."""
+def _parse_mistral(body):
+    """Texte + tokens du premier message de la réponse Mistral (issue #36)."""
     choices = body.get("choices") or []
     if not choices:
         raise AIError("L'IA n'a renvoyé aucune réponse.")
     text = (choices[0].get("message", {}).get("content") or "").strip()
     if not text:
         raise AIError("L'IA a renvoyé une réponse vide.")
-    return text
+    usage = body.get("usage", {})
+    return GenerationResult(
+        text=text,
+        prompt_tokens=usage.get("prompt_tokens", 0),
+        completion_tokens=usage.get("completion_tokens", 0),
+        total_tokens=usage.get("total_tokens", 0),
+    )

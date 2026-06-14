@@ -412,6 +412,13 @@ class AIConfig(models.Model):
         "modèle Mistral", max_length=100,
         choices=MISTRAL_MODELS, default=DEFAULT_MISTRAL_MODEL,
     )
+    # Limite mensuelle de tokens par fournisseur (0 = illimitée, issue #36).
+    gemini_monthly_limit = models.PositiveIntegerField(
+        "limite mensuelle Gemini (tokens)", default=0
+    )
+    mistral_monthly_limit = models.PositiveIntegerField(
+        "limite mensuelle Mistral (tokens)", default=0
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -449,6 +456,13 @@ class AIConfig(models.Model):
         return self.GEMINI_MODELS
 
     @property
+    def monthly_limit(self):
+        """Limite mensuelle de tokens du fournisseur actif (0 = illimitée)."""
+        if self.provider == self.Provider.MISTRAL:
+            return self.mistral_monthly_limit
+        return self.gemini_monthly_limit
+
+    @property
     def is_configured(self):
         """Vrai dès qu'une clé est renseignée pour le fournisseur actif."""
         return bool(self.api_key)
@@ -465,3 +479,51 @@ class AIConfig(models.Model):
     @property
     def mistral_model_in_choices(self):
         return self.mistral_model in dict(self.MISTRAL_MODELS)
+
+
+class AIUsage(models.Model):
+    """Journal de consommation des appels IA, par fournisseur (issue #36).
+
+    Une ligne par appel réussi : sert à calculer la consommation du mois
+    courant (nombre d'appels et de tokens) et à la comparer à la limite
+    mensuelle configurée dans :class:`AIConfig`.
+    """
+
+    provider = models.CharField(
+        "fournisseur", max_length=10, choices=AIConfig.Provider.choices
+    )
+    model = models.CharField("modèle", max_length=100)
+    prompt_tokens = models.PositiveIntegerField("tokens entrée", default=0)
+    completion_tokens = models.PositiveIntegerField("tokens sortie", default=0)
+    total_tokens = models.PositiveIntegerField("tokens total", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "consommation IA"
+        verbose_name_plural = "consommations IA"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.provider} — {self.total_tokens} tokens ({self.created_at:%Y-%m-%d})"
+
+    @classmethod
+    def record(cls, provider, model, result):
+        """Enregistre la consommation d'un :class:`tracking.ai.GenerationResult`."""
+        return cls.objects.create(
+            provider=provider,
+            model=model,
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+            total_tokens=result.total_tokens,
+        )
+
+    @classmethod
+    def month_summary(cls, provider, when=None):
+        """Appels et tokens consommés par ``provider`` sur le mois de ``when``."""
+        when = when or timezone.now()
+        agg = cls.objects.filter(
+            provider=provider,
+            created_at__year=when.year,
+            created_at__month=when.month,
+        ).aggregate(calls=models.Count("id"), tokens=models.Sum("total_tokens"))
+        return {"calls": agg["calls"] or 0, "tokens": agg["tokens"] or 0}

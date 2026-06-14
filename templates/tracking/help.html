@@ -178,6 +178,7 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        {% include "tracking/_ai_usage.html" with usage=ai_usage.gemini limit_value=ai_config.gemini_monthly_limit field="gemini_monthly_limit" %}
                     </div>
 
                     <!-- Bloc Mistral -->
@@ -200,6 +201,7 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        {% include "tracking/_ai_usage.html" with usage=ai_usage.mistral limit_value=ai_config.mistral_monthly_limit field="mistral_monthly_limit" %}
                     </div>
 
                     <div class="form-actions">

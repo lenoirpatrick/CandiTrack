@@ -65,6 +65,11 @@ emoji dans le libellé pour les menus).
   catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan) et
   `api/candidatures/<pk>/relance/` (mail de relance) ; UI = modal partagé
   `#ai-modal` dans `base.html` (spinner + rendu Markdown).
+- Quotas IA (issue #36) : `ai.generate` renvoie un `GenerationResult` (texte +
+  tokens) ; `coaching._run` journalise chaque appel dans `AIUsage`. `AIConfig`
+  porte une limite mensuelle de tokens par fournisseur (0 = illimitée) ; la
+  conso du mois et l'avertissement de dépassement (souple, sans blocage) sont
+  calculés côté vue (`_ai_usage_context`, `_quota_warning`).
 
 ## Extension Chrome (`chrome-extension/`)
 

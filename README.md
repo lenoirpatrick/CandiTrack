@@ -195,6 +195,12 @@ par défaut : chacun renseigne **sa propre clé API**.
 4. Sur une candidature, **« ✉️ Mail de relance (IA) »** génère un brouillon de
    mail de relance, régénérable à volonté.
 
+**Quotas (issue #36).** Chaque appel journalise les tokens consommés. Dans
+**Options → IA**, la consommation du mois courant (appels + tokens) s'affiche par
+fournisseur, et une **limite mensuelle de tokens** est configurable (0 =
+illimitée) : lorsqu'elle est atteinte, un avertissement s'affiche sans bloquer
+l'appel.
+
 Les appels se font en HTTP direct vers l'API du fournisseur choisi (aucune
 dépendance ajoutée). La clé ne sert qu'aux appels sortants ; vos crédits, vos
 données.

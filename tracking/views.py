@@ -17,6 +17,7 @@ from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
     CV,
     AIConfig,
+    AIUsage,
     ApiToken,
     Candidature,
     JobSite,
@@ -349,8 +350,31 @@ def help_page(request):
             "tokens": ApiToken.objects.all(),
             "settings_token": settings.CANDITRACK_API_TOKEN,
             "ai_config": AIConfig.load(),
+            "ai_usage": _ai_usage_context(),
         },
     )
+
+
+def _ai_usage_context():
+    """Consommation du mois courant par fournisseur, vs limite (issue #36)."""
+    config = AIConfig.load()
+    limits = {
+        "gemini": config.gemini_monthly_limit,
+        "mistral": config.mistral_monthly_limit,
+    }
+    usage = {}
+    for provider, limit in limits.items():
+        summary = AIUsage.month_summary(provider)
+        tokens = summary["tokens"]
+        percent = round(100 * tokens / limit) if limit else 0
+        usage[provider] = {
+            "calls": summary["calls"],
+            "tokens": tokens,
+            "limit": limit,
+            "percent": min(percent, 100),
+            "reached": bool(limit) and tokens >= limit,
+        }
+    return usage
 
 
 def _save_ai_config(request):
@@ -370,6 +394,8 @@ def _save_ai_config(request):
     config.mistral_model = (
         (request.POST.get("mistral_model") or "").strip() or AIConfig.DEFAULT_MISTRAL_MODEL
     )
+    config.gemini_monthly_limit = _positive_int(request.POST.get("gemini_monthly_limit"))
+    config.mistral_monthly_limit = _positive_int(request.POST.get("mistral_monthly_limit"))
     gemini_key = (request.POST.get("gemini_api_key") or "").strip()
     if gemini_key:
         config.gemini_api_key = gemini_key
@@ -378,6 +404,14 @@ def _save_ai_config(request):
         config.mistral_api_key = mistral_key
     config.save()
     messages.success(request, "Configuration IA enregistrée.")
+
+
+def _positive_int(value):
+    """Entier positif depuis un champ de formulaire, 0 par défaut (issue #36)."""
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _clear_ai_key(request, config):
@@ -401,15 +435,38 @@ def _ai_endpoint(request, build_response):
     ``build_response`` renvoie le texte généré. On encapsule la gestion de la
     configuration manquante et des erreurs d'appel en réponses JSON.
     """
-    if not AIConfig.load().is_configured:
+    config = AIConfig.load()
+    if not config.is_configured:
         return JsonResponse(
-            {"error": "Aucune clé Gemini configurée. Renseignez-la sur la page d'aide."},
+            {"error": "Aucune clé IA configurée. Renseignez-la dans Options → IA."},
             status=400,
         )
     try:
-        return JsonResponse({"ok": True, "text": build_response()})
+        text = build_response()
     except AIError as exc:
         return JsonResponse({"error": str(exc)}, status=502)
+    payload = {"ok": True, "text": text}
+    warning = _quota_warning(config)
+    if warning:
+        payload["warning"] = warning
+    return JsonResponse(payload)
+
+
+def _quota_warning(config):
+    """Message d'alerte si la limite mensuelle du fournisseur actif est atteinte.
+
+    Limite souple (issue #36) : on avertit sans bloquer l'appel.
+    """
+    limit = config.monthly_limit
+    if not limit:
+        return None
+    tokens = AIUsage.month_summary(config.provider)["tokens"]
+    if tokens >= limit:
+        return (
+            f"Limite mensuelle atteinte pour {config.get_provider_display()} : "
+            f"{tokens} / {limit} tokens utilisés ce mois-ci."
+        )
+    return None
 
 
 @require_POST

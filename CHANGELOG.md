@@ -22,6 +22,10 @@ release du même nom.
   désormais **deux fournisseurs au choix — Google Gemini ou Mistral AI** :
   chacun garde sa propre clé (chiffrée) et son modèle, on bascule de l'un à
   l'autre sans ressaisie.
+- #36 — Quotas d'utilisation des clés IA : chaque appel journalise les tokens
+  consommés ; la conso du mois courant (appels + tokens) s'affiche par
+  fournisseur dans Options → IA, avec une **limite mensuelle configurable** qui
+  avertit lorsqu'elle est atteinte (limite souple, sans blocage).
 
 ## [Non publié] — 1.0.2
 

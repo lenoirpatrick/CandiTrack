@@ -147,6 +147,8 @@
         .ai-result h3 { color:var(--accent); margin:1rem 0 0.4rem; font-size:1.05rem; }
         .ai-result ul { margin:0.3rem 0 0.6rem; padding-left:1.2rem; }
         .ai-error { color:#e0584b; }
+        .ai-warning { background:rgba(217,138,0,0.12); border:1px solid #d98a00; color:var(--text);
+                 border-radius:8px; padding:0.5rem 0.75rem; margin-bottom:0.75rem; font-size:0.9rem; }
         .ai-actions { display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap; }
         /* Sélecteur de thème par vignettes (page Options, issue #33) */
         .theme-picker { display:flex; gap:0.75rem; flex-wrap:wrap; }
@@ -365,6 +367,12 @@
                 body.innerHTML = '<h2>' + escapeHtml(opts.title) + '</h2>';
                 var content = document.createElement("div");
                 if (res.ok && res.data.ok) {
+                    if (res.data.warning) {
+                        var warn = document.createElement("div");
+                        warn.className = "ai-warning";
+                        warn.textContent = "⚠️ " + res.data.warning;
+                        body.appendChild(warn);
+                    }
                     content.className = "ai-result";
                     content.innerHTML = renderMarkdown(res.data.text);
                     body.appendChild(content);

@@ -11,7 +11,7 @@ du client HTTP brut (:mod:`tracking.ai`). Deux usages :
 from django.db.models import Count
 
 from . import ai
-from .models import CV, AIConfig, Candidature, MotifCloture, Statut
+from .models import CV, AIConfig, AIUsage, Candidature, MotifCloture, Statut
 from .statistics import compute_stats
 
 # Taille max du CV joint (octets) : au-delà, on s'abstient pour ne pas alourdir
@@ -34,6 +34,19 @@ def _latest_cv_attachment():
             return (mime, handle.read())
     except (OSError, ValueError):
         return None
+
+
+def _run(config, prompt, attachments=None):
+    """Appelle l'IA, journalise la consommation (issue #36) et renvoie le texte."""
+    result = ai.generate(
+        prompt,
+        provider=config.provider,
+        api_key=config.api_key,
+        model=config.model,
+        attachments=attachments,
+    )
+    AIUsage.record(config.provider, config.model, result)
+    return result.text
 
 
 def _context_summary():
@@ -106,13 +119,7 @@ def coaching_advice(config=None):
         "Reste synthétique (pas de blabla), factuel et actionnable."
     )
 
-    return ai.generate(
-        prompt,
-        provider=config.provider,
-        api_key=config.api_key,
-        model=config.model,
-        attachments=[attachment] if attachment else None,
-    )
+    return _run(config, prompt, attachments=[attachment] if attachment else None)
 
 
 def relance_email(candidature, config=None):
@@ -143,6 +150,4 @@ def relance_email(candidature, config=None):
         "factuelle absente ci-dessus (laisse des crochets [à compléter] au besoin)."
     )
 
-    return ai.generate(
-        prompt, provider=config.provider, api_key=config.api_key, model=config.model
-    )
+    return _run(config, prompt)

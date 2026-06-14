@@ -11,6 +11,7 @@ from . import ai
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
     AIConfig,
+    AIUsage,
     ApiToken,
     Canal,
     Candidature,
@@ -580,7 +581,10 @@ class AICoachingViewTests(TestCase):
         resp = self.client.get(reverse("tracking:ai_coaching"))
         self.assertEqual(resp.status_code, 405)
 
-    @mock.patch("tracking.coaching.ai.generate", return_value="## Conseil\nFonce.")
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("## Conseil\nFonce.", 10, 20, 30),
+    )
     def test_returns_generated_text(self, gen):
         self._configure()
         resp = self.client.post(reverse("tracking:ai_coaching"))
@@ -609,7 +613,10 @@ class AIRelanceViewTests(TestCase):
         config.gemini_api_key = "k"
         config.save()
 
-    @mock.patch("tracking.coaching.ai.generate", return_value="Objet : relance\n…")
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("Objet : relance\n…", 5, 8, 13),
+    )
     def test_returns_email(self, gen):
         resp = self.client.post(reverse("tracking:ai_relance", args=[self.cand.pk]))
         self.assertEqual(resp.status_code, 200)
@@ -643,12 +650,21 @@ class GeminiClientTests(TestCase):
         self.assertIsNone(ai.guess_mime("archive.zip"))
 
     @mock.patch("tracking.ai.urllib.request.urlopen")
-    def test_extracts_text(self, urlopen):
+    def test_extracts_text_and_tokens(self, urlopen):
         urlopen.return_value = self._response(
-            {"candidates": [{"content": {"parts": [{"text": "Bonjour"}]}}]}
+            {
+                "candidates": [{"content": {"parts": [{"text": "Bonjour"}]}}],
+                "usageMetadata": {
+                    "promptTokenCount": 12,
+                    "candidatesTokenCount": 8,
+                    "totalTokenCount": 20,
+                },
+            }
         )
         out = ai.generate("hi", api_key="k", model="m")
-        self.assertEqual(out, "Bonjour")
+        self.assertEqual(out.text, "Bonjour")
+        self.assertEqual(out.total_tokens, 20)
+        self.assertEqual(out.prompt_tokens, 12)
 
     @mock.patch("tracking.ai.urllib.request.urlopen")
     def test_empty_candidates_raise(self, urlopen):
@@ -670,6 +686,82 @@ class GeminiClientTests(TestCase):
             ai.generate("hi", api_key="", model="m")
 
 
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class AIUsageQuotaTests(TestCase):
+    """Issue #36 — suivi de consommation et limite mensuelle souple."""
+
+    def _configure(self, **kwargs):
+        config = AIConfig.load()
+        config.gemini_api_key = "k"
+        for key, value in kwargs.items():
+            setattr(config, key, value)
+        config.save()
+        return config
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("ok", 10, 15, 25),
+    )
+    def test_coaching_records_usage(self, _gen):
+        self._configure()
+        self.client.post(reverse("tracking:ai_coaching"))
+        self.assertEqual(AIUsage.objects.count(), 1)
+        usage = AIUsage.objects.get()
+        self.assertEqual(usage.provider, "gemini")
+        self.assertEqual(usage.total_tokens, 25)
+
+    def test_month_summary_aggregates(self):
+        AIUsage.objects.create(provider="gemini", model="m", total_tokens=100)
+        AIUsage.objects.create(provider="gemini", model="m", total_tokens=50)
+        AIUsage.objects.create(provider="mistral", model="m", total_tokens=999)
+        summary = AIUsage.month_summary("gemini")
+        self.assertEqual(summary["calls"], 2)
+        self.assertEqual(summary["tokens"], 150)
+
+    def test_save_monthly_limit(self):
+        self.client.post(
+            reverse("tracking:help"),
+            {"action": "ai_save", "provider": "gemini", "gemini_monthly_limit": "5000"},
+        )
+        self.assertEqual(AIConfig.load().gemini_monthly_limit, 5000)
+
+    def test_invalid_limit_falls_back_to_zero(self):
+        self.client.post(
+            reverse("tracking:help"),
+            {"action": "ai_save", "provider": "gemini", "gemini_monthly_limit": "abc"},
+        )
+        self.assertEqual(AIConfig.load().gemini_monthly_limit, 0)
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("ok", 10, 15, 25),
+    )
+    def test_warning_when_limit_reached(self, _gen):
+        self._configure(gemini_monthly_limit=10)
+        resp = self.client.post(reverse("tracking:ai_coaching"))
+        self.assertEqual(resp.status_code, 200)
+        # 25 tokens > limite 10 : avertissement présent, mais appel non bloqué.
+        self.assertIn("warning", resp.json())
+        self.assertIn("imite mensuelle atteinte", resp.json()["warning"])
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("ok", 1, 1, 2),
+    )
+    def test_no_warning_under_limit(self, _gen):
+        self._configure(gemini_monthly_limit=10000)
+        resp = self.client.post(reverse("tracking:ai_coaching"))
+        self.assertNotIn("warning", resp.json())
+
+    def test_help_page_shows_usage(self):
+        self._configure(gemini_monthly_limit=1000)
+        AIUsage.objects.create(provider="gemini", model="m", total_tokens=400)
+        resp = self.client.get(reverse("tracking:help"))
+        self.assertContains(resp, "Ce mois-ci")
+        self.assertContains(resp, "Limite mensuelle")
+        self.assertContains(resp, 'name="gemini_monthly_limit"')
+
+
 class MistralClientTests(TestCase):
     """Issue #34 — client HTTP Mistral (parsing et aiguillage), réseau simulé."""
 
@@ -679,12 +771,16 @@ class MistralClientTests(TestCase):
         return cm
 
     @mock.patch("tracking.ai.urllib.request.urlopen")
-    def test_extracts_message_content(self, urlopen):
+    def test_extracts_message_content_and_tokens(self, urlopen):
         urlopen.return_value = self._response(
-            {"choices": [{"message": {"content": "Salut"}}]}
+            {
+                "choices": [{"message": {"content": "Salut"}}],
+                "usage": {"prompt_tokens": 4, "completion_tokens": 6, "total_tokens": 10},
+            }
         )
         out = ai.generate("hi", api_key="k", model="mistral-small-latest", provider="mistral")
-        self.assertEqual(out, "Salut")
+        self.assertEqual(out.text, "Salut")
+        self.assertEqual(out.total_tokens, 10)
         # L'URL appelée est bien celle de Mistral.
         called_url = urlopen.call_args.args[0].full_url
         self.assertIn("api.mistral.ai", called_url)
@@ -700,7 +796,7 @@ class MistralClientTests(TestCase):
 class CoachingProviderTests(TestCase):
     """Issue #34 — le fournisseur configuré est transmis au client IA."""
 
-    @mock.patch("tracking.ai.generate", return_value="ok")
+    @mock.patch("tracking.ai.generate", return_value=ai.GenerationResult("ok", 1, 2, 3))
     def test_provider_passed_to_client(self, gen):
         config = AIConfig.load()
         config.provider = AIConfig.Provider.MISTRAL

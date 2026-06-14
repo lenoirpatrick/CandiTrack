@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+{% block title %}{{ cv.label }} — CandiTrack{% endblock %}
+{% block content %}
+<style>
+    /* Mise en page visuelle de la fiche CV (issue #44). */
+    .cv-head { display:flex; justify-content:space-between; align-items:center;
+               gap:1rem; margin-bottom:1rem; flex-wrap:wrap; }
+    .cv-head h1 { margin:0; }
+    .cv-actions { display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; }
+
+    /* En-tête « profil » mis en avant. */
+    .cv-hero { display:flex; align-items:center; gap:1rem;
+               background:linear-gradient(135deg, var(--accent-soft), transparent);
+               border:1px solid var(--border); border-radius:var(--radius);
+               padding:1.1rem 1.35rem; margin-bottom:1.1rem; box-shadow:var(--shadow); }
+    .cv-avatar { flex:0 0 56px; width:56px; height:56px; border-radius:50%;
+                 display:flex; align-items:center; justify-content:center;
+                 background:var(--accent); color:#fff; font-size:1.6rem; box-shadow:var(--shadow); }
+    .cv-hero-title { font-size:1.3rem; font-weight:800; color:var(--text); line-height:1.2; }
+    .cv-hero-sub { color:var(--muted); font-size:0.9rem; margin-top:0.2rem; }
+
+    /* Grille en deux colonnes : contenu principal + barre latérale. */
+    .cv-grid { display:grid; grid-template-columns:2fr 1fr; gap:1.1rem; align-items:start; }
+    @media (max-width:820px) { .cv-grid { grid-template-columns:1fr; } }
+
+    .cv-section-title { display:flex; align-items:center; gap:0.5rem; margin:0 0 0.9rem;
+                        font-size:1.05rem; color:var(--accent); }
+    .cv-section-title .ico { font-size:1.15rem; }
+
+    /* Timeline pour expériences et formations. */
+    .cv-timeline { list-style:none; padding:0; margin:0; position:relative; }
+    .cv-timeline::before { content:""; position:absolute; left:7px; top:6px; bottom:6px;
+                           width:2px; background:var(--border); }
+    .cv-timeline li { position:relative; padding:0 0 1.1rem 1.6rem; }
+    .cv-timeline li:last-child { padding-bottom:0; }
+    .cv-timeline li::before { content:""; position:absolute; left:1px; top:5px;
+                              width:12px; height:12px; border-radius:50%;
+                              background:var(--accent); border:2px solid var(--card); }
+    .cv-item-head { font-weight:700; color:var(--text); }
+    .cv-item-org { color:var(--accent); font-weight:600; }
+    .cv-item-meta { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.3rem; }
+    .cv-item-period, .cv-item-place, .cv-item-link {
+                      display:inline-flex; align-items:center; gap:0.25rem;
+                      font-size:0.78rem; padding:0.1rem 0.5rem; border-radius:999px; }
+    .cv-item-period, .cv-item-place { color:var(--muted); background:var(--chip-bg); }
+    .cv-item-link { color:var(--accent); background:var(--accent-soft);
+                    text-decoration:none; }
+    .cv-item-link:hover { text-decoration:underline; }
+    .cv-item-desc { color:var(--muted); margin-top:0.35rem; font-size:0.92rem; }
+
+    /* Chips de compétences / langues. */
+    .cv-chips { display:flex; flex-wrap:wrap; gap:0.4rem; }
+    .cv-chip { display:inline-block; background:var(--chip-bg); color:var(--chip-text);
+               padding:0.28rem 0.7rem; border-radius:999px; font-size:0.85rem;
+               border:1px solid var(--border); }
+    .cv-chip.lang { background:var(--accent-soft); color:var(--accent); border-color:transparent; }
+
+    /* Références / coordonnées : liste icône + valeur. */
+    .cv-refs { display:flex; flex-direction:column; gap:0.55rem; }
+    .cv-ref { display:flex; align-items:flex-start; gap:0.55rem; font-size:0.9rem;
+              color:var(--text); }
+    .cv-ref .ico { flex:0 0 1.1rem; line-height:1.4; }
+    .cv-ref a { word-break:break-word; }
+    .cv-ref .ref-label { display:block; font-size:0.72rem; color:var(--muted);
+                         text-transform:uppercase; letter-spacing:0.03em; }
+
+    /* Carte OpenStreetMap (Leaflet) des localisations. */
+    .cv-map { height:260px; width:100%; border-radius:var(--radius-sm);
+              border:1px solid var(--border); overflow:hidden; z-index:0; }
+    .cv-map-empty { color:var(--muted); font-size:0.85rem; margin-top:0.5rem; }
+    .cv-map-credit { color:var(--muted); font-size:0.72rem; margin:0.35rem 0 0; }
+    /* Marqueur emoji selon le type (expérience / formation). */
+    .cv-marker { display:flex; align-items:center; justify-content:center;
+                 width:30px; height:30px; border-radius:50%; background:var(--card);
+                 border:2px solid var(--accent); box-shadow:var(--shadow);
+                 font-size:0.95rem; }
+
+    /* Barre d'export (JSON Resume, Europass, HR-Open, PDF). */
+    .cv-exports { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
+    .cv-exports-label { font-weight:600; color:var(--muted); margin-right:0.2rem; }
+
+    .cv-side .card + .card { margin-top:0; }
+</style>
+
+<div class="cv-head">
+    <h1>{{ cv.label }}</h1>
+    <div class="cv-actions">
+        <form method="post" action="{% url 'tracking:cv_analyze' cv.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn"{% if not ai_config.is_configured %} disabled{% endif %}>
+                {% if cv.is_analyzed %}🔄 Ré-analyser{% else %}✨ Analyser avec l'IA{% endif %}
+            </button>
+        </form>
+        <a class="btn secondary" href="{% url 'tracking:cv_list' %}">← Retour</a>
+    </div>
+</div>
+
+<div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+    <span>
+        📄 <a href="{{ cv.file.url }}" target="_blank" rel="noopener">Télécharger le fichier</a>
+        · <span class="muted">Ajouté le {{ cv.uploaded_at|date:"d/m/Y H:i" }}</span>
+    </span>
+    {% if not ai_config.is_configured %}
+    <span class="muted">Configurez une IA dans <a href="{% url 'tracking:help' %}#ia">Options → IA</a> pour analyser ce CV.</span>
+    {% endif %}
+</div>
+
+{% if cv.analysis_error %}
+<div style="padding:0.8rem 1rem; border:1px solid var(--border); border-left:4px solid #e0584b; border-radius:8px; margin-bottom:1.1rem;">⚠️ {{ cv.analysis_error }}</div>
+{% endif %}
+
+{% if cv.is_analyzed %}
+{% with a=cv.analysis %}
+<div class="cv-hero">
+    <div class="cv-avatar">👤</div>
+    <div>
+        <div class="cv-hero-title">{% if a.titre_profil %}{{ a.titre_profil }}{% else %}Profil analysé{% endif %}</div>
+        {% if a.localisation %}<div class="cv-hero-sub">📍 {{ a.localisation }}</div>{% endif %}
+        <div class="cv-hero-sub">
+            Analysé le {{ cv.analyzed_at|date:"d/m/Y H:i" }}
+            {% if cv.analysis_provider_label %}par {{ cv.analysis_provider_label }}{% endif %}
+            {% if cv.analysis_model %} · {{ cv.analysis_model }}{% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card cv-exports">
+    <span class="cv-exports-label">⬇️ Exporter :</span>
+    {% for fmt, label in export_formats.items %}
+    <a class="btn secondary" href="{% url 'tracking:cv_export' cv.pk fmt %}">{{ label }}</a>
+    {% endfor %}
+    <a class="btn" href="{% url 'tracking:cv_print' cv.pk %}" target="_blank" rel="noopener">📄 PDF professionnel</a>
+</div>
+
+<div class="cv-grid">
+    <div class="cv-main">
+        {% if a.experiences %}
+        <div class="card">
+            <h2 class="cv-section-title"><span class="ico">💼</span> Expériences</h2>
+            <ul class="cv-timeline">
+                {% for exp in a.experiences %}
+                <li>
+                    <div class="cv-item-head">
+                        {{ exp.poste }}{% if exp.entreprise %} <span class="cv-item-org">· {{ exp.entreprise }}</span>{% endif %}
+                    </div>
+                    <div class="cv-item-meta">
+                        {% if exp.periode %}<span class="cv-item-period">🗓️ {{ exp.periode }}</span>{% endif %}
+                        {% if exp.lieu %}<span class="cv-item-place">📍 {{ exp.lieu }}</span>{% endif %}
+                        {% if exp.lien %}<a class="cv-item-link" href="{{ exp.lien }}" target="_blank" rel="noopener">🔗 Site</a>{% endif %}
+                    </div>
+                    {% if exp.description %}<div class="cv-item-desc">{{ exp.description }}</div>{% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if a.formations %}
+        <div class="card">
+            <h2 class="cv-section-title"><span class="ico">🎓</span> Formations</h2>
+            <ul class="cv-timeline">
+                {% for f in a.formations %}
+                <li>
+                    <div class="cv-item-head">
+                        {{ f.intitule }}{% if f.etablissement %} <span class="cv-item-org">· {{ f.etablissement }}</span>{% endif %}
+                    </div>
+                    <div class="cv-item-meta">
+                        {% if f.periode %}<span class="cv-item-period">🗓️ {{ f.periode }}</span>{% endif %}
+                        {% if f.lieu %}<span class="cv-item-place">📍 {{ f.lieu }}</span>{% endif %}
+                        {% if f.lien %}<a class="cv-item-link" href="{{ f.lien }}" target="_blank" rel="noopener">🔗 Site</a>{% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if a.infos %}
+        <div class="card">
+            <h2 class="cv-section-title"><span class="ico">ℹ️</span> Informations diverses</h2>
+            <p class="muted" style="margin:0;">{{ a.infos|linebreaksbr }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="cv-side">
+        {% if a.coordonnees %}
+        {% with c=a.coordonnees %}
+        <div class="card">
+            <h2 class="cv-section-title"><span class="ico">📇</span> Références</h2>
+            <div class="cv-refs">
+                {% if c.adresse %}
+                <div class="cv-ref"><span class="ico">🏠</span>
+                    <span><span class="ref-label">Adresse</span>{{ c.adresse }}</span></div>
+                {% endif %}
+                {% if c.telephone %}
+                <div class="cv-ref"><span class="ico">📞</span>
+                    <span><span class="ref-label">Téléphone</span>
+                        <a href="tel:{{ c.telephone }}">{{ c.telephone }}</a></span></div>
+                {% endif %}
+                {% if c.email %}
+                <div class="cv-ref"><span class="ico">✉️</span>
+                    <span><span class="ref-label">Email</span>
+                        <a href="mailto:{{ c.email }}">{{ c.email }}</a></span></div>
+                {% endif %}
+                {% if c.permis %}
+                <div class="cv-ref"><span class="ico">🚗</span>
+                    <span><span class="ref-label">Permis</span>{{ c.permis }}</span></div>
+                {% endif %}
+            </div>
+        </div>
+        {% endwith %}
+        {% endif %}
+
+        {% if a.competences %}
+        <div class="card">
+            <h2 class="cv-section-title"><span class="ico">🛠️</span> Compétences</h2>
+            <div class="cv-chips">
+                {% for c in a.competences %}<span class="cv-chip">{{ c }}</span>{% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if a.langues %}
+        <div class="card">
+            <h2 class="cv-section-title"><span class="ico">🌐</span> Langues</h2>
+            <div class="cv-chips">
+                {% for l in a.langues %}<span class="cv-chip lang">{{ l }}</span>{% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if a.loisirs %}
+        <div class="card">
+            <h2 class="cv-section-title"><span class="ico">🎨</span> Loisirs</h2>
+            <div class="cv-chips">
+                {% for h in a.loisirs %}<span class="cv-chip">{{ h }}</span>{% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if localisations %}
+        <div class="card">
+            <h2 class="cv-section-title"><span class="ico">🗺️</span> Localisations</h2>
+            {{ localisations|json_script:"cv-localisations-data" }}
+            <div id="cv-map" class="cv-map"></div>
+            <p id="cv-map-empty" class="cv-map-empty" hidden>Aucun lieu n'a pu être positionné sur la carte.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if localisations %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+    // Carte des localisations du CV via OpenStreetMap/Leaflet : géocodage des
+    // lieux par Nominatim puis marqueurs (issue #44). Aucune clé requise.
+    (function () {
+        const el = document.getElementById("cv-map");
+        if (!el || typeof L === "undefined") return;
+        const data = JSON.parse(document.getElementById("cv-localisations-data").textContent);
+
+        const map = L.map(el, { scrollWheelZoom: false }).setView([46.6, 2.4], 5);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }).addTo(map);
+
+        const esc = function (s) {
+            const d = document.createElement("div");
+            d.textContent = s == null ? "" : s;
+            return d.innerHTML;
+        };
+        const icon = function (type) {
+            return L.divIcon({
+                className: "cv-marker", html: type === "exp" ? "💼" : "🎓",
+                iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -16],
+            });
+        };
+        const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+        (async function () {
+            const bounds = [];
+            for (const point of data) {
+                try {
+                    const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q="
+                        + encodeURIComponent(point.lieu);
+                    const res = await fetch(url, { headers: { "Accept-Language": "fr" } });
+                    const hits = await res.json();
+                    if (hits && hits.length) {
+                        const lat = parseFloat(hits[0].lat), lon = parseFloat(hits[0].lon);
+                        const emoji = point.type === "exp" ? "💼" : "🎓";
+                        const societe = point.societe
+                            ? "<strong>" + esc(point.societe) + "</strong><br>" : "";
+                        L.marker([lat, lon], { icon: icon(point.type), title: point.societe || point.lieu })
+                            .addTo(map)
+                            .bindPopup(emoji + " " + societe + esc(point.lieu));
+                        bounds.push([lat, lon]);
+                    }
+                } catch (e) { /* lieu ignoré */ }
+                // Respecte la politique d'usage de Nominatim (~1 requête/seconde).
+                await sleep(1100);
+            }
+            if (bounds.length === 0) {
+                el.hidden = true;
+                document.getElementById("cv-map-empty").hidden = false;
+            } else if (bounds.length === 1) {
+                map.setView(bounds[0], 11);
+            } else {
+                map.fitBounds(bounds, { padding: [30, 30] });
+            }
+        })();
+    })();
+</script>
+{% endif %}
+{% endwith %}
+{% elif not cv.analysis_error %}
+<p class="muted">Ce CV n'a pas encore été analysé.</p>
+{% endif %}
+{% endblock %}

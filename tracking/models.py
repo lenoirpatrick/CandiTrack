@@ -351,11 +351,35 @@ def cv_upload_path(instance, filename):
 
 
 class CV(models.Model):
-    """An uploaded CV (issue #368). Reformatting/import is a later iteration."""
+    """An uploaded CV (issue #368), optionnellement analysé par l'IA (issue #44).
+
+    Lorsqu'une IA est configurée et que l'utilisateur l'accepte au chargement,
+    le contenu du CV est analysé pour en extraire les informations principales
+    (expériences, formations, compétences…), stockées dans :attr:`analysis`.
+    L'analyse est propre à chaque CV et remise à zéro à chaque (ré)analyse.
+    """
 
     label = models.CharField(LIBELLE_VERBOSE, max_length=200)
     file = models.FileField("fichier", upload_to=cv_upload_path)
     uploaded_at = models.DateTimeField("ajouté le", auto_now_add=True)
+
+    # Analyse IA du contenu du CV (issue #44).
+    analysis = models.JSONField("analyse IA", default=dict, blank=True)
+    analyzed_at = models.DateTimeField("analysé le", null=True, blank=True)
+    analysis_provider = models.CharField(
+        "fournisseur de l'analyse", max_length=10, blank=True
+    )
+    analysis_model = models.CharField("modèle de l'analyse", max_length=100, blank=True)
+    analysis_error = models.CharField("erreur d'analyse", max_length=300, blank=True)
+
+    # Champs réécrits à chaque (ré)analyse (issue #44).
+    ANALYSIS_FIELDS = [
+        "analysis",
+        "analyzed_at",
+        "analysis_provider",
+        "analysis_model",
+        "analysis_error",
+    ]
 
     class Meta:
         verbose_name = "CV"
@@ -364,6 +388,26 @@ class CV(models.Model):
 
     def __str__(self):
         return self.label
+
+    @property
+    def is_analyzed(self):
+        """Vrai si une analyse IA exploitable a été enregistrée (issue #44)."""
+        return bool(self.analyzed_at and self.analysis)
+
+    @property
+    def analysis_provider_label(self):
+        """Libellé lisible du fournisseur ayant produit l'analyse (issue #44)."""
+        return dict(AIConfig.Provider.choices).get(
+            self.analysis_provider, self.analysis_provider
+        )
+
+    def reset_analysis(self):
+        """Remet l'analyse à zéro avant une nouvelle passe (issue #44)."""
+        self.analysis = {}
+        self.analyzed_at = None
+        self.analysis_provider = ""
+        self.analysis_model = ""
+        self.analysis_error = ""
 
 
 class AIConfig(models.Model):

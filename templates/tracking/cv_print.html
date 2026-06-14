@@ -1,0 +1,136 @@
+<!doctype html>
+{% with a=cv.analysis %}
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ cv.label }} — CV</title>
+    <style>
+        :root { --ink:#0b132b; --soft:#5a6b85; --accent:#3a506b; --line:#d7dee8; }
+        * { box-sizing:border-box; }
+        body { margin:0; background:#eceff4; color:var(--ink);
+               font:14px/1.5 "Segoe UI", Arial, sans-serif; }
+        .sheet { max-width:780px; margin:1.5rem auto; background:#fff;
+                 padding:2.4rem 2.6rem; box-shadow:0 8px 30px rgba(16,24,40,0.18); }
+        .toolbar { max-width:780px; margin:1rem auto 0; display:flex; gap:0.5rem;
+                   justify-content:flex-end; }
+        .toolbar button, .toolbar a { font:inherit; cursor:pointer; text-decoration:none;
+                 padding:0.5rem 1rem; border-radius:8px; border:1px solid var(--accent);
+                 background:var(--accent); color:#fff; }
+        .toolbar a.ghost { background:#fff; color:var(--accent); }
+
+        header.cv { border-bottom:3px solid var(--accent); padding-bottom:1rem; margin-bottom:1.4rem; }
+        header.cv h1 { margin:0; font-size:1.9rem; letter-spacing:0.2px; }
+        header.cv .role { color:var(--accent); font-size:1.1rem; font-weight:600; margin-top:0.2rem; }
+        .contact { margin-top:0.7rem; color:var(--soft); font-size:0.9rem;
+                   display:flex; flex-wrap:wrap; gap:0.3rem 1rem; }
+
+        section.block { margin:1.3rem 0; }
+        section.block > h2 { font-size:1rem; text-transform:uppercase; letter-spacing:0.08em;
+                 color:var(--accent); border-bottom:1px solid var(--line);
+                 padding-bottom:0.3rem; margin:0 0 0.7rem; }
+        .entry { margin-bottom:0.9rem; page-break-inside:avoid; }
+        .entry .top { display:flex; justify-content:space-between; gap:1rem; }
+        .entry .title { font-weight:700; }
+        .entry .org { color:var(--accent); }
+        .entry .period { color:var(--soft); font-size:0.85rem; white-space:nowrap; }
+        .entry .place { color:var(--soft); font-size:0.85rem; }
+        .entry .desc { margin-top:0.2rem; }
+        .tags { display:flex; flex-wrap:wrap; gap:0.4rem; }
+        .tag { background:#eef2f8; color:var(--accent); border:1px solid var(--line);
+               border-radius:999px; padding:0.18rem 0.7rem; font-size:0.85rem; }
+        .muted { color:var(--soft); }
+        a { color:var(--accent); }
+
+        @media print {
+            body { background:#fff; }
+            .sheet { box-shadow:none; margin:0; max-width:none; padding:0 0.4cm; }
+            .toolbar { display:none; }
+            @page { margin:1.4cm; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button type="button" onclick="window.print()">🖨️ Imprimer / Enregistrer en PDF</button>
+        <a class="ghost" href="{% url 'tracking:cv_detail' cv.pk %}">← Retour à la fiche</a>
+    </div>
+
+    <div class="sheet">
+        <header class="cv">
+            <h1>{{ cv.label }}</h1>
+            {% if a.titre_profil %}<div class="role">{{ a.titre_profil }}</div>{% endif %}
+            <div class="contact">
+                {% with c=a.coordonnees %}
+                {% if c.adresse %}<span>🏠 {{ c.adresse }}</span>{% endif %}
+                {% if a.localisation %}<span>📍 {{ a.localisation }}</span>{% endif %}
+                {% if c.telephone %}<span>📞 {{ c.telephone }}</span>{% endif %}
+                {% if c.email %}<span>✉️ {{ c.email }}</span>{% endif %}
+                {% if c.permis %}<span>🚗 {{ c.permis }}</span>{% endif %}
+                {% endwith %}
+            </div>
+        </header>
+
+        {% if a.experiences %}
+        <section class="block">
+            <h2>Expériences professionnelles</h2>
+            {% for exp in a.experiences %}
+            <div class="entry">
+                <div class="top">
+                    <span class="title">{{ exp.poste }}{% if exp.entreprise %} <span class="org">· {{ exp.entreprise }}</span>{% endif %}</span>
+                    {% if exp.periode %}<span class="period">{{ exp.periode }}</span>{% endif %}
+                </div>
+                {% if exp.lieu %}<div class="place">📍 {{ exp.lieu }}{% if exp.lien %} · <a href="{{ exp.lien }}">{{ exp.lien }}</a>{% endif %}</div>
+                {% elif exp.lien %}<div class="place"><a href="{{ exp.lien }}">{{ exp.lien }}</a></div>{% endif %}
+                {% if exp.description %}<div class="desc">{{ exp.description }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        {% if a.formations %}
+        <section class="block">
+            <h2>Formations</h2>
+            {% for f in a.formations %}
+            <div class="entry">
+                <div class="top">
+                    <span class="title">{{ f.intitule }}{% if f.etablissement %} <span class="org">· {{ f.etablissement }}</span>{% endif %}</span>
+                    {% if f.periode %}<span class="period">{{ f.periode }}</span>{% endif %}
+                </div>
+                {% if f.lieu %}<div class="place">📍 {{ f.lieu }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        {% if a.competences %}
+        <section class="block">
+            <h2>Compétences</h2>
+            <div class="tags">{% for c in a.competences %}<span class="tag">{{ c }}</span>{% endfor %}</div>
+        </section>
+        {% endif %}
+
+        {% if a.langues %}
+        <section class="block">
+            <h2>Langues</h2>
+            <div class="tags">{% for l in a.langues %}<span class="tag">{{ l }}</span>{% endfor %}</div>
+        </section>
+        {% endif %}
+
+        {% if a.loisirs %}
+        <section class="block">
+            <h2>Loisirs</h2>
+            <div class="tags">{% for h in a.loisirs %}<span class="tag">{{ h }}</span>{% endfor %}</div>
+        </section>
+        {% endif %}
+
+        {% if a.infos %}
+        <section class="block">
+            <h2>Informations diverses</h2>
+            <p class="muted" style="margin:0;">{{ a.infos|linebreaksbr }}</p>
+        </section>
+        {% endif %}
+    </div>
+</body>
+</html>
+{% endwith %}

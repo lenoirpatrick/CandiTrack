@@ -8,6 +8,12 @@ release du même nom.
 
 ## [Non publié] — 1.2.0
 
+- #44 — Import/analyse des CV : au chargement d'un CV, si une IA est configurée,
+  une case (cochée par défaut, avec un avertissement) propose de l'**analyser**.
+  L'IA extrait alors les informations principales (profil, expériences,
+  formations, compétences, langues, infos diverses), enregistrées **par CV** et
+  consultables depuis la fiche du CV (clic dans la liste). L'analyse est remise à
+  zéro à chaque (ré)analyse, relançable à la demande depuis la fiche.
 - #43 — Sites d'emploi : suppression de la gestion des **identifiants et mots de
   passe**. Seuls le nom, l'URL et le logo d'un site sont désormais conservés ;
   les champs `username`/`password` (et leur stockage chiffré) sont retirés du

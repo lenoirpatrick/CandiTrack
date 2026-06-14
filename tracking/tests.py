@@ -1,4 +1,5 @@
 import json
+import tempfile
 import urllib.error
 from unittest import mock
 
@@ -7,9 +8,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from . import ai
+from . import ai, coaching, cv_export, views
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
+    CV,
     AIConfig,
     AIUsage,
     ApiToken,
@@ -918,6 +920,411 @@ class CoachingProviderTests(TestCase):
         self.assertEqual(gen.call_args.kwargs["api_key"], "m-key")
         # Pas de pièce jointe CV pour Mistral (texte seul).
         self.assertIsNone(gen.call_args.kwargs.get("attachments"))
+
+
+CV_ANALYSIS_JSON = json.dumps(
+    {
+        "titre_profil": "Développeur Python",
+        "experiences": [
+            {
+                "poste": "Développeur backend",
+                "entreprise": "ACME",
+                "periode": "2020-2023",
+                "description": "APIs Django",
+            }
+        ],
+        "formations": [
+            {"intitule": "Master Informatique", "etablissement": "Univ", "periode": "2018"}
+        ],
+        "competences": ["Python", "Django"],
+        "langues": ["Français", "Anglais"],
+        "infos": "Permis B",
+    }
+)
+
+
+@override_settings(
+    CANDITRACK_FERNET_KEY=TEST_FERNET_KEY, MEDIA_ROOT=tempfile.mkdtemp()
+)
+class CVAnalysisTests(TestCase):
+    """Issue #44 — analyse IA des CV au chargement et à la demande."""
+
+    def _configure_ai(self):
+        config = AIConfig.load()
+        config.gemini_api_key = "k"
+        config.save()
+        return config
+
+    def _upload(self, analyser=True, content=b"Contenu du CV"):
+        upload = SimpleUploadedFile("cv.txt", content, content_type="text/plain")
+        data = {"label": "Mon CV", "file": upload}
+        if analyser:
+            data["analyser"] = "on"
+        return self.client.post(reverse("tracking:cv_create"), data)
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(CV_ANALYSIS_JSON, 10, 20, 30),
+    )
+    def test_upload_avec_analyse_stocke_les_infos(self, gen):
+        self._configure_ai()
+        self._upload(analyser=True)
+        self.assertTrue(gen.called)
+        cv = CV.objects.get()
+        self.assertTrue(cv.is_analyzed)
+        self.assertEqual(cv.analysis["titre_profil"], "Développeur Python")
+        self.assertEqual(len(cv.analysis["experiences"]), 1)
+        self.assertIn("Python", cv.analysis["competences"])
+        self.assertEqual(cv.analysis_provider, "gemini")
+        # La consommation de tokens est journalisée (issue #36).
+        self.assertEqual(AIUsage.objects.count(), 1)
+
+    @mock.patch("tracking.coaching.ai.generate")
+    def test_upload_sans_case_cochee_pas_d_analyse(self, gen):
+        self._configure_ai()
+        self._upload(analyser=False)
+        self.assertFalse(gen.called)
+        self.assertFalse(CV.objects.get().is_analyzed)
+
+    @mock.patch("tracking.coaching.ai.generate")
+    def test_upload_sans_ia_configuree_pas_d_analyse(self, gen):
+        self._upload(analyser=True)
+        self.assertFalse(gen.called)
+        self.assertFalse(CV.objects.get().is_analyzed)
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("ceci n'est pas du JSON", 1, 1, 2),
+    )
+    def test_reponse_illisible_enregistre_une_erreur(self, _gen):
+        self._configure_ai()
+        self._upload(analyser=True)
+        cv = CV.objects.get()
+        self.assertFalse(cv.is_analyzed)
+        self.assertTrue(cv.analysis_error)
+
+    @mock.patch("tracking.coaching.ai.generate")
+    def test_reanalyse_remet_a_zero_et_met_a_jour(self, gen):
+        config = self._configure_ai()
+        # Première analyse.
+        gen.return_value = ai.GenerationResult(CV_ANALYSIS_JSON, 1, 1, 2)
+        self._upload(analyser=True)
+        cv = CV.objects.get()
+        # Ré-analyse avec un autre contenu.
+        autre = json.dumps({"titre_profil": "Chef de projet", "competences": ["Agile"]})
+        gen.return_value = ai.GenerationResult(autre, 1, 1, 2)
+        self.client.post(reverse("tracking:cv_analyze", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertEqual(cv.analysis["titre_profil"], "Chef de projet")
+        self.assertEqual(cv.analysis["experiences"], [])
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(CV_ANALYSIS_JSON, 1, 1, 2),
+    )
+    def test_detail_affiche_les_sections(self, _gen):
+        self._configure_ai()
+        self._upload(analyser=True)
+        cv = CV.objects.get()
+        resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
+        self.assertContains(resp, "Expériences")
+        self.assertContains(resp, "Développeur Python")
+        self.assertContains(resp, "Python")
+
+    @mock.patch("tracking.coaching.ai.generate")
+    def test_carte_localisations(self, gen):
+        """Issue #44 — points de la carte (société + type) ne gardent que les lieux."""
+        analyse = json.dumps(
+            {
+                "experiences": [
+                    {"poste": "Dev", "entreprise": "ACME", "lieu": "Paris"},
+                    {"poste": "Lead", "entreprise": "Sans lieu"},
+                ],
+                "formations": [
+                    {"intitule": "Master", "etablissement": "Univ", "lieu": "Lyon"}
+                ],
+            }
+        )
+        gen.return_value = ai.GenerationResult(analyse, 1, 1, 2)
+        self._configure_ai()
+        self._upload(analyser=True)
+        cv = CV.objects.get()
+        points = views._cv_localisations(cv)
+        # Seuls les éléments avec un lieu sont retenus.
+        self.assertEqual([p["lieu"] for p in points], ["Paris", "Lyon"])
+        self.assertEqual(points[0]["type"], "exp")
+        self.assertEqual(points[0]["societe"], "ACME")
+        self.assertEqual(points[1]["type"], "form")
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(
+            json.dumps(
+                {"experiences": [{"poste": "Dev", "entreprise": "ACME", "lieu": "Paris"}]}
+            ),
+            1, 1, 2,
+        ),
+    )
+    def test_carte_openstreetmap(self, _gen):
+        """Issue #44 — carte OpenStreetMap/Leaflet sans clé API."""
+        self._configure_ai()
+        self._upload(analyser=True)
+        cv = CV.objects.get()
+        resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
+        self.assertContains(resp, 'id="cv-map"')
+        self.assertContains(resp, 'id="cv-localisations-data"')
+        # Leaflet + tuiles OSM + données de localisation embarquées.
+        self.assertContains(resp, "unpkg.com/leaflet")
+        self.assertContains(resp, "tile.openstreetmap.org")
+        self.assertContains(resp, "nominatim.openstreetmap.org")
+        self.assertContains(resp, "ACME")
+        # Plus aucune dépendance à Google Maps.
+        self.assertNotContains(resp, "maps.googleapis.com")
+
+    def test_pas_de_carte_sans_localisation(self):
+        """Sans lieu géolocalisable, aucune carte n'est rendue (issue #44)."""
+        analyse = json.dumps({"titre_profil": "Dev", "competences": ["Python"]})
+        with mock.patch(
+            "tracking.coaching.ai.generate",
+            return_value=ai.GenerationResult(analyse, 1, 1, 2),
+        ):
+            self._configure_ai()
+            self._upload(analyser=True)
+        cv = CV.objects.get()
+        resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
+        self.assertNotContains(resp, 'id="cv-map"')
+
+    # --- Exports (issue #44) ---------------------------------------------
+
+    EXPORT_ANALYSIS = json.dumps(
+        {
+            "titre_profil": "Développeur Python",
+            "localisation": "Lyon",
+            "experiences": [
+                {"poste": "Dev", "entreprise": "ACME", "lieu": "Paris",
+                 "lien": "https://acme.example", "periode": "2020-2023",
+                 "description": "APIs Django"}
+            ],
+            "formations": [
+                {"intitule": "Master", "etablissement": "Univ", "lieu": "Lyon",
+                 "periode": "2018"}
+            ],
+            "competences": ["Python", "Django"],
+            "langues": ["Français", "Anglais"],
+            "coordonnees": {"adresse": "1 rue X", "telephone": "0600",
+                            "email": "a@b.fr", "permis": "Permis B"},
+            "loisirs": ["Course"],
+            "infos": "Certifié AWS",
+        }
+    )
+
+    def _upload_analysed(self):
+        with mock.patch(
+            "tracking.coaching.ai.generate",
+            return_value=ai.GenerationResult(self.EXPORT_ANALYSIS, 1, 1, 2),
+        ):
+            self._configure_ai()
+            self._upload(analyser=True)
+        return CV.objects.get()
+
+    def test_export_json_resume(self):
+        cv = self._upload_analysed()
+        resp = self.client.get(
+            reverse("tracking:cv_export", args=[cv.pk, "json-resume"])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("application/json", resp["Content-Type"])
+        self.assertIn("attachment", resp["Content-Disposition"])
+        data = json.loads(resp.content)
+        self.assertEqual(data["basics"]["label"], "Développeur Python")
+        self.assertEqual(data["basics"]["email"], "a@b.fr")
+        self.assertEqual(data["work"][0]["position"], "Dev")
+        self.assertEqual(data["work"][0]["name"], "ACME")
+        self.assertEqual([s["name"] for s in data["skills"]], ["Python", "Django"])
+        self.assertEqual(data["interests"][0]["name"], "Course")
+
+    def test_export_europass(self):
+        cv = self._upload_analysed()
+        resp = self.client.get(reverse("tracking:cv_export", args=[cv.pk, "europass"]))
+        data = json.loads(resp.content)
+        learner = data["SkillsPassport"]["LearnerInfo"]
+        self.assertEqual(learner["Headline"]["Description"]["Label"], "Développeur Python")
+        self.assertEqual(learner["WorkExperience"][0]["Position"]["Label"], "Dev")
+        self.assertEqual(learner["DrivingLicence"], ["Permis B"])
+
+    def test_export_hr_open(self):
+        cv = self._upload_analysed()
+        resp = self.client.get(reverse("tracking:cv_export", args=[cv.pk, "hr-open"]))
+        data = json.loads(resp.content)
+        cand = data["candidate"]
+        self.assertEqual(cand["employmentHistory"][0]["positionTitle"], "Dev")
+        self.assertEqual(cand["languageCompetencies"][0]["languageName"], "Français")
+        self.assertEqual(cand["licenses"][0]["name"], "Permis B")
+
+    def test_export_format_inconnu_404(self):
+        cv = self._upload_analysed()
+        resp = self.client.get(reverse("tracking:cv_export", args=[cv.pk, "xml"]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_export_cv_non_analyse_404(self):
+        self._upload(analyser=False)
+        cv = CV.objects.get()
+        resp = self.client.get(
+            reverse("tracking:cv_export", args=[cv.pk, "json-resume"])
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_vue_impression_pdf(self):
+        cv = self._upload_analysed()
+        resp = self.client.get(reverse("tracking:cv_print", args=[cv.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Développeur Python")
+        self.assertContains(resp, "window.print()")
+
+    def test_boutons_export_sur_la_fiche(self):
+        cv = self._upload_analysed()
+        resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
+        self.assertContains(resp, reverse("tracking:cv_export", args=[cv.pk, "europass"]))
+        self.assertContains(resp, reverse("tracking:cv_print", args=[cv.pk]))
+        self.assertContains(resp, "JSON Resume")
+
+    def test_formulaire_propose_la_case_si_ia_configuree(self):
+        self._configure_ai()
+        resp = self.client.get(reverse("tracking:cv_create"))
+        self.assertContains(resp, 'name="analyser"')
+
+    def test_formulaire_sans_case_si_pas_d_ia(self):
+        resp = self.client.get(reverse("tracking:cv_create"))
+        self.assertNotContains(resp, 'name="analyser"')
+
+    def test_liste_ne_montre_plus_la_note_future(self):
+        resp = self.client.get(reverse("tracking:cv_list"))
+        self.assertNotContains(resp, "prochaine itération")
+
+    def test_parse_tolere_les_balises_de_code(self):
+        text = "```json\n" + CV_ANALYSIS_JSON + "\n```"
+        data = coaching._parse_cv_analysis(text)
+        self.assertIsNotNone(data)
+        self.assertEqual(data["titre_profil"], "Développeur Python")
+
+    def test_parse_json_invalide_renvoie_none(self):
+        self.assertIsNone(coaching._parse_cv_analysis("pas du json"))
+
+    def test_parse_extrait_lieux_et_liens(self):
+        """Issue #44 — localisation, lieux et liens des expériences/formations."""
+        text = json.dumps(
+            {
+                "localisation": "Lyon, France",
+                "experiences": [
+                    {
+                        "poste": "Dev",
+                        "entreprise": "ACME",
+                        "lieu": "Paris",
+                        "lien": "acme.example",
+                        "periode": "2020",
+                    }
+                ],
+                "formations": [
+                    {
+                        "intitule": "Master",
+                        "etablissement": "Univ",
+                        "lieu": "Lyon",
+                        "lien": "https://univ.example",
+                    }
+                ],
+            }
+        )
+        data = coaching._parse_cv_analysis(text)
+        self.assertEqual(data["localisation"], "Lyon, France")
+        self.assertEqual(data["experiences"][0]["lieu"], "Paris")
+        # URL sans schéma → préfixée en https.
+        self.assertEqual(data["experiences"][0]["lien"], "https://acme.example")
+        self.assertEqual(data["formations"][0]["lien"], "https://univ.example")
+
+    def test_parse_separe_coordonnees_et_loisirs(self):
+        """Issue #44 — références (coordonnées) et loisirs en sections distinctes."""
+        text = json.dumps(
+            {
+                "coordonnees": {
+                    "adresse": "1 rue X, Paris",
+                    "telephone": "0600000000",
+                    "email": "a@b.fr",
+                    "permis": "Permis B",
+                },
+                "loisirs": ["Course à pied", "Photographie"],
+                "infos": "Certifié AWS",
+            }
+        )
+        data = coaching._parse_cv_analysis(text)
+        self.assertEqual(data["coordonnees"]["telephone"], "0600000000")
+        self.assertEqual(data["coordonnees"]["permis"], "Permis B")
+        self.assertEqual(data["loisirs"], ["Course à pied", "Photographie"])
+        self.assertEqual(data["infos"], "Certifié AWS")
+
+    def test_parse_coordonnees_vides_donnent_dict_vide(self):
+        """Des coordonnées absentes restent un dict vide (issue #44)."""
+        data = coaching._parse_cv_analysis(json.dumps({"titre_profil": "Dev"}))
+        self.assertEqual(data["coordonnees"], {})
+        self.assertEqual(data["loisirs"], [])
+
+    def test_parse_ecarte_les_liens_dangereux(self):
+        """Un schéma non http(s) est écarté (issue #44)."""
+        text = json.dumps(
+            {
+                "experiences": [
+                    {"poste": "A", "lien": "javascript:alert(1)"},
+                    {"poste": "B", "lien": "ftp://host.example/x"},
+                ]
+            }
+        )
+        data = coaching._parse_cv_analysis(text)
+        self.assertEqual(data["experiences"][0]["lien"], "")
+        self.assertEqual(data["experiences"][1]["lien"], "")
+
+    def test_parse_promeut_les_liens_http_en_https(self):
+        """Un lien http est promu en https pour éviter le contenu mixte (issue #44)."""
+        text = json.dumps(
+            {"experiences": [{"poste": "Dev", "lien": "http://acme.example/x"}]}
+        )
+        data = coaching._parse_cv_analysis(text)
+        self.assertEqual(data["experiences"][0]["lien"], "https://acme.example/x")
+
+    def _docx_bytes(self, text):
+        import io
+        import zipfile
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as archive:
+            archive.writestr(
+                "word/document.xml",
+                '<?xml version="1.0"?><w:document><w:body>'
+                f"<w:p><w:r><w:t>{text}</w:t></w:r></w:p>"
+                "</w:body></w:document>",
+            )
+        return buf.getvalue()
+
+    def test_extrait_le_texte_d_un_docx(self):
+        cv = CV.objects.create(
+            label="x",
+            file=SimpleUploadedFile("cv.docx", self._docx_bytes("Ingénieur logiciel")),
+        )
+        self.assertIn("Ingénieur logiciel", coaching._cv_text(cv))
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(CV_ANALYSIS_JSON, 1, 1, 2),
+    )
+    def test_analyse_docx_passe_le_texte_dans_le_prompt(self, gen):
+        self._configure_ai()  # Gemini par défaut
+        cv = CV.objects.create(
+            label="x",
+            file=SimpleUploadedFile("cv.docx", self._docx_bytes("Ingénieur logiciel")),
+        )
+        coaching.analyze_cv(cv)
+        self.assertTrue(cv.is_analyzed)
+        # Word n'est pas joignable : le texte extrait part dans le prompt, sans pièce jointe.
+        self.assertIsNone(gen.call_args.kwargs.get("attachments"))
+        self.assertIn("Ingénieur logiciel", gen.call_args.args[0])
 
 
 def io_bytes(data):

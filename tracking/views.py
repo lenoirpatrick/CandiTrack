@@ -6,12 +6,14 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib import messages
 from django.db.models import Case, IntegerField, Q, When
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from . import coaching
+from . import cv_export as cv_exporters
 from .ai import AIError
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
@@ -289,25 +291,121 @@ def stats(request):
 
 @require_GET
 def cv_list(request):
-    """Issue #368 — list uploaded CVs (reformat/LinkedIn import come later)."""
+    """Issue #368 — liste des CV chargés (analyse IA optionnelle, issue #44)."""
     cvs = CV.objects.all()
     return render(request, "tracking/cv_list.html", {"cvs": cvs})
 
 
+def _cv_localisations(cv):
+    """Points du parcours (lieu + société + type) pour la carte des lieux (issue #44)."""
+    if not cv.is_analyzed:
+        return []
+    analysis = cv.analysis
+    points = []
+    for exp in analysis.get("experiences", []):
+        if exp.get("lieu"):
+            points.append(
+                {"type": "exp", "lieu": exp["lieu"], "societe": exp.get("entreprise", "")}
+            )
+    for form in analysis.get("formations", []):
+        if form.get("lieu"):
+            points.append(
+                {
+                    "type": "form",
+                    "lieu": form["lieu"],
+                    "societe": form.get("etablissement", ""),
+                }
+            )
+    return points
+
+
+@require_GET
+def cv_detail(request, pk):
+    """Détail d'un CV et de son analyse IA (issue #44)."""
+    cv = get_object_or_404(CV, pk=pk)
+    return render(
+        request,
+        "tracking/cv_detail.html",
+        {
+            "cv": cv,
+            "ai_config": AIConfig.load(),
+            "localisations": _cv_localisations(cv),
+            "export_formats": cv_exporters.EXPORT_LABELS,
+        },
+    )
+
+
+@require_GET
+def cv_export(request, pk, fmt):
+    """Exporte l'analyse d'un CV vers un format standard (issue #44)."""
+    cv = get_object_or_404(CV, pk=pk)
+    exporter = cv_exporters.EXPORTERS.get(fmt)
+    if not cv.is_analyzed or exporter is None:
+        raise Http404("Export indisponible pour ce CV.")
+    payload = json.dumps(exporter(cv), ensure_ascii=False, indent=2)
+    filename = f"{slugify(cv.label) or 'cv'}-{fmt}.json"
+    response = HttpResponse(payload, content_type="application/json; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@require_GET
+def cv_print(request, pk):
+    """Vue d'impression d'un CV (PDF via l'impression navigateur, issue #44)."""
+    cv = get_object_or_404(CV, pk=pk)
+    if not cv.is_analyzed:
+        raise Http404("Ce CV n'a pas encore été analysé.")
+    return render(request, "tracking/cv_print.html", {"cv": cv})
+
+
+def _analyze_cv_safely(request, cv):
+    """Analyse un CV en convertissant les erreurs en messages (issue #44)."""
+    try:
+        coaching.analyze_cv(cv)
+    except AIError as exc:
+        messages.warning(request, f"CV chargé, mais l'analyse IA a échoué : {exc}")
+        return
+    if cv.analysis_error:
+        messages.warning(
+            request, f"CV chargé, mais l'analyse n'a pu aboutir : {cv.analysis_error}"
+        )
+    else:
+        messages.success(request, "CV chargé et analysé par l'IA.")
+
+
 def cv_create(request):
+    config = AIConfig.load()
     if request.method == "POST":
         form = CVForm(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
-            messages.success(request, "CV chargé.")
+            cv = form.save()
+            # Analyse IA optionnelle, si une IA est configurée et acceptée (issue #44).
+            if config.is_configured and request.POST.get("analyser"):
+                _analyze_cv_safely(request, cv)
+            else:
+                messages.success(request, "CV chargé.")
             return redirect("tracking:cv_list")
     else:
         form = CVForm()
     return render(
         request,
         "tracking/cv_form.html",
-        {"form": form, "title": "Charger un CV"},
+        {"form": form, "title": "Charger un CV", "ai_config": config},
     )
+
+
+@require_POST
+def cv_analyze(request, pk):
+    """(Ré)analyse un CV à la demande (issue #44)."""
+    cv = get_object_or_404(CV, pk=pk)
+    config = AIConfig.load()
+    if not config.is_configured:
+        messages.error(
+            request, "Aucune clé IA configurée. Renseignez-la dans Options → IA."
+        )
+    else:
+        _analyze_cv_safely(request, cv)
+    return redirect("tracking:cv_detail", pk=pk)
 
 
 def cv_delete(request, pk):

@@ -5,20 +5,21 @@
     <h1 style="margin:0;">Mes CV</h1>
     <a class="btn" href="{% url 'tracking:cv_create' %}">+ Charger un CV</a>
 </div>
-<p class="muted">Le reformatage en formats techniques/professionnels et l'import LinkedIn
-    sont prévus pour une prochaine itération.</p>
-
 <div class="card">
     {% if cvs %}
     <table>
-        <thead><tr><th>Libellé</th><th>Fichier</th><th>Ajouté le</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Libellé</th><th>Fichier</th><th>Analyse IA</th><th>Ajouté le</th><th>Actions</th></tr></thead>
         <tbody>
             {% for cv in cvs %}
             <tr>
-                <td>{{ cv.label }}</td>
+                <td><a href="{% url 'tracking:cv_detail' cv.pk %}">{{ cv.label }}</a></td>
                 <td><a href="{{ cv.file.url }}" target="_blank" rel="noopener">Télécharger</a></td>
+                <td>{% if cv.is_analyzed %}<span class="badge">✓ analysé</span>{% elif cv.analysis_error %}<span class="muted" title="{{ cv.analysis_error }}">⚠️ échec</span>{% else %}<span class="muted">—</span>{% endif %}</td>
                 <td>{{ cv.uploaded_at|date:"d/m/Y H:i" }}</td>
-                <td class="row-actions"><a href="{% url 'tracking:cv_delete' cv.pk %}">Supprimer</a></td>
+                <td class="row-actions">
+                    <a href="{% url 'tracking:cv_detail' cv.pk %}">Détails</a>
+                    <a href="{% url 'tracking:cv_delete' cv.pk %}">Supprimer</a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>

@@ -164,7 +164,17 @@ class HelpPageTests(TestCase):
     def test_page_loads(self):
         resp = self.client.get(reverse("tracking:help"))
         self.assertContains(resp, "Clé API")
-        self.assertContains(resp, "Installer l'extension")
+        self.assertContains(resp, "Plugin Chrome")
+
+    def test_options_categories(self):
+        """Issue #34 — la page Options est découpée en catégories."""
+        resp = self.client.get(reverse("tracking:help"))
+        for label in ("Interface", "Extensions", "IA"):
+            self.assertContains(resp, label)
+        self.assertContains(resp, 'class="options-tab')
+        self.assertContains(resp, 'id="panel-interface"')
+        self.assertContains(resp, 'id="panel-extensions"')
+        self.assertContains(resp, 'id="panel-ia"')
 
     def test_generate_and_revoke_token(self):
         self.client.post(reverse("tracking:help"), {"action": "generate", "label": "PC"})

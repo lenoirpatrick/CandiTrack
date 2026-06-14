@@ -16,6 +16,9 @@ release du même nom.
   chiffrée), avec choix du modèle dans un menu déroulant (défaut Gemini 2.5
   Flash). Le menu « Aide » devient « Options » (déplacé près du bouton de thème)
   et regroupe désormais le choix d'apparence clair/sombre/système par vignettes.
+- #34 — Page Options réorganisée en catégories (onglets) : **Interface** (thème),
+  **Extensions** (plugin Chrome et clés API) et **IA** (coaching Gemini) ; la
+  catégorie ouverte est mémorisée et accessible via l'ancre d'URL.
 
 ## [Non publié] — 1.0.2
 

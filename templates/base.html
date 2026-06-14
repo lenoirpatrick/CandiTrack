@@ -156,6 +156,18 @@
         .theme-choice svg { border-radius:6px; display:block; box-shadow:0 1px 4px rgba(0,0,0,0.15); }
         .theme-choice:hover { border-color:var(--accent); }
         .theme-choice.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+        /* Page Options en catégories (issue #34) : nav latérale + panneaux */
+        .options-layout { display:flex; gap:1.25rem; align-items:flex-start; }
+        .options-nav { display:flex; flex-direction:column; gap:0.25rem; min-width:190px; flex-shrink:0; }
+        .options-tab { text-align:left; background:none; border:1px solid transparent; border-radius:8px;
+                 padding:0.6rem 0.8rem; cursor:pointer; color:var(--text); font:inherit; font-size:0.95rem; }
+        .options-tab:hover { background:var(--chip-bg); }
+        .options-tab.active { background:var(--accent); color:#fff; }
+        .options-content { flex:1; min-width:0; }
+        @media (max-width:640px) {
+            .options-layout { flex-direction:column; }
+            .options-nav { flex-direction:row; flex-wrap:wrap; width:100%; }
+        }
         /* Pied de page (issue #20) */
         .site-footer { max-width:1000px; margin:2.5rem auto 1.5rem; padding:1rem;
                  text-align:center; color:var(--muted); font-size:0.85rem;

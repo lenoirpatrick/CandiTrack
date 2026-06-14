@@ -147,6 +147,7 @@
         .ai-result h3 { color:var(--accent); margin:1rem 0 0.4rem; font-size:1.05rem; }
         .ai-result ul { margin:0.3rem 0 0.6rem; padding-left:1.2rem; }
         .ai-error { color:#e0584b; }
+        .ai-meta { margin:0.75rem 0 0; font-size:0.8rem; color:var(--muted); font-style:italic; }
         .ai-warning { background:rgba(217,138,0,0.12); border:1px solid #d98a00; color:var(--text);
                  border-radius:8px; padding:0.5rem 0.75rem; margin-bottom:0.75rem; font-size:0.9rem; }
         .ai-actions { display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap; }
@@ -376,6 +377,13 @@
                     content.className = "ai-result";
                     content.innerHTML = renderMarkdown(res.data.text);
                     body.appendChild(content);
+                    if (res.data.provider) {
+                        var meta = document.createElement("p");
+                        meta.className = "ai-meta";
+                        meta.textContent = "Généré par " + res.data.provider +
+                            (res.data.model ? " · " + res.data.model : "");
+                        body.appendChild(meta);
+                    }
                     body.appendChild(actions("Régénérer", function () { run(opts); }, res.data.text));
                 } else {
                     content.className = "ai-error";

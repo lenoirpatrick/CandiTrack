@@ -594,6 +594,20 @@ class AICoachingViewTests(TestCase):
         self.assertTrue(gen.called)
 
     @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("ok", 1, 1, 2),
+    )
+    def test_response_includes_provider_and_model(self, _gen):
+        """Issue #37 — la réponse indique l'IA et le modèle utilisés."""
+        config = AIConfig.load()
+        config.gemini_api_key = "k"
+        config.gemini_model = "gemini-2.5-pro"
+        config.save()
+        data = self.client.post(reverse("tracking:ai_coaching")).json()
+        self.assertIn("Gemini", data["provider"])
+        self.assertEqual(data["model"], "gemini-2.5-pro")
+
+    @mock.patch(
         "tracking.coaching.ai.generate", side_effect=ai.AIError("Clé refusée")
     )
     def test_ai_error_returns_502(self, _gen):

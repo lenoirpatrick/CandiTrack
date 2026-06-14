@@ -26,6 +26,8 @@ release du même nom.
   consommés ; la conso du mois courant (appels + tokens) s'affiche par
   fournisseur dans Options → IA, avec une **limite mensuelle configurable** qui
   avertit lorsqu'elle est atteinte (limite souple, sans blocage).
+- #37 — La fenêtre modale d'IA indique désormais **le fournisseur et le modèle**
+  qui ont généré le texte (ex. « Généré par 🔵 Google Gemini · gemini-2.5-flash »).
 
 ## [Non publié] — 1.0.2
 

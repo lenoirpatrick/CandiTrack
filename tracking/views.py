@@ -445,7 +445,13 @@ def _ai_endpoint(request, build_response):
         text = build_response()
     except AIError as exc:
         return JsonResponse({"error": str(exc)}, status=502)
-    payload = {"ok": True, "text": text}
+    # Indiquer l'IA et le modèle ayant produit le texte (issue #37).
+    payload = {
+        "ok": True,
+        "text": text,
+        "provider": config.get_provider_display(),
+        "model": config.model,
+    }
     warning = _quota_warning(config)
     if warning:
         payload["warning"] = warning

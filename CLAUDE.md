@@ -51,10 +51,13 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 ## Modèles (`tracking/models.py`)
 
 `JobSite` (nom, URL, `is_builtin`, `logo_url` — plus d'identifiants depuis
-l'issue #43), `Candidature` (cœur
-du suivi, étapes de progression + `motif_cloture` = clôture), `StatusHistory`,
+l'issue #43 ; `logo_url` n'est plus saisi mais déduit du favicon, issue #50),
+`Candidature` (cœur
+du suivi, étapes de progression + `motif_cloture` = clôture ; `cv` = CV joint,
+issue #49), `StatusHistory`,
 `Reminder`, `Interview`, `Contact`, `ApiToken`, `CV` (avec analyse IA des
-informations principales — champs `analysis`/`analyzed_at`/… , issue #44),
+informations principales — champs `analysis`/`analyzed_at`/… , issue #44 ;
+`actif` = archivage, issue #48),
 `AIConfig` (singleton de
 config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations
 `TextChoices` : `Source`, `Canal`, `Statut`, `MotifCloture` (certaines avec icône

@@ -73,6 +73,51 @@
     </form>
 </div>
 
+<div class="card">
+    <h2 style="margin-top:0;">3. Coaching IA (Gemini)</h2>
+    <p>CandiTrack peut proposer un <strong>coaching</strong> et des <strong>mails de
+        relance</strong> générés par l'IA Gemini de Google. La fonctionnalité est
+        désactivée tant que vous n'avez pas renseigné <strong>votre propre clé API</strong>
+        (vos crédits, vos données — la clé est stockée chiffrée et n'est jamais réaffichée).</p>
+
+    <p class="muted">Obtenez une clé gratuite sur
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</p>
+
+    {% if ai_config.is_configured %}
+    <p>État : <span class="badge">✅ configurée</span> — modèle
+        <code>{{ ai_config.model }}</code>.</p>
+    {% else %}
+    <p>État : <span class="badge">⚪ non configurée</span></p>
+    {% endif %}
+
+    <form method="post" style="margin-top:1rem; max-width:520px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="ai_save">
+        <div class="field">
+            <label for="api_key">Clé API Gemini</label>
+            <input id="api_key" name="api_key" type="password" autocomplete="off"
+                   placeholder="{% if ai_config.is_configured %}•••••••• (laisser vide pour conserver){% else %}Collez votre clé{% endif %}">
+        </div>
+        <div class="field">
+            <label for="model">Modèle</label>
+            <input id="model" name="model" type="text" value="{{ ai_config.model }}"
+                   placeholder="gemini-2.0-flash">
+        </div>
+        <div class="form-actions">
+            <button class="btn" type="submit">Enregistrer</button>
+        </div>
+    </form>
+
+    {% if ai_config.is_configured %}
+    <form method="post" style="margin-top:0.5rem;"
+          onsubmit="return confirm('Supprimer la clé Gemini ? Le coaching IA sera désactivé.');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="ai_clear">
+        <button type="submit" class="linklike">Supprimer la clé</button>
+    </form>
+    {% endif %}
+</div>
+
 <script>
 (function () {
     document.querySelectorAll(".js-reveal").forEach(function (btn) {

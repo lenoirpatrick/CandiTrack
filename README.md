@@ -9,7 +9,6 @@ Suivi de candidatures — application web Django pour gérer le cycle de candida
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=bugs)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
-[![Security Hotspots](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=security_hotspots)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=coverage)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
@@ -176,6 +175,27 @@ L'extension appelle `POST /api/candidatures/` en envoyant le jeton dans l'en-tê
 `X-Api-Token`. L'URL du backend et le jeton se configurent dans les options de
 l'extension ; l'hôte doit figurer dans les `host_permissions` du `manifest.json`.
 
+## Coaching IA (issue #33)
+
+CandiTrack peut générer un **coaching** et des **mails de relance** via l'IA
+**Gemini** de Google. La fonctionnalité est désactivée par défaut : chacun
+renseigne **sa propre clé API**.
+
+1. Obtenir une clé sur [Google AI Studio](https://aistudio.google.com/apikey).
+2. La coller dans la section **« Coaching IA »** de la page `/aide/` (et,
+   facultativement, choisir le modèle — défaut `gemini-2.0-flash`). La clé est
+   stockée **chiffrée** en base (Fernet, comme les mots de passe des sites) et
+   n'est jamais réaffichée.
+3. Depuis la liste des candidatures, **« ✨ Coaching IA »** ouvre une fenêtre
+   modale : à partir du dernier CV chargé et des statistiques (volume, motifs de
+   refus, délais…), l'IA propose un positionnement et des actions à réaliser.
+4. Sur une candidature, **« ✉️ Mail de relance (IA) »** génère un brouillon de
+   mail de relance, régénérable à volonté.
+
+L'appel se fait en HTTP direct vers l'API Gemini (aucune dépendance ajoutée). La
+clé n'est utilisée que pour les appels sortants vers Google ; vos crédits, vos
+données.
+
 ## Pages
 
 | URL | Rôle |
@@ -184,7 +204,7 @@ l'extension ; l'hôte doit figurer dans les `host_permissions` du `manifest.json
 | `/sites/` | Sites d'emploi : ajout, modification, suppression, logo (#366) |
 | `/stats/` | Statistiques (#367 — premiers KPI) |
 | `/cv/` | CV : chargement et suppression (#368) |
-| `/aide/` | Aide et configuration de l'extension Chrome |
+| `/aide/` | Aide, jetons de l'extension Chrome et configuration du coaching IA (#33) |
 
 ## Prochaines itérations
 

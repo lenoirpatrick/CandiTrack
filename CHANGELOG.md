@@ -6,6 +6,15 @@ versionnage [SemVer](https://semver.org/lang/fr/). Chaque version correspond à
 un milestone GitHub ; la liste des issues traitées est aussi publiée dans la
 release du même nom.
 
+## [Non publié] — 1.1.0
+
+- #33 — Coaching IA (Gemini) : à partir du CV, des postes visés et des retours
+  reçus (volume, motifs de refus…), un bilan de coaching et des actions à
+  réaliser s'affichent dans une fenêtre modale (avec spinner d'attente). Sur
+  chaque candidature, un bouton génère un brouillon de mail de relance. La
+  fonctionnalité s'active en renseignant sa propre clé API Gemini dans la
+  section « Configuration IA » de la page d'aide (clé stockée chiffrée).
+
 ## [Non publié] — 1.0.2
 
 - #21 — Suppression d'une candidature (avec confirmation).

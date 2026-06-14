@@ -4,6 +4,8 @@
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
     <h1 style="margin:0;">{{ candidature }}</h1>
     <div style="display:flex; gap:0.5rem;">
+        <button type="button" class="btn secondary" id="js-relance"
+                title="Proposer un mail de relance rédigé par l'IA">✉️ Mail de relance (IA)</button>
         <a class="btn" href="{% url 'tracking:candidature_update' candidature.pk %}">Modifier</a>
         <a class="btn secondary" href="{% url 'tracking:candidature_delete' candidature.pk %}">Supprimer</a>
     </div>
@@ -69,4 +71,19 @@
 </div>
 
 <a href="{% url 'tracking:candidature_list' %}" class="muted">← Retour à la liste</a>
+
+<script>
+// Mail de relance IA (issue #33) : ouvre le modal partagé sur l'endpoint dédié.
+(function () {
+    var btn = document.getElementById("js-relance");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+        window.openAiModal({
+            title: "✉️ Mail de relance",
+            url: "{% url 'tracking:ai_relance' candidature.pk %}",
+            loading: "Rédaction du mail de relance…"
+        });
+    });
+})();
+</script>
 {% endblock %}

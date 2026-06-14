@@ -47,15 +47,21 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 
 `JobSite` (mot de passe chiffré, `is_builtin`, `logo_url`), `Candidature` (cœur
 du suivi, étapes de progression + `motif_cloture` = clôture), `StatusHistory`,
-`Reminder`, `Interview`, `Contact`, `ApiToken`, `CV`. Énumérations `TextChoices` :
-`Source`, `Canal`, `Statut`, `MotifCloture` (certaines avec icône emoji dans le
-libellé pour les menus).
+`Reminder`, `Interview`, `Contact`, `ApiToken`, `CV`, `AIConfig` (singleton de
+config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations
+`TextChoices` : `Source`, `Canal`, `Statut`, `MotifCloture` (certaines avec icône
+emoji dans le libellé pour les menus).
 
 - Seed des sites par défaut : migrations `0002_seed_jobsites` et
   `0010_seed_known_jobsites` (idempotentes, `get_or_create`).
 - Logos dérivés du favicon : `tracking/logos.py` (`favicon_service_url`, stdlib
   uniquement) ; chargé par défaut à l'enregistrement d'un site (issue #27).
 - Géométrie du donut de stats : `tracking/statistics.py`.
+- Coaching IA (issue #33) : `tracking/ai.py` (client Gemini REST, stdlib) +
+  `tracking/coaching.py` (collecte du contexte CV/stats et prompts). Clé saisie
+  par l'utilisateur via `/aide/` (`AIConfig`, chiffrée). Endpoints POST AJAX
+  `api/coaching/` (bilan) et `api/candidatures/<pk>/relance/` (mail de relance) ;
+  UI = modal partagé `#ai-modal` dans `base.html` (spinner + rendu Markdown).
 
 ## Extension Chrome (`chrome-extension/`)
 

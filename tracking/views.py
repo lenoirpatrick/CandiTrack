@@ -11,9 +11,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from . import coaching
+from .ai import AIError
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
     CV,
+    AIConfig,
     ApiToken,
     Candidature,
     JobSite,
@@ -321,7 +324,7 @@ def cv_delete(request, pk):
 
 
 def help_page(request):
-    """Help page: install the extension and manage API keys (issue #6)."""
+    """Help page: install the extension, manage API keys and AI config (issue #6, #33)."""
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "generate":
@@ -333,6 +336,13 @@ def help_page(request):
         elif action == "revoke":
             ApiToken.objects.filter(pk=request.POST.get("token_id")).delete()
             messages.success(request, "Jeton révoqué.")
+        elif action == "ai_save":
+            _save_ai_config(request)
+        elif action == "ai_clear":
+            config = AIConfig.load()
+            config.api_key = ""
+            config.save(update_fields=["api_key", "updated_at"])
+            messages.success(request, "Clé Gemini supprimée.")
         return redirect("tracking:help")
 
     return render(
@@ -341,8 +351,53 @@ def help_page(request):
         {
             "tokens": ApiToken.objects.all(),
             "settings_token": settings.CANDITRACK_API_TOKEN,
+            "ai_config": AIConfig.load(),
         },
     )
+
+
+def _save_ai_config(request):
+    """Enregistre la config IA (issue #33). Une clé vide ne l'écrase pas."""
+    config = AIConfig.load()
+    config.model = (request.POST.get("model") or "").strip() or AIConfig.DEFAULT_MODEL
+    new_key = (request.POST.get("api_key") or "").strip()
+    if new_key:
+        config.api_key = new_key
+    config.save()
+    messages.success(request, "Configuration IA enregistrée.")
+
+
+# --- Coaching IA (issue #33) ----------------------------------------------
+
+
+def _ai_endpoint(request, build_response):
+    """Fabrique commune aux endpoints IA : vérifie la config puis appelle l'IA.
+
+    ``build_response`` renvoie le texte généré. On encapsule la gestion de la
+    configuration manquante et des erreurs d'appel en réponses JSON.
+    """
+    if not AIConfig.load().is_configured:
+        return JsonResponse(
+            {"error": "Aucune clé Gemini configurée. Renseignez-la sur la page d'aide."},
+            status=400,
+        )
+    try:
+        return JsonResponse({"ok": True, "text": build_response()})
+    except AIError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+
+
+@require_POST
+def ai_coaching(request):
+    """Renvoie un bilan de coaching IA à partir du CV et des statistiques."""
+    return _ai_endpoint(request, coaching.coaching_advice)
+
+
+@require_POST
+def ai_relance(request, pk):
+    """Renvoie un brouillon de mail de relance IA pour une candidature."""
+    candidature = get_object_or_404(Candidature, pk=pk)
+    return _ai_endpoint(request, lambda: coaching.relance_email(candidature))
 
 
 @require_GET

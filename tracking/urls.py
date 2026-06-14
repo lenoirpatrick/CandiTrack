@@ -30,6 +30,9 @@ urlpatterns = [
     # Aide & configuration de l'extension (issue #6)
     path("aide/", views.help_page, name="help"),
     path("aide/extension.zip", views.extension_download, name="extension_download"),
+    # Coaching IA (issue #33)
+    path("api/coaching/", views.ai_coaching, name="ai_coaching"),
+    path("api/candidatures/<int:pk>/relance/", views.ai_relance, name="ai_relance"),
     # API for the Chrome extension (issue #2)
     path("api/candidatures/", views.api_candidature_create, name="api_candidature_create"),
 ]

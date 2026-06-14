@@ -1,11 +1,16 @@
 import json
+import urllib.error
+from unittest import mock
 
+from cryptography.fernet import Fernet
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from . import ai
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
+    AIConfig,
     ApiToken,
     Canal,
     Candidature,
@@ -15,6 +20,9 @@ from .models import (
     Statut,
 )
 from .statistics import compute_stats
+
+# Clé Fernet de test pour chiffrer la clé API IA en base (issue #33).
+TEST_FERNET_KEY = Fernet.generate_key().decode()
 
 
 class EtapeCouranteTests(TestCase):
@@ -391,3 +399,198 @@ class AcceptationConfettiTests(TestCase):
             reverse("tracking:candidature_update", args=[c.pk]), data, follow=True
         )
         self.assertContains(resp, "confetti")
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class AIConfigModelTests(TestCase):
+    """Issue #33 — configuration IA : singleton, état, clé chiffrée."""
+
+    def test_load_is_singleton(self):
+        a = AIConfig.load()
+        b = AIConfig.load()
+        self.assertEqual(a.pk, b.pk)
+        self.assertEqual(AIConfig.objects.count(), 1)
+
+    def test_default_model_and_unconfigured(self):
+        config = AIConfig.load()
+        self.assertEqual(config.model, AIConfig.DEFAULT_MODEL)
+        self.assertFalse(config.is_configured)
+
+    def test_api_key_round_trips_and_configures(self):
+        config = AIConfig.load()
+        config.api_key = "secret-gemini-key"
+        config.save()
+        reloaded = AIConfig.load()
+        self.assertEqual(reloaded.api_key, "secret-gemini-key")
+        self.assertTrue(reloaded.is_configured)
+
+    def test_api_key_stored_encrypted_in_db(self):
+        from django.db import connection
+
+        config = AIConfig.load()
+        config.api_key = "plain-key-123"
+        config.save()
+        # La valeur brute en base ne contient pas le secret en clair (chiffrée).
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT api_key FROM tracking_aiconfig WHERE id = %s", [config.pk]
+            )
+            raw = cursor.fetchone()[0]
+        self.assertNotIn("plain-key-123", raw)
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class AIConfigViewTests(TestCase):
+    """Issue #33 — enregistrement / suppression de la config depuis l'aide."""
+
+    def test_help_page_shows_ai_section(self):
+        resp = self.client.get(reverse("tracking:help"))
+        self.assertContains(resp, "Coaching IA")
+        self.assertContains(resp, "Clé API Gemini")
+
+    def test_ai_save_sets_key_and_model(self):
+        self.client.post(
+            reverse("tracking:help"),
+            {"action": "ai_save", "api_key": "k-123", "model": "gemini-1.5-pro"},
+        )
+        config = AIConfig.load()
+        self.assertEqual(config.api_key, "k-123")
+        self.assertEqual(config.model, "gemini-1.5-pro")
+
+    def test_ai_save_empty_key_keeps_existing(self):
+        config = AIConfig.load()
+        config.api_key = "keep-me"
+        config.save()
+        self.client.post(
+            reverse("tracking:help"),
+            {"action": "ai_save", "api_key": "", "model": "gemini-2.0-flash"},
+        )
+        self.assertEqual(AIConfig.load().api_key, "keep-me")
+
+    def test_ai_save_blank_model_falls_back_to_default(self):
+        self.client.post(
+            reverse("tracking:help"),
+            {"action": "ai_save", "api_key": "k", "model": "  "},
+        )
+        self.assertEqual(AIConfig.load().model, AIConfig.DEFAULT_MODEL)
+
+    def test_ai_clear_removes_key(self):
+        config = AIConfig.load()
+        config.api_key = "to-remove"
+        config.save()
+        self.client.post(reverse("tracking:help"), {"action": "ai_clear"})
+        self.assertFalse(AIConfig.load().is_configured)
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class AICoachingViewTests(TestCase):
+    """Issue #33 — endpoint de coaching IA."""
+
+    def _configure(self):
+        config = AIConfig.load()
+        config.api_key = "k"
+        config.save()
+
+    def test_requires_configuration(self):
+        resp = self.client.post(reverse("tracking:ai_coaching"))
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.json())
+
+    def test_get_not_allowed(self):
+        resp = self.client.get(reverse("tracking:ai_coaching"))
+        self.assertEqual(resp.status_code, 405)
+
+    @mock.patch("tracking.coaching.ai.generate", return_value="## Conseil\nFonce.")
+    def test_returns_generated_text(self, gen):
+        self._configure()
+        resp = self.client.post(reverse("tracking:ai_coaching"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        self.assertIn("Conseil", resp.json()["text"])
+        self.assertTrue(gen.called)
+
+    @mock.patch(
+        "tracking.coaching.ai.generate", side_effect=ai.AIError("Clé refusée")
+    )
+    def test_ai_error_returns_502(self, _gen):
+        self._configure()
+        resp = self.client.post(reverse("tracking:ai_coaching"))
+        self.assertEqual(resp.status_code, 502)
+        self.assertEqual(resp.json()["error"], "Clé refusée")
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class AIRelanceViewTests(TestCase):
+    """Issue #33 — endpoint de mail de relance IA."""
+
+    def setUp(self):
+        self.cand = Candidature.objects.create(entreprise="ACME", poste="Dev")
+        config = AIConfig.load()
+        config.api_key = "k"
+        config.save()
+
+    @mock.patch("tracking.coaching.ai.generate", return_value="Objet : relance\n…")
+    def test_returns_email(self, gen):
+        resp = self.client.post(reverse("tracking:ai_relance", args=[self.cand.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("relance", resp.json()["text"])
+        # Le prompt envoyé mentionne l'entreprise de la candidature.
+        self.assertIn("ACME", gen.call_args.args[0])
+
+    def test_unknown_candidature_404(self):
+        resp = self.client.post(reverse("tracking:ai_relance", args=[99999]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_detail_page_shows_relance_button(self):
+        resp = self.client.get(
+            reverse("tracking:candidature_detail", args=[self.cand.pk])
+        )
+        self.assertContains(resp, "Mail de relance (IA)")
+        self.assertContains(resp, "openAiModal")
+
+
+class GeminiClientTests(TestCase):
+    """Issue #33 — client HTTP Gemini (parsing et erreurs), réseau simulé."""
+
+    def _response(self, payload):
+        cm = mock.MagicMock()
+        cm.__enter__.return_value.read.return_value = json.dumps(payload).encode()
+        return cm
+
+    def test_guess_mime(self):
+        self.assertEqual(ai.guess_mime("cv.pdf"), "application/pdf")
+        self.assertTrue(ai.guess_mime("photo.png").startswith("image/"))
+        self.assertIsNone(ai.guess_mime("archive.zip"))
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_extracts_text(self, urlopen):
+        urlopen.return_value = self._response(
+            {"candidates": [{"content": {"parts": [{"text": "Bonjour"}]}}]}
+        )
+        out = ai.generate("hi", api_key="k", model="m")
+        self.assertEqual(out, "Bonjour")
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_empty_candidates_raise(self, urlopen):
+        urlopen.return_value = self._response({"candidates": []})
+        with self.assertRaises(ai.AIError):
+            ai.generate("hi", api_key="k", model="m")
+
+    @mock.patch("tracking.ai.urllib.request.urlopen")
+    def test_http_error_becomes_aierror(self, urlopen):
+        urlopen.side_effect = urllib.error.HTTPError(
+            "url", 403, "Forbidden", {}, io_bytes(b'{"error":{"message":"bad key"}}')
+        )
+        with self.assertRaises(ai.AIError) as ctx:
+            ai.generate("hi", api_key="k", model="m")
+        self.assertIn("refus", str(ctx.exception).lower())
+
+    def test_missing_key_raises(self):
+        with self.assertRaises(ai.AIError):
+            ai.generate("hi", api_key="", model="m")
+
+
+def io_bytes(data):
+    """Petit helper : un flux binaire lisible pour simuler HTTPError.read()."""
+    import io
+    return io.BytesIO(data)

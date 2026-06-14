@@ -366,3 +366,38 @@ class CV(models.Model):
 
     def __str__(self):
         return self.label
+
+
+class AIConfig(models.Model):
+    """Configuration du module de coaching IA (issue #33).
+
+    Mono-utilisateur : une seule ligne (chargée via :meth:`load`). La clé
+    Gemini est stockée chiffrée au repos (comme les mots de passe des sites),
+    de sorte que l'utilisateur saisit ses propres credentials depuis la page
+    d'aide sans toucher au ``.env``.
+    """
+
+    # Modèle Gemini par défaut : « flash » = rapide et économique, adapté au coaching.
+    DEFAULT_MODEL = "gemini-2.0-flash"
+
+    api_key = EncryptedCharField("clé API Gemini", blank=True, default="")
+    model = models.CharField("modèle", max_length=100, default=DEFAULT_MODEL)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "configuration IA"
+        verbose_name_plural = "configuration IA"
+
+    def __str__(self):
+        return "Configuration IA"
+
+    @classmethod
+    def load(cls):
+        """Renvoie l'unique configuration, en la créant au besoin (singleton)."""
+        config, _ = cls.objects.get_or_create(pk=1)
+        return config
+
+    @property
+    def is_configured(self):
+        """Vrai dès qu'une clé API est renseignée."""
+        return bool(self.api_key)

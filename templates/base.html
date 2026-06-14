@@ -4,6 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}CandiTrack{% endblock %}</title>
     <script>
         // Apply the saved theme before paint to avoid a flash (issue #4).
@@ -138,6 +139,17 @@
         .toast.error, .toast.danger { border-left-color:#e0584b; }
         .toast.warning { border-left-color:#d98a00; }
         .toast.info, .toast.debug { border-left-color:var(--accent); }
+        /* Coaching IA (issue #33) : spinner d'attente + rendu du résultat */
+        .spinner { width:34px; height:34px; border:3px solid var(--track);
+                 border-top-color:var(--accent); border-radius:50%;
+                 animation:spin 0.8s linear infinite; margin:1.5rem auto; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .ai-loading { text-align:center; color:var(--muted); padding:1rem 0; }
+        .ai-result { white-space:pre-wrap; line-height:1.5; }
+        .ai-result h3 { color:var(--accent); margin:1rem 0 0.4rem; font-size:1.05rem; }
+        .ai-result ul { margin:0.3rem 0 0.6rem; padding-left:1.2rem; }
+        .ai-error { color:#e0584b; }
+        .ai-actions { display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap; }
         /* Pied de page (issue #20) */
         .site-footer { max-width:1000px; margin:2.5rem auto 1.5rem; padding:1rem;
                  text-align:center; color:var(--muted); font-size:0.85rem;
@@ -267,6 +279,112 @@
         })(start);
     }
     window.launchConfetti = launchConfetti;
+
+    // Coaching IA (issue #33) : modal partagé qui appelle un endpoint POST,
+    // affiche un spinner pendant l'attente, puis le texte généré (Markdown léger).
+    (function () {
+        var modal = document.getElementById("ai-modal");
+        if (!modal) return;
+        var body = document.getElementById("ai-modal-body");
+        var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+
+        function escapeHtml(s) {
+            return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+        // Rendu Markdown minimal et sûr : on échappe d'abord, puis on applique
+        // titres (##, ###), gras (**), et listes à puces (- / *).
+        function renderMarkdown(text) {
+            var lines = escapeHtml(text).split("\n");
+            var html = "", inList = false;
+            function closeList() { if (inList) { html += "</ul>"; inList = false; } }
+            lines.forEach(function (line) {
+                var bullet = line.match(/^\s*[-*]\s+(.*)$/);
+                var h = line.match(/^(#{2,3})\s+(.*)$/);
+                if (bullet) {
+                    if (!inList) { html += "<ul>"; inList = true; }
+                    html += "<li>" + inline(bullet[1]) + "</li>";
+                } else if (h) {
+                    closeList();
+                    html += "<h3>" + inline(h[2]) + "</h3>";
+                } else if (line.trim() === "") {
+                    closeList();
+                    html += "\n";
+                } else {
+                    closeList();
+                    html += inline(line) + "\n";
+                }
+            });
+            closeList();
+            return html;
+        }
+        function inline(s) {
+            return s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        }
+
+        function actions(retryLabel, onRetry, copyText) {
+            var wrap = document.createElement("div");
+            wrap.className = "ai-actions";
+            var retry = document.createElement("button");
+            retry.className = "btn secondary";
+            retry.textContent = retryLabel;
+            retry.addEventListener("click", onRetry);
+            wrap.appendChild(retry);
+            if (copyText) {
+                var copy = document.createElement("button");
+                copy.className = "btn secondary";
+                copy.textContent = "Copier";
+                copy.addEventListener("click", function () {
+                    navigator.clipboard.writeText(copyText).then(function () {
+                        if (window.toast) window.toast("Copié dans le presse-papier.", "success");
+                    });
+                });
+                wrap.appendChild(copy);
+            }
+            var close = document.createElement("button");
+            close.className = "btn";
+            close.textContent = "Fermer";
+            close.addEventListener("click", function () { modal.close(); });
+            wrap.appendChild(close);
+            return wrap;
+        }
+
+        function run(opts) {
+            body.innerHTML = '<h2>' + escapeHtml(opts.title) + '</h2>' +
+                '<div class="ai-loading"><div class="spinner"></div>' +
+                escapeHtml(opts.loading || "L'IA réfléchit…") + '</div>';
+            if (!modal.open) modal.showModal();
+
+            fetch(opts.url, {
+                method: "POST",
+                headers: {"X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest"}
+            }).then(function (r) {
+                return r.json().then(function (data) { return {ok: r.ok, data: data}; });
+            }).then(function (res) {
+                body.innerHTML = '<h2>' + escapeHtml(opts.title) + '</h2>';
+                var content = document.createElement("div");
+                if (res.ok && res.data.ok) {
+                    content.className = "ai-result";
+                    content.innerHTML = renderMarkdown(res.data.text);
+                    body.appendChild(content);
+                    body.appendChild(actions("Régénérer", function () { run(opts); }, res.data.text));
+                } else {
+                    content.className = "ai-error";
+                    content.textContent = res.data.error || "Une erreur est survenue.";
+                    body.appendChild(content);
+                    body.appendChild(actions("Réessayer", function () { run(opts); }, null));
+                }
+            }).catch(function () {
+                body.innerHTML = '<h2>' + escapeHtml(opts.title) + '</h2>' +
+                    '<div class="ai-error">Impossible de contacter le serveur.</div>';
+                body.appendChild(actions("Réessayer", function () { run(opts); }, null));
+            });
+        }
+
+        // API publique : window.openAiModal({title, url, loading})
+        window.openAiModal = run;
+        modal.addEventListener("click", function (e) { if (e.target === modal) modal.close(); });
+    })();
 </script>
+<dialog id="ai-modal"><div class="modal-body" id="ai-modal-body"></div></dialog>
 </body>
 </html>

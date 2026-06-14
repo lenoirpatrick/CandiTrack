@@ -4,7 +4,11 @@
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
     <h1 style="margin:0;">Candidatures</h1>
-    <a class="btn js-modal-link" href="{% url 'tracking:candidature_create' %}">+ Nouvelle candidature</a>
+    <div style="display:flex; gap:0.5rem;">
+        <button type="button" class="btn secondary" id="js-coaching"
+                title="Bilan de coaching IA à partir de votre CV et de vos statistiques">✨ Coaching IA</button>
+        <a class="btn js-modal-link" href="{% url 'tracking:candidature_create' %}">+ Nouvelle candidature</a>
+    </div>
 </div>
 
 {% comment %}En-tête de colonne triable (issue #11) : bascule asc/desc et garde la recherche.{% endcomment %}
@@ -103,6 +107,18 @@
         a.addEventListener("click", function (e) { e.preventDefault(); open(a.getAttribute("href")); });
     });
     modal.addEventListener("click", function (e) { if (e.target === modal) modal.close(); });
+
+    // Coaching IA (issue #33) : ouvre le modal partagé sur l'endpoint de bilan.
+    var coaching = document.getElementById("js-coaching");
+    if (coaching) {
+        coaching.addEventListener("click", function () {
+            window.openAiModal({
+                title: "✨ Coaching IA",
+                url: "{% url 'tracking:ai_coaching' %}",
+                loading: "Analyse de votre CV et de vos candidatures…"
+            });
+        });
+    }
 })();
 </script>
 {% endblock %}

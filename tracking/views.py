@@ -11,9 +11,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from . import coaching
+from .ai import AIError
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
     CV,
+    AIConfig,
+    AIUsage,
     ApiToken,
     Candidature,
     JobSite,
@@ -321,7 +325,7 @@ def cv_delete(request, pk):
 
 
 def help_page(request):
-    """Help page: install the extension and manage API keys (issue #6)."""
+    """Help page: install the extension, manage API keys and AI config (issue #6, #33)."""
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "generate":
@@ -333,16 +337,165 @@ def help_page(request):
         elif action == "revoke":
             ApiToken.objects.filter(pk=request.POST.get("token_id")).delete()
             messages.success(request, "Jeton révoqué.")
+        elif action == "ai_save":
+            _save_ai_config(request)
+        elif action == "ai_clear":
+            _clear_ai_key(request, AIConfig.load())
         return redirect("tracking:help")
 
+    config = AIConfig.load()
     return render(
         request,
         "tracking/help.html",
         {
             "tokens": ApiToken.objects.all(),
             "settings_token": settings.CANDITRACK_API_TOKEN,
+            "ai_config": config,
+            "ai_providers": _ai_providers_context(config),
         },
     )
+
+
+def _provider_usage(provider, limit):
+    """Consommation du mois courant d'un fournisseur, vs sa limite (issue #36)."""
+    summary = AIUsage.month_summary(provider)
+    tokens = summary["tokens"]
+    percent = round(100 * tokens / limit) if limit else 0
+    return {
+        "calls": summary["calls"],
+        "tokens": tokens,
+        "limit": limit,
+        "percent": min(percent, 100),
+        "reached": bool(limit) and tokens >= limit,
+    }
+
+
+def _ai_providers_context(config):
+    """Données par fournisseur pour la page Options → IA (issues #34, #36, #39)."""
+    providers = []
+    for value, label in AIConfig.Provider.choices:
+        model = getattr(config, f"{value}_model")
+        models = AIConfig.MODELS_BY_PROVIDER[value]
+        limit = getattr(config, f"{value}_monthly_limit")
+        providers.append({
+            "value": value,
+            "label": label,
+            "active": config.provider == value,
+            "key_set": bool(getattr(config, f"{value}_api_key")),
+            "key_field": f"{value}_api_key",
+            "model_field": f"{value}_model",
+            "limit_field": f"{value}_monthly_limit",
+            "model": model,
+            "models": models,
+            "model_in_choices": model in dict(models),
+            "monthly_limit": limit,
+            "usage": _provider_usage(value, limit),
+            "info": AIConfig.PROVIDER_INFO.get(value, {}),
+        })
+    return providers
+
+
+def _save_ai_config(request):
+    """Enregistre la config IA (issues #33, #34, #36, #39).
+
+    Le fournisseur actif, les modèles et les limites sont mis à jour pour tous
+    les fournisseurs ; chaque clé n'est remplacée que si une valeur non vide est
+    fournie (on conserve sinon la clé déjà saisie pour chaque fournisseur).
+    """
+    config = AIConfig.load()
+    provider = (request.POST.get("provider") or "").strip()
+    if provider in AIConfig.Provider.values:
+        config.provider = provider
+    for value, _ in AIConfig.Provider.choices:
+        model = (request.POST.get(f"{value}_model") or "").strip()
+        setattr(config, f"{value}_model", model or AIConfig.DEFAULTS[value])
+        setattr(
+            config, f"{value}_monthly_limit",
+            _positive_int(request.POST.get(f"{value}_monthly_limit")),
+        )
+        key = (request.POST.get(f"{value}_api_key") or "").strip()
+        if key:
+            setattr(config, f"{value}_api_key", key)
+    config.save()
+    messages.success(request, "Configuration IA enregistrée.")
+
+
+def _positive_int(value):
+    """Entier positif depuis un champ de formulaire, 0 par défaut (issue #36)."""
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _clear_ai_key(request, config):
+    """Supprime la clé du fournisseur actif (issues #34, #39)."""
+    field = f"{config.provider}_api_key"
+    setattr(config, field, "")
+    config.save(update_fields=[field, "updated_at"])
+    messages.success(request, f"Clé {config.get_provider_display()} supprimée.")
+
+
+# --- Coaching IA (issue #33) ----------------------------------------------
+
+
+def _ai_endpoint(request, build_response):
+    """Fabrique commune aux endpoints IA : vérifie la config puis appelle l'IA.
+
+    ``build_response`` renvoie le texte généré. On encapsule la gestion de la
+    configuration manquante et des erreurs d'appel en réponses JSON.
+    """
+    config = AIConfig.load()
+    if not config.is_configured:
+        return JsonResponse(
+            {"error": "Aucune clé IA configurée. Renseignez-la dans Options → IA."},
+            status=400,
+        )
+    try:
+        text = build_response()
+    except AIError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    # Indiquer l'IA et le modèle ayant produit le texte (issue #37).
+    payload = {
+        "ok": True,
+        "text": text,
+        "provider": config.get_provider_display(),
+        "model": config.model,
+    }
+    warning = _quota_warning(config)
+    if warning:
+        payload["warning"] = warning
+    return JsonResponse(payload)
+
+
+def _quota_warning(config):
+    """Message d'alerte si la limite mensuelle du fournisseur actif est atteinte.
+
+    Limite souple (issue #36) : on avertit sans bloquer l'appel.
+    """
+    limit = config.monthly_limit
+    if not limit:
+        return None
+    tokens = AIUsage.month_summary(config.provider)["tokens"]
+    if tokens >= limit:
+        return (
+            f"Limite mensuelle atteinte pour {config.get_provider_display()} : "
+            f"{tokens} / {limit} tokens utilisés ce mois-ci."
+        )
+    return None
+
+
+@require_POST
+def ai_coaching(request):
+    """Renvoie un bilan de coaching IA à partir du CV et des statistiques."""
+    return _ai_endpoint(request, coaching.coaching_advice)
+
+
+@require_POST
+def ai_relance(request, pk):
+    """Renvoie un brouillon de mail de relance IA pour une candidature."""
+    candidature = get_object_or_404(Candidature, pk=pk)
+    return _ai_endpoint(request, lambda: coaching.relance_email(candidature))
 
 
 @require_GET

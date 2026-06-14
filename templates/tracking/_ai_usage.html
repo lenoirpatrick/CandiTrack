@@ -1,0 +1,31 @@
+{% comment %}
+Consommation IA du mois courant + saisie de la limite mensuelle (issue #36) et
+rappel des quotas du tier gratuit + lien doc (issue #38).
+Variables attendues : usage (dict calls/tokens/limit/percent/reached),
+limit_value (entier), field (nom du champ de formulaire),
+info (dict free_tier/doc_url).
+{% endcomment %}
+{% if info %}
+<p class="ai-quota-info muted">
+    ℹ️ {{ info.free_tier }}
+    <a href="{{ info.doc_url }}" target="_blank" rel="noopener">Documentation officielle ↗</a>
+</p>
+{% endif %}
+<div class="ai-usage">
+    <p class="muted" style="margin-bottom:0.3rem;">
+        Ce mois-ci : <strong>{{ usage.calls }}</strong> appel{{ usage.calls|pluralize }} ·
+        <strong>{{ usage.tokens }}</strong> token{{ usage.tokens|pluralize }}
+        {% if usage.limit %}/ {{ usage.limit }}{% endif %}
+        {% if usage.reached %}<span class="badge" style="background:#e0584b;color:#fff;">limite atteinte</span>{% endif %}
+    </p>
+    {% if usage.limit %}
+    <span class="bar-track" style="margin-bottom:0.6rem;">
+        <span class="bar-fill" style="width:{{ usage.percent }}%; {% if usage.reached %}background:#e0584b;{% endif %}"></span>
+    </span>
+    {% endif %}
+    <div class="field">
+        <label for="{{ field }}">Limite mensuelle (tokens, 0 = illimitée)</label>
+        <input id="{{ field }}" name="{{ field }}" type="number" min="0" step="1000"
+               value="{{ limit_value }}" style="max-width:200px;">
+    </div>
+</div>

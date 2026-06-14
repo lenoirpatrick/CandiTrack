@@ -6,6 +6,34 @@ versionnage [SemVer](https://semver.org/lang/fr/). Chaque version correspond à
 un milestone GitHub ; la liste des issues traitées est aussi publiée dans la
 release du même nom.
 
+## [Non publié] — 1.1.0
+
+- #33 — Coaching IA (Gemini) : à partir du CV, des postes visés et des retours
+  reçus (volume, motifs de refus…), un bilan de coaching et des actions à
+  réaliser s'affichent dans une fenêtre modale (avec spinner d'attente). Sur
+  chaque candidature, un bouton génère un brouillon de mail de relance. La
+  fonctionnalité s'active en renseignant sa propre clé API Gemini (clé stockée
+  chiffrée), avec choix du modèle dans un menu déroulant (défaut Gemini 2.5
+  Flash). Le menu « Aide » devient « Options » (déplacé près du bouton de thème)
+  et regroupe désormais le choix d'apparence clair/sombre/système par vignettes.
+- #34 — Page Options réorganisée en catégories (onglets) : **Interface** (thème),
+  **Extensions** (plugin Chrome et clés API) et **IA** (coaching) ; la catégorie
+  ouverte est mémorisée et accessible via l'ancre d'URL. Le coaching gère
+  désormais **deux fournisseurs au choix — Google Gemini ou Mistral AI** :
+  chacun garde sa propre clé (chiffrée) et son modèle, on bascule de l'un à
+  l'autre sans ressaisie.
+- #36 — Quotas d'utilisation des clés IA : chaque appel journalise les tokens
+  consommés ; la conso du mois courant (appels + tokens) s'affiche par
+  fournisseur dans Options → IA, avec une **limite mensuelle configurable** qui
+  avertit lorsqu'elle est atteinte (limite souple, sans blocage).
+- #37 — La fenêtre modale d'IA indique désormais **le fournisseur et le modèle**
+  qui ont généré le texte (ex. « Généré par 🔵 Google Gemini · gemini-2.5-flash »).
+- #38 — Options → IA : rappel des **quotas du tier gratuit** de chaque fournisseur
+  (Gemini, Mistral) avec un **lien vers la documentation officielle**.
+- #39 — Trois fournisseurs d'IA supplémentaires : **OpenAI (ChatGPT)**,
+  **Anthropic (Claude)** et **Perplexity**, chacun avec sa clé, son modèle, sa
+  limite mensuelle, ses infos de tier gratuit et son lien doc/clé.
+
 ## [Non publié] — 1.0.2
 
 - #21 — Suppression d'une candidature (avec confirmation).

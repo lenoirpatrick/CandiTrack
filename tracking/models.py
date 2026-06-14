@@ -366,3 +366,229 @@ class CV(models.Model):
 
     def __str__(self):
         return self.label
+
+
+class AIConfig(models.Model):
+    """Configuration du module de coaching IA (issues #33, #34, #39).
+
+    Mono-utilisateur : une seule ligne (chargée via :meth:`load`). Cinq
+    fournisseurs sont gérés (Gemini, Mistral, OpenAI/ChatGPT, Anthropic/Claude,
+    Perplexity) : chacun garde sa propre clé (chiffrée au repos, comme les mots
+    de passe des sites), son propre modèle et sa limite, ce qui permet de
+    basculer de l'un à l'autre sans ressaisie. Le fournisseur actif (`provider`)
+    détermine la clé, le modèle et la limite utilisés. L'accès par fournisseur se
+    fait par convention de nom de champ (`<provider>_api_key`, etc.).
+    """
+
+    class Provider(models.TextChoices):
+        GEMINI = "gemini", "🔵 Google Gemini"
+        MISTRAL = "mistral", "🟠 Mistral AI"
+        OPENAI = "openai", "🟢 OpenAI (ChatGPT)"
+        ANTHROPIC = "anthropic", "🟣 Anthropic (Claude)"
+        PERPLEXITY = "perplexity", "🔎 Perplexity"
+
+    # Modèles proposés dans les menus déroulants par fournisseur.
+    GEMINI_MODELS = [
+        ("gemini-2.5-flash", "Gemini 2.5 Flash — rapide et économique (recommandé)"),
+        ("gemini-2.5-pro", "Gemini 2.5 Pro — plus puissant"),
+        ("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite — le plus rapide"),
+        ("gemini-2.0-flash", "Gemini 2.0 Flash"),
+    ]
+    MISTRAL_MODELS = [
+        ("mistral-small-latest", "Mistral Small — rapide et économique (recommandé)"),
+        ("mistral-large-latest", "Mistral Large — le plus puissant"),
+        ("open-mistral-nemo", "Open Mistral Nemo"),
+    ]
+    OPENAI_MODELS = [
+        ("gpt-4o-mini", "GPT-4o mini — rapide et économique (recommandé)"),
+        ("gpt-4o", "GPT-4o — plus puissant"),
+        ("gpt-4.1-mini", "GPT-4.1 mini"),
+    ]
+    ANTHROPIC_MODELS = [
+        ("claude-haiku-4-5", "Claude Haiku 4.5 — rapide et économique (recommandé)"),
+        ("claude-sonnet-4-6", "Claude Sonnet 4.6 — équilibré"),
+        ("claude-opus-4-8", "Claude Opus 4.8 — le plus puissant"),
+    ]
+    PERPLEXITY_MODELS = [
+        ("sonar", "Sonar — rapide (recommandé)"),
+        ("sonar-pro", "Sonar Pro — plus puissant"),
+    ]
+    MODELS_BY_PROVIDER = {
+        "gemini": GEMINI_MODELS,
+        "mistral": MISTRAL_MODELS,
+        "openai": OPENAI_MODELS,
+        "anthropic": ANTHROPIC_MODELS,
+        "perplexity": PERPLEXITY_MODELS,
+    }
+    DEFAULTS = {provider: models_list[0][0] for provider, models_list in MODELS_BY_PROVIDER.items()}
+    # Compat historique (issue #33) : modèle par défaut = celui de Gemini.
+    DEFAULT_GEMINI_MODEL = DEFAULTS["gemini"]
+    DEFAULT_MISTRAL_MODEL = DEFAULTS["mistral"]
+    DEFAULT_MODEL = DEFAULT_GEMINI_MODEL
+
+    # Rappel des quotas du tier gratuit, doc officielle et page de clé (issues #38, #39).
+    PROVIDER_INFO = {
+        "gemini": {
+            "free_tier": (
+                "Tier gratuit (sans carte bancaire) : ~1 500 requêtes/jour, "
+                "15 requêtes/min et 1M tokens/min, contexte jusqu'à 1M tokens "
+                "selon le modèle."
+            ),
+            "doc_url": "https://ai.google.dev/gemini-api/docs/billing",
+            "key_url": "https://aistudio.google.com/apikey",
+        },
+        "mistral": {
+            "free_tier": (
+                "« Free mode » activé par défaut : limites réduites et cap "
+                "mensuel de tokens, pour évaluation/prototypage."
+            ),
+            "doc_url": "https://docs.mistral.ai/admin/user-management-finops/tier",
+            "key_url": "https://console.mistral.ai/api-keys",
+        },
+        "openai": {
+            "free_tier": (
+                "Pas de tier gratuit permanent pour l'API (crédits d'essai "
+                "uniquement) ; facturation à l'usage ensuite."
+            ),
+            "doc_url": "https://platform.openai.com/docs/guides/rate-limits",
+            "key_url": "https://platform.openai.com/api-keys",
+        },
+        "anthropic": {
+            "free_tier": (
+                "Pas de tier gratuit permanent pour l'API (crédits d'essai "
+                "limités) ; contexte ~200k tokens."
+            ),
+            "doc_url": "https://platform.claude.com/docs/en/api/rate-limits",
+            "key_url": "https://console.anthropic.com/settings/keys",
+        },
+        "perplexity": {
+            "free_tier": (
+                "API payante (Sonar), pas de tier gratuit pérenne ; facturation "
+                "à l'usage."
+            ),
+            "doc_url": "https://docs.perplexity.ai/",
+            "key_url": "https://www.perplexity.ai/settings/api",
+        },
+    }
+
+    provider = models.CharField(
+        "fournisseur", max_length=10, choices=Provider.choices, default=Provider.GEMINI
+    )
+    gemini_api_key = EncryptedCharField("clé API Gemini", blank=True, default="")
+    mistral_api_key = EncryptedCharField("clé API Mistral", blank=True, default="")
+    openai_api_key = EncryptedCharField("clé API OpenAI", blank=True, default="")
+    anthropic_api_key = EncryptedCharField("clé API Anthropic", blank=True, default="")
+    perplexity_api_key = EncryptedCharField("clé API Perplexity", blank=True, default="")
+    gemini_model = models.CharField(
+        "modèle Gemini", max_length=100, choices=GEMINI_MODELS, default=DEFAULTS["gemini"]
+    )
+    mistral_model = models.CharField(
+        "modèle Mistral", max_length=100, choices=MISTRAL_MODELS, default=DEFAULTS["mistral"]
+    )
+    openai_model = models.CharField(
+        "modèle OpenAI", max_length=100, choices=OPENAI_MODELS, default=DEFAULTS["openai"]
+    )
+    anthropic_model = models.CharField(
+        "modèle Anthropic", max_length=100, choices=ANTHROPIC_MODELS, default=DEFAULTS["anthropic"]
+    )
+    perplexity_model = models.CharField(
+        "modèle Perplexity", max_length=100, choices=PERPLEXITY_MODELS, default=DEFAULTS["perplexity"]
+    )
+    # Limite mensuelle de tokens par fournisseur (0 = illimitée, issue #36).
+    gemini_monthly_limit = models.PositiveIntegerField("limite mensuelle Gemini (tokens)", default=0)
+    mistral_monthly_limit = models.PositiveIntegerField("limite mensuelle Mistral (tokens)", default=0)
+    openai_monthly_limit = models.PositiveIntegerField("limite mensuelle OpenAI (tokens)", default=0)
+    anthropic_monthly_limit = models.PositiveIntegerField("limite mensuelle Anthropic (tokens)", default=0)
+    perplexity_monthly_limit = models.PositiveIntegerField("limite mensuelle Perplexity (tokens)", default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "configuration IA"
+        verbose_name_plural = "configuration IA"
+
+    def __str__(self):
+        return "Configuration IA"
+
+    @classmethod
+    def load(cls):
+        """Renvoie l'unique configuration, en la créant au besoin (singleton)."""
+        config, _ = cls.objects.get_or_create(pk=1)
+        return config
+
+    @property
+    def api_key(self):
+        """Clé du fournisseur actif."""
+        return getattr(self, f"{self.provider}_api_key")
+
+    @property
+    def model(self):
+        """Modèle du fournisseur actif."""
+        return getattr(self, f"{self.provider}_model")
+
+    @property
+    def monthly_limit(self):
+        """Limite mensuelle de tokens du fournisseur actif (0 = illimitée)."""
+        return getattr(self, f"{self.provider}_monthly_limit")
+
+    @property
+    def models_for_provider(self):
+        """Liste de modèles proposés pour le fournisseur actif."""
+        return self.MODELS_BY_PROVIDER[self.provider]
+
+    @property
+    def is_configured(self):
+        """Vrai dès qu'une clé est renseignée pour le fournisseur actif."""
+        return bool(self.api_key)
+
+    @property
+    def model_in_choices(self):
+        """Vrai si le modèle actif figure dans le menu déroulant du fournisseur."""
+        return self.model in dict(self.models_for_provider)
+
+
+class AIUsage(models.Model):
+    """Journal de consommation des appels IA, par fournisseur (issue #36).
+
+    Une ligne par appel réussi : sert à calculer la consommation du mois
+    courant (nombre d'appels et de tokens) et à la comparer à la limite
+    mensuelle configurée dans :class:`AIConfig`.
+    """
+
+    provider = models.CharField(
+        "fournisseur", max_length=10, choices=AIConfig.Provider.choices
+    )
+    model = models.CharField("modèle", max_length=100)
+    prompt_tokens = models.PositiveIntegerField("tokens entrée", default=0)
+    completion_tokens = models.PositiveIntegerField("tokens sortie", default=0)
+    total_tokens = models.PositiveIntegerField("tokens total", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "consommation IA"
+        verbose_name_plural = "consommations IA"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.provider} — {self.total_tokens} tokens ({self.created_at:%Y-%m-%d})"
+
+    @classmethod
+    def record(cls, provider, model, result):
+        """Enregistre la consommation d'un :class:`tracking.ai.GenerationResult`."""
+        return cls.objects.create(
+            provider=provider,
+            model=model,
+            prompt_tokens=result.prompt_tokens,
+            completion_tokens=result.completion_tokens,
+            total_tokens=result.total_tokens,
+        )
+
+    @classmethod
+    def month_summary(cls, provider, when=None):
+        """Appels et tokens consommés par ``provider`` sur le mois de ``when``."""
+        when = when or timezone.now()
+        agg = cls.objects.filter(
+            provider=provider,
+            created_at__year=when.year,
+            created_at__month=when.month,
+        ).aggregate(calls=models.Count("id"), tokens=models.Sum("total_tokens"))
+        return {"calls": agg["calls"] or 0, "tokens": agg["tokens"] or 0}

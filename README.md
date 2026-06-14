@@ -9,7 +9,6 @@ Suivi de candidatures — application web Django pour gérer le cycle de candida
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=bugs)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
-[![Security Hotspots](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=security_hotspots)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=code_smells)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=coverage)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=lenoirpatrick_CandiTrack&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=lenoirpatrick_CandiTrack)
@@ -176,6 +175,37 @@ L'extension appelle `POST /api/candidatures/` en envoyant le jeton dans l'en-tê
 `X-Api-Token`. L'URL du backend et le jeton se configurent dans les options de
 l'extension ; l'hôte doit figurer dans les `host_permissions` du `manifest.json`.
 
+## Coaching IA (issues #33, #34)
+
+CandiTrack peut générer un **coaching** et des **mails de relance** via l'IA, au
+choix avec **Google Gemini**, **Mistral AI**, **OpenAI (ChatGPT)**, **Anthropic
+(Claude)** ou **Perplexity**. La fonctionnalité est désactivée par défaut :
+chacun renseigne **sa propre clé API**.
+
+1. Obtenir une clé chez le fournisseur voulu (le lien est rappelé dans
+   **Options → IA**, à côté des infos de quota du tier gratuit).
+2. Dans **Options → IA**, choisir le **fournisseur** et coller la clé (et,
+   facultativement, le modèle dans le menu déroulant). Chaque fournisseur garde
+   sa propre clé, son modèle et sa limite, stockés **chiffrés** en base (Fernet,
+   comme les mots de passe des sites) ; on bascule de l'un à l'autre sans
+   ressaisie.
+3. Depuis la liste des candidatures, **« ✨ Coaching IA »** ouvre une fenêtre
+   modale : à partir du dernier CV chargé (analysé par Gemini) et des statistiques
+   (volume, motifs de refus, délais…), l'IA propose un positionnement et des
+   actions à réaliser.
+4. Sur une candidature, **« ✉️ Mail de relance (IA) »** génère un brouillon de
+   mail de relance, régénérable à volonté.
+
+**Quotas (issue #36).** Chaque appel journalise les tokens consommés. Dans
+**Options → IA**, la consommation du mois courant (appels + tokens) s'affiche par
+fournisseur, et une **limite mensuelle de tokens** est configurable (0 =
+illimitée) : lorsqu'elle est atteinte, un avertissement s'affiche sans bloquer
+l'appel.
+
+Les appels se font en HTTP direct vers l'API du fournisseur choisi (aucune
+dépendance ajoutée). La clé ne sert qu'aux appels sortants ; vos crédits, vos
+données.
+
 ## Pages
 
 | URL | Rôle |
@@ -184,7 +214,7 @@ l'extension ; l'hôte doit figurer dans les `host_permissions` du `manifest.json
 | `/sites/` | Sites d'emploi : ajout, modification, suppression, logo (#366) |
 | `/stats/` | Statistiques (#367 — premiers KPI) |
 | `/cv/` | CV : chargement et suppression (#368) |
-| `/aide/` | Aide et configuration de l'extension Chrome |
+| `/aide/` | **Options** : apparence (thème), jetons de l'extension Chrome et configuration du coaching IA (#33) |
 
 ## Prochaines itérations
 

@@ -4,6 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}CandiTrack{% endblock %}</title>
     <script>
         // Apply the saved theme before paint to avoid a flash (issue #4).
@@ -95,8 +96,6 @@
         .steps { display:flex; flex-wrap:wrap; gap:0.5rem; }
         .step { background:var(--chip-bg); color:var(--muted); padding:0.2rem 0.6rem; border-radius:999px; font-size:0.85rem; }
         .step.done { background:var(--accent); color:#fff; }
-        .theme-toggle { background:none; border:1px solid var(--border); color:var(--nav-link);
-                 border-radius:8px; padding:0.3rem 0.6rem; cursor:pointer; font-size:1rem; }
         /* Forms: sections + grids */
         fieldset { border:1px solid var(--border); border-radius:10px; padding:0.5rem 1rem 1rem; margin:0 0 1rem; }
         legend { font-weight:700; color:var(--accent); padding:0 0.4rem; }
@@ -138,6 +137,43 @@
         .toast.error, .toast.danger { border-left-color:#e0584b; }
         .toast.warning { border-left-color:#d98a00; }
         .toast.info, .toast.debug { border-left-color:var(--accent); }
+        /* Coaching IA (issue #33) : spinner d'attente + rendu du résultat */
+        .spinner { width:34px; height:34px; border:3px solid var(--track);
+                 border-top-color:var(--accent); border-radius:50%;
+                 animation:spin 0.8s linear infinite; margin:1.5rem auto; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .ai-loading { text-align:center; color:var(--muted); padding:1rem 0; }
+        .ai-result { white-space:pre-wrap; line-height:1.5; }
+        .ai-result h3 { color:var(--accent); margin:1rem 0 0.4rem; font-size:1.05rem; }
+        .ai-result ul { margin:0.3rem 0 0.6rem; padding-left:1.2rem; }
+        .ai-error { color:#e0584b; }
+        .ai-meta { margin:0.75rem 0 0; font-size:0.8rem; color:var(--muted); font-style:italic; }
+        .ai-warning { background:rgba(217,138,0,0.12); border:1px solid #d98a00; color:var(--text);
+                 border-radius:8px; padding:0.5rem 0.75rem; margin-bottom:0.75rem; font-size:0.9rem; }
+        .ai-actions { display:flex; gap:0.5rem; margin-top:1rem; flex-wrap:wrap; }
+        /* Sélecteur de thème par vignettes (page Options, issue #33) */
+        .theme-picker { display:flex; gap:0.75rem; flex-wrap:wrap; }
+        .theme-choice { display:flex; flex-direction:column; align-items:center; gap:0.35rem;
+                 background:var(--card); border:2px solid var(--border); border-radius:10px;
+                 padding:0.5rem; cursor:pointer; color:var(--text); font:inherit; font-size:0.85rem; }
+        .theme-choice svg { border-radius:6px; display:block; box-shadow:0 1px 4px rgba(0,0,0,0.15); }
+        .theme-choice:hover { border-color:var(--accent); }
+        .theme-choice.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+        /* Page Options en catégories (issue #34) : nav latérale + panneaux */
+        .options-layout { display:flex; gap:1.25rem; align-items:flex-start; }
+        .options-nav { display:flex; flex-direction:column; gap:0.25rem; min-width:190px; flex-shrink:0; }
+        .options-tab { text-align:left; background:none; border:1px solid transparent; border-radius:8px;
+                 padding:0.6rem 0.8rem; cursor:pointer; color:var(--text); font:inherit; font-size:0.95rem; }
+        .options-tab:hover { background:var(--chip-bg); }
+        .options-tab.active { background:var(--accent); color:#fff; }
+        .options-content { flex:1; min-width:0; }
+        /* Rappel des quotas du tier gratuit IA (issue #38) */
+        .ai-quota-info { font-size:0.85rem; background:var(--chip-bg); border-radius:8px;
+                 padding:0.5rem 0.7rem; margin:0.5rem 0; line-height:1.4; }
+        @media (max-width:640px) {
+            .options-layout { flex-direction:column; }
+            .options-nav { flex-direction:row; flex-wrap:wrap; width:100%; }
+        }
         /* Pied de page (issue #20) */
         .site-footer { max-width:1000px; margin:2.5rem auto 1.5rem; padding:1rem;
                  text-align:center; color:var(--muted); font-size:0.85rem;
@@ -153,9 +189,7 @@
         <a href="{% url 'tracking:site_list' %}">Sites</a>
         <a href="{% url 'tracking:stats' %}">Stats</a>
         <a href="{% url 'tracking:cv_list' %}">CV</a>
-        <a href="{% url 'tracking:help' %}">Aide</a>
-        <button type="button" class="theme-toggle" id="theme-toggle" title="Changer de thème"
-                aria-label="Changer de thème" style="margin-left:auto;">🌓</button>
+        <a href="{% url 'tracking:help' %}" style="margin-left:auto;">⚙️ Options</a>
     </nav>
 </header>
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -170,24 +204,10 @@
     <a href="https://github.com/lenoirpatrick" target="_blank" rel="noopener">Patrick Lenoir</a>
     avec <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a>.
 </footer>
+<dialog id="ai-modal"><div class="modal-body" id="ai-modal-body"></div></dialog>
 <script>
-    // Theme toggle: cycles the explicit choice and persists it (issue #4).
-    (function () {
-        var root = document.documentElement;
-        var btn = document.getElementById("theme-toggle");
-        function current() {
-            return root.getAttribute("data-theme") ||
-                (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-        }
-        function render() { btn.textContent = current() === "dark" ? "☀️" : "🌙"; }
-        btn.addEventListener("click", function () {
-            var next = current() === "dark" ? "light" : "dark";
-            root.setAttribute("data-theme", next);
-            try { localStorage.setItem("theme", next); } catch (e) {}
-            render();
-        });
-        render();
-    })();
+    // Le thème se choisit désormais depuis la page Options (issue #33) ; le
+    // pré-réglage anti-flash en <head> applique la préférence stockée.
 
     // Toasts (issue #13) : remplace l'ancienne liste de messages.
     (function () {
@@ -267,6 +287,124 @@
         })(start);
     }
     window.launchConfetti = launchConfetti;
+
+    // Coaching IA (issue #33) : modal partagé qui appelle un endpoint POST,
+    // affiche un spinner pendant l'attente, puis le texte généré (Markdown léger).
+    (function () {
+        var modal = document.getElementById("ai-modal");
+        if (!modal) return;
+        var body = document.getElementById("ai-modal-body");
+        var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+
+        function escapeHtml(s) {
+            return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+        // Rendu Markdown minimal et sûr : on échappe d'abord, puis on applique
+        // titres (##, ###), gras (**), et listes à puces (- / *).
+        function renderMarkdown(text) {
+            var lines = escapeHtml(text).split("\n");
+            var html = "", inList = false;
+            function closeList() { if (inList) { html += "</ul>"; inList = false; } }
+            lines.forEach(function (line) {
+                var bullet = line.match(/^\s*[-*]\s+(.*)$/);
+                var h = line.match(/^(#{2,3})\s+(.*)$/);
+                if (bullet) {
+                    if (!inList) { html += "<ul>"; inList = true; }
+                    html += "<li>" + inline(bullet[1]) + "</li>";
+                } else if (h) {
+                    closeList();
+                    html += "<h3>" + inline(h[2]) + "</h3>";
+                } else if (line.trim() === "") {
+                    closeList();
+                    html += "\n";
+                } else {
+                    closeList();
+                    html += inline(line) + "\n";
+                }
+            });
+            closeList();
+            return html;
+        }
+        function inline(s) {
+            return s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        }
+
+        function actions(retryLabel, onRetry, copyText) {
+            var wrap = document.createElement("div");
+            wrap.className = "ai-actions";
+            var retry = document.createElement("button");
+            retry.className = "btn secondary";
+            retry.textContent = retryLabel;
+            retry.addEventListener("click", onRetry);
+            wrap.appendChild(retry);
+            if (copyText) {
+                var copy = document.createElement("button");
+                copy.className = "btn secondary";
+                copy.textContent = "Copier";
+                copy.addEventListener("click", function () {
+                    navigator.clipboard.writeText(copyText).then(function () {
+                        if (window.toast) window.toast("Copié dans le presse-papier.", "success");
+                    });
+                });
+                wrap.appendChild(copy);
+            }
+            var close = document.createElement("button");
+            close.className = "btn";
+            close.textContent = "Fermer";
+            close.addEventListener("click", function () { modal.close(); });
+            wrap.appendChild(close);
+            return wrap;
+        }
+
+        function run(opts) {
+            body.innerHTML = '<h2>' + escapeHtml(opts.title) + '</h2>' +
+                '<div class="ai-loading"><div class="spinner"></div>' +
+                escapeHtml(opts.loading || "L'IA réfléchit…") + '</div>';
+            if (!modal.open) modal.showModal();
+
+            fetch(opts.url, {
+                method: "POST",
+                headers: {"X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest"}
+            }).then(function (r) {
+                return r.json().then(function (data) { return {ok: r.ok, data: data}; });
+            }).then(function (res) {
+                body.innerHTML = '<h2>' + escapeHtml(opts.title) + '</h2>';
+                var content = document.createElement("div");
+                if (res.ok && res.data.ok) {
+                    if (res.data.warning) {
+                        var warn = document.createElement("div");
+                        warn.className = "ai-warning";
+                        warn.textContent = "⚠️ " + res.data.warning;
+                        body.appendChild(warn);
+                    }
+                    content.className = "ai-result";
+                    content.innerHTML = renderMarkdown(res.data.text);
+                    body.appendChild(content);
+                    if (res.data.provider) {
+                        var meta = document.createElement("p");
+                        meta.className = "ai-meta";
+                        meta.textContent = "Généré par " + res.data.provider +
+                            (res.data.model ? " · " + res.data.model : "");
+                        body.appendChild(meta);
+                    }
+                    body.appendChild(actions("Régénérer", function () { run(opts); }, res.data.text));
+                } else {
+                    content.className = "ai-error";
+                    content.textContent = res.data.error || "Une erreur est survenue.";
+                    body.appendChild(content);
+                    body.appendChild(actions("Réessayer", function () { run(opts); }, null));
+                }
+            }).catch(function () {
+                body.innerHTML = '<h2>' + escapeHtml(opts.title) + '</h2>' +
+                    '<div class="ai-error">Impossible de contacter le serveur.</div>';
+                body.appendChild(actions("Réessayer", function () { run(opts); }, null));
+            });
+        }
+
+        // API publique : window.openAiModal({title, url, loading})
+        window.openAiModal = run;
+        modal.addEventListener("click", function (e) { if (e.target === modal) modal.close(); });
+    })();
 </script>
 </body>
 </html>

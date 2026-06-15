@@ -19,7 +19,6 @@ from .models import (
     Candidature,
     JobSite,
     MotifCloture,
-    Source,
     Statut,
 )
 from .statistics import compute_stats
@@ -84,13 +83,15 @@ class CandidatureListTests(TestCase):
         self.assertContains(resp, "Beta")
         self.assertNotContains(resp, ">Alpha<")
 
-    def test_closed_row_last_despite_sort(self):
+    def test_closed_excluded_from_active_list(self):
+        # Les candidatures clôturées (100 %) ne figurent plus dans la liste
+        # active : elles basculent dans la vue archivée (issue #52).
         resp = self.client.get(
             reverse("tracking:candidature_list"), {"sort": "poste", "dir": "asc"}
         )
         order = list(resp.context["candidatures"])
-        # Alpha/Beta sorted by poste; Zeta (closed) always last.
-        self.assertEqual(order[-1], self.zeta)
+        self.assertNotIn(self.zeta, order)
+        self.assertEqual(order, [self.alpha, self.beta])
 
     def test_closed_row_marked(self):
         resp = self.client.get(reverse("tracking:candidature_list"))
@@ -116,9 +117,8 @@ class ToastTests(TestCase):
         resp = self.client.post(
             reverse("tracking:candidature_create"),
             {
-                "poste": "Dev", "libelle": "Test", "source": Statut.ENVOYEE,
+                "poste": "Dev", "libelle": "Test",
                 "statut": Statut.ENVOYEE, "canal_envoi": "email",
-                "source": "autre",
             },
             follow=True,
         )
@@ -146,7 +146,7 @@ class ListSourceColumnTests(TestCase):
         site.logo_url = "https://x/li.png"
         site.save()
         Candidature.objects.create(
-            libelle="L", entreprise="ACME", poste="Dev", source=Source.LINKEDIN
+            libelle="L", entreprise="ACME", poste="Dev", source=site
         )
         resp = self.client.get(reverse("tracking:candidature_list"))
         self.assertContains(resp, "Entreprise")
@@ -234,9 +234,11 @@ class SourceDonutTests(TestCase):
     """Issue #15 — source breakdown drives a circular (donut) chart."""
 
     def test_segments_geometry(self):
-        Candidature.objects.create(poste="a", source=Source.LINKEDIN)
-        Candidature.objects.create(poste="b", source=Source.LINKEDIN)
-        Candidature.objects.create(poste="c", source=Source.INDEED)
+        li, _ = JobSite.objects.get_or_create(name="LinkedIn")
+        ind, _ = JobSite.objects.get_or_create(name="Indeed")
+        Candidature.objects.create(poste="a", source=li)
+        Candidature.objects.create(poste="b", source=li)
+        Candidature.objects.create(poste="c", source=ind)
         ctx = compute_stats()
         rows = ctx["by_source"]
         self.assertEqual(ctx["source_total"], 3)
@@ -246,7 +248,8 @@ class SourceDonutTests(TestCase):
             self.assertAlmostEqual(r["dash"] + r["gap"], 100, delta=0.01)
 
     def test_stats_page_renders_svg(self):
-        Candidature.objects.create(poste="a", source=Source.LINKEDIN)
+        li, _ = JobSite.objects.get_or_create(name="LinkedIn")
+        Candidature.objects.create(poste="a", source=li)
         resp = self.client.get(reverse("tracking:stats"))
         self.assertContains(resp, "<svg")
         self.assertContains(resp, "donut")
@@ -324,7 +327,7 @@ class SiteDisableDeleteTests(TestCase):
     def test_site_inactif_absent_du_formulaire(self):
         actif = JobSite.objects.create(name="Actif")
         inactif = JobSite.objects.create(name="Inactif", actif=False)
-        qs = CandidatureForm().fields["site"].queryset
+        qs = CandidatureForm().fields["source"].queryset
         self.assertIn(actif, qs)
         self.assertNotIn(inactif, qs)
 
@@ -425,7 +428,6 @@ class AcceptationConfettiTests(TestCase):
         c = Candidature.objects.create(poste="X", acceptation=False)
         data = {
             "poste": "X",
-            "source": Source.AUTRE,
             "canal_envoi": Canal.EMAIL,
             "statut": Statut.ENVOYEE,
             "acceptation": "on",
@@ -1432,7 +1434,7 @@ class CVCandidatureLinkTests(TestCase):
     def test_creation_lie_le_cv(self):
         cv = self._make_cv()
         self.client.post(reverse("tracking:candidature_create"), {
-            "poste": "Dev", "cv": cv.pk, "source": "autre",
+            "poste": "Dev", "cv": cv.pk,
             "canal_envoi": "email", "statut": Statut.ENVOYEE,
         })
         self.assertEqual(Candidature.objects.get().cv, cv)
@@ -1471,7 +1473,7 @@ class LocalisationTrajetTests(TestCase):
 
     def test_localisation_enregistree_sur_la_candidature(self):
         self.client.post(reverse("tracking:candidature_create"), {
-            "poste": "Dev", "localisation": "Lyon", "source": "autre",
+            "poste": "Dev", "localisation": "Lyon",
             "canal_envoi": "email", "statut": Statut.ENVOYEE,
         })
         self.assertEqual(Candidature.objects.get().localisation, "Lyon")
@@ -1524,6 +1526,90 @@ class LocalisationTrajetTests(TestCase):
         self.assertEqual(Candidature.objects.get().localisation, "Lille")
 
 
+class SourceSiteTests(TestCase):
+    """Issue #52 — la source d'une candidature référence un site actif."""
+
+    def test_form_source_propose_les_sites_actifs(self):
+        actif, _ = JobSite.objects.get_or_create(name="LinkedIn", defaults={"actif": True})
+        archive = JobSite.objects.create(name="VieuxSite", actif=False)
+        qs = list(CandidatureForm().fields["source"].queryset)
+        self.assertIn(actif, qs)
+        self.assertNotIn(archive, qs)
+
+    def test_form_conserve_la_source_desactivee(self):
+        archive = JobSite.objects.create(name="VieuxSite", actif=False)
+        cand = Candidature.objects.create(poste="Dev", source=archive)
+        self.assertIn(archive, list(CandidatureForm(instance=cand).fields["source"].queryset))
+
+    def test_creation_via_formulaire_lie_le_site_source(self):
+        site, _ = JobSite.objects.get_or_create(name="LinkedIn")
+        self.client.post(reverse("tracking:candidature_create"), {
+            "poste": "Dev", "source": site.pk, "canal_envoi": "email",
+            "statut": Statut.ENVOYEE,
+        })
+        self.assertEqual(Candidature.objects.get().source, site)
+
+    def test_api_resout_la_source_par_code(self):
+        site, _ = JobSite.objects.get_or_create(name="LinkedIn")
+        tok = ApiToken.objects.create(token=ApiToken.new_token())
+        self.client.post(
+            reverse("tracking:api_candidature_create"),
+            data=json.dumps({"entreprise": "ACME", "source": "linkedin"}),
+            content_type="application/json",
+            HTTP_X_API_TOKEN=tok.token,
+        )
+        self.assertEqual(Candidature.objects.get().source, site)
+
+    def test_api_resout_la_source_par_domaine(self):
+        site = JobSite.objects.create(name="MonJobBoard", url="https://jobs.example.fr/")
+        tok = ApiToken.objects.create(token=ApiToken.new_token())
+        self.client.post(
+            reverse("tracking:api_candidature_create"),
+            data=json.dumps({"entreprise": "ACME", "url": "https://www.jobs.example.fr/offre/42"}),
+            content_type="application/json",
+            HTTP_X_API_TOKEN=tok.token,
+        )
+        self.assertEqual(Candidature.objects.get().source, site)
+
+    def test_liste_affiche_le_favicon_de_la_source(self):
+        site, _ = JobSite.objects.get_or_create(name="LinkedIn")
+        site.logo_url = "https://x/li.png"
+        site.save()
+        Candidature.objects.create(poste="Dev", source=site)
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, "https://x/li.png")
+
+
+class CandidatureArchiveListTests(TestCase):
+    """Issue #52 — les candidatures à 100 % sont séparées dans une vue archivée."""
+
+    def setUp(self):
+        self.active = Candidature.objects.create(poste="Active", libelle="Active")
+        self.cloturee = Candidature.objects.create(
+            poste="Close", libelle="Close", motif_cloture=MotifCloture.POSTE_POURVU
+        )
+        self.acceptee = Candidature.objects.create(
+            poste="Win", libelle="Win", acceptation=True
+        )
+
+    def test_liste_active_exclut_les_100pct(self):
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        libelles = [c.libelle for c in resp.context["candidatures"]]
+        self.assertEqual(libelles, ["Active"])
+        self.assertEqual(resp.context["archived_count"], 2)
+
+    def test_vue_archivee_montre_les_100pct(self):
+        resp = self.client.get(reverse("tracking:candidature_list"), {"archivees": "1"})
+        libelles = sorted(c.libelle for c in resp.context["candidatures"])
+        self.assertEqual(libelles, ["Close", "Win"])
+        self.assertNotIn("Active", libelles)
+
+    def test_bouton_archivees_present(self):
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, "Candidatures archivées")
+        self.assertContains(resp, "archivees=1")
+
+
 def io_bytes(data):
     """Petit helper : un flux binaire lisible pour simuler HTTPError.read()."""
     import io
@@ -1560,7 +1646,8 @@ class StatsAnimationTests(TestCase):
     """Issue #35 — hooks d'animation des graphiques de statistiques."""
 
     def test_chart_animation_hooks(self):
-        Candidature.objects.create(poste="Dev", source=Source.LINKEDIN, statut=Statut.ENVOYEE)
+        li, _ = JobSite.objects.get_or_create(name="LinkedIn")
+        Candidature.objects.create(poste="Dev", source=li, statut=Statut.ENVOYEE)
         resp = self.client.get(reverse("tracking:stats"))
         self.assertContains(resp, "js-bar")
         self.assertContains(resp, "js-seg")

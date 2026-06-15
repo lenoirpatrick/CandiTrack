@@ -3,20 +3,27 @@
 {% block main_class %}wide{% endblock %}
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-    <h1 style="margin:0;">Candidatures</h1>
+    <h1 style="margin:0;">{% if show_archived %}Candidatures archivées{% else %}Candidatures{% endif %}</h1>
     <div style="display:flex; gap:0.5rem;">
+        {% if show_archived %}
+        <a class="btn secondary" href="{% url 'tracking:candidature_list' %}{% if q %}?q={{ q|urlencode }}{% endif %}">← Candidatures actives</a>
+        {% else %}
+        <a class="btn secondary" href="?archivees=1{% if q %}&q={{ q|urlencode }}{% endif %}"
+           title="Candidatures abouties à 100 % (clôturées ou acceptées)">📦 Candidatures archivées{% if archived_count %} ({{ archived_count }}){% endif %}</a>
         <button type="button" class="btn secondary" id="js-coaching"
                 title="Bilan de coaching IA à partir de votre CV et de vos statistiques">✨ Coaching IA</button>
         <a class="btn js-modal-link" href="{% url 'tracking:candidature_create' %}">+ Nouvelle candidature</a>
+        {% endif %}
     </div>
 </div>
 
 {% comment %}En-tête de colonne triable (issue #11) : bascule asc/desc et garde la recherche.{% endcomment %}
 <form method="get" class="list-search" style="margin-bottom:1rem;">
+    {% if show_archived %}<input type="hidden" name="archivees" value="1">{% endif %}
     <input type="search" name="q" value="{{ q }}" placeholder="Rechercher (entreprise, poste, notes…)"
            aria-label="Rechercher" style="max-width:360px;">
     <button class="btn secondary" type="submit">Rechercher</button>
-    {% if q %}<a class="muted" href="{% url 'tracking:candidature_list' %}" style="margin-left:0.5rem;">Réinitialiser</a>{% endif %}
+    {% if q %}<a class="muted" href="?{% if show_archived %}archivees=1{% endif %}" style="margin-left:0.5rem;">Réinitialiser</a>{% endif %}
 </form>
 
 <div class="card">
@@ -41,7 +48,7 @@
                 <td>{{ c.entreprise|default:"—" }}</td>
                 <td>{{ c.poste|default:"—" }}</td>
                 <td>
-                    <span class="src-cell">{% if c.source_logo %}<img src="{{ c.source_logo }}" alt="" class="src-logo">{% endif %}{{ c.get_source_display }}</span>
+                    {% if c.source %}<span class="src-cell">{% if c.source.logo_url %}<img src="{{ c.source.logo_url }}" alt="" class="src-logo">{% endif %}{{ c.source.name }}</span>{% else %}<span class="muted">—</span>{% endif %}
                 </td>
                 <td><span class="badge">{{ c.etape_courante }}</span></td>
                 <td>
@@ -62,7 +69,10 @@
     </table>
     {% elif q %}
     <p class="muted">Aucune candidature ne correspond à « {{ q }} ».
-        <a href="{% url 'tracking:candidature_list' %}">Réinitialiser la recherche</a>.</p>
+        <a href="?{% if show_archived %}archivees=1{% endif %}">Réinitialiser la recherche</a>.</p>
+    {% elif show_archived %}
+    <p class="muted">Aucune candidature archivée pour le moment.
+        <a href="{% url 'tracking:candidature_list' %}">← Retour aux candidatures actives</a>.</p>
     {% else %}
     <p class="muted">Aucune candidature pour le moment. Commencez par en
         <a class="js-modal-link" href="{% url 'tracking:candidature_create' %}">ajouter une</a>.</p>
@@ -80,6 +90,7 @@
     function bind() {
         var form = body.querySelector("form");
         if (!form) return;
+        if (window.initSourcePicker) window.initSourcePicker(body);
         body.querySelectorAll("[data-close]").forEach(function (el) {
             el.addEventListener("click", function (e) { e.preventDefault(); modal.close(); });
         });

@@ -35,8 +35,7 @@
         <tr><th>Entreprise / Poste</th><td>{{ candidature.entreprise }} — {{ candidature.poste }}</td></tr>
         <tr><th>Statut</th><td><span class="badge">{{ candidature.get_statut_display }}</span></td></tr>
         <tr><th>Clôture</th><td>{% if candidature.motif_cloture %}<span class="badge">{{ candidature.get_motif_cloture_display }}</span>{% else %}<span class="muted">En cours</span>{% endif %}</td></tr>
-        <tr><th>Source</th><td>{{ candidature.get_source_display }}</td></tr>
-        <tr><th>Site</th><td>{{ candidature.site|default:"—" }}</td></tr>
+        <tr><th>Source</th><td>{% if candidature.source %}<span class="src-cell">{% if candidature.source.logo_url %}<img src="{{ candidature.source.logo_url }}" alt="" class="src-logo">{% endif %}{{ candidature.source.name }}</span>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
         <tr><th>CV</th><td>
             {% if candidature.cv %}<a href="{% url 'tracking:cv_detail' candidature.cv.pk %}">📄 {{ candidature.cv.label }}</a>{% else %}<span class="muted">—</span>{% endif %}
         </td></tr>
@@ -58,47 +57,49 @@
     </table>
 </div>
 
-<div class="card">
-    <h2 style="margin-top:0;">Historique des statuts</h2>
-    {% if candidature.status_history.all %}
-    <table>
-        <thead><tr><th>Date</th><th>Statut</th></tr></thead>
-        <tbody>
-            {% for h in candidature.status_history.all %}
-            <tr><td>{{ h.date|date:"d/m/Y H:i" }}</td><td>{{ h.get_statut_display }}</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p class="muted">Aucun historique.</p>
+<div class="{% if candidature.localisation %}grid2{% endif %}">
+    <div class="card">
+        <h2 style="margin-top:0;">Historique des statuts</h2>
+        {% if candidature.status_history.all %}
+        <table>
+            <thead><tr><th>Date</th><th>Statut</th></tr></thead>
+            <tbody>
+                {% for h in candidature.status_history.all %}
+                <tr><td>{{ h.date|date:"d/m/Y H:i" }}</td><td>{{ h.get_statut_display }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="muted">Aucun historique.</p>
+        {% endif %}
+    </div>
+
+    {% if candidature.localisation %}
+    <div class="card">
+        <h2 style="margin-top:0;">🚏 Temps de trajet</h2>
+        {% if home_location %}
+        <p class="muted" style="margin-top:0;">
+            Depuis <strong>{{ home_location }}</strong> (CV par défaut « {{ default_cv.label }} »)
+            vers <strong>{{ candidature.localisation }}</strong>.
+        </p>
+        <p id="trajet-resultat" class="muted">🚗 Calcul de l'itinéraire routier…</p>
+        <p>
+            <a id="trajet-transit" class="btn secondary" href="#" target="_blank" rel="noopener">🚆 Trajet en transport en commun</a>
+        </p>
+        {{ home_location|json_script:"trajet-origine" }}
+        {{ candidature.localisation|json_script:"trajet-destination" }}
+        {% else %}
+        <p class="muted" style="margin-top:0;">
+            Aucune adresse de domicile disponible. Définissez un
+            <a href="{% url 'tracking:cv_list' %}">CV par défaut</a> analysé renseignant une localisation
+            pour estimer le temps de trajet.
+        </p>
+        {% endif %}
+    </div>
     {% endif %}
 </div>
 
-{% if candidature.localisation %}
-<div class="card">
-    <h2 style="margin-top:0;">🚏 Temps de trajet</h2>
-    {% if home_location %}
-    <p class="muted" style="margin-top:0;">
-        Depuis <strong>{{ home_location }}</strong> (CV par défaut « {{ default_cv.label }} »)
-        vers <strong>{{ candidature.localisation }}</strong>.
-    </p>
-    <p id="trajet-resultat" class="muted">🚗 Calcul de l'itinéraire routier…</p>
-    <p>
-        <a id="trajet-transit" href="#" target="_blank" rel="noopener">🚆 Voir le trajet en transport en commun (Google Maps)</a>
-    </p>
-    {{ home_location|json_script:"trajet-origine" }}
-    {{ candidature.localisation|json_script:"trajet-destination" }}
-    {% else %}
-    <p class="muted" style="margin-top:0;">
-        Aucune adresse de domicile disponible. Définissez un
-        <a href="{% url 'tracking:cv_list' %}">CV par défaut</a> analysé renseignant une localisation
-        pour estimer le temps de trajet.
-    </p>
-    {% endif %}
-</div>
-{% endif %}
-
-<a href="{% url 'tracking:candidature_list' %}" class="muted">← Retour à la liste</a>
+<a href="{% url 'tracking:candidature_list' %}" class="btn secondary">← Retour à la liste</a>
 
 <script>
 // Mail de relance IA (issue #33) : ouvre le modal partagé sur l'endpoint dédié.

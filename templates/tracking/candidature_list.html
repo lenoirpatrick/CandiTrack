@@ -41,16 +41,19 @@
                 <td>{{ c.entreprise|default:"—" }}</td>
                 <td>{{ c.poste|default:"—" }}</td>
                 <td>
-                    {% if c.source_logo %}<img src="{{ c.source_logo }}" alt="" class="src-logo">{% endif %}{{ c.get_source_display }}
+                    <span class="src-cell">{% if c.source_logo %}<img src="{{ c.source_logo }}" alt="" class="src-logo">{% endif %}{{ c.get_source_display }}</span>
                 </td>
                 <td><span class="badge">{{ c.etape_courante }}</span></td>
                 <td>
                     <span class="mini-bar" title="{% if p.closed %}Terminée — {{ p.motif }}{% else %}{{ p.done }}/{{ p.total }}{% endif %} — {{ p.percent }} %"><span style="width:{{ p.percent }}%; background:{{ p.color }};"></span></span>
                     <span class="muted" style="font-size:0.8rem;">{% if p.closed %}Terminée{% else %}{{ p.percent }} %{% endif %}</span>
                 </td>
-                <td class="row-actions">
-                    <a class="js-modal-link" href="{% url 'tracking:candidature_update' c.pk %}">Modifier</a>
-                    <a href="{% url 'tracking:candidature_delete' c.pk %}">Supprimer</a>
+                <td>
+                    <div class="act-row">
+                        <a class="icon-btn" href="{{ c.get_absolute_url }}" title="Détails" aria-label="Détails">👁️</a>
+                        <a class="icon-btn js-modal-link" href="{% url 'tracking:candidature_update' c.pk %}" title="Modifier" aria-label="Modifier">✏️</a>
+                        <a class="icon-btn danger" href="{% url 'tracking:candidature_delete' c.pk %}" title="Supprimer" aria-label="Supprimer">🗑️</a>
+                    </div>
                 </td>
             </tr>
             {% endwith %}

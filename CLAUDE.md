@@ -54,10 +54,12 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 l'issue #43 ; `logo_url` n'est plus saisi mais déduit du favicon, issue #50),
 `Candidature` (cœur
 du suivi, étapes de progression + `motif_cloture` = clôture ; `cv` = CV joint,
-issue #49), `StatusHistory`,
+issue #49 ; `localisation` = zone géographique de l'offre, issue #52),
+`StatusHistory`,
 `Reminder`, `Interview`, `Contact`, `ApiToken`, `CV` (avec analyse IA des
 informations principales — champs `analysis`/`analyzed_at`/… , issue #44 ;
-`actif` = archivage, issue #48),
+`actif` = archivage, issue #48 ; `par_defaut` = CV dont l'adresse sert d'origine
+aux trajets, issue #52),
 `AIConfig` (singleton de
 config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations
 `TextChoices` : `Source`, `Canal`, `Statut`, `MotifCloture` (certaines avec icône
@@ -68,6 +70,12 @@ emoji dans le libellé pour les menus).
 - Logos dérivés du favicon : `tracking/logos.py` (`favicon_service_url`, stdlib
   uniquement) ; chargé par défaut à l'enregistrement d'un site (issue #27).
 - Géométrie du donut de stats : `tracking/statistics.py`.
+- Temps de trajet (issue #52) : la fiche candidature géocode la `localisation`
+  de l'offre et l'adresse du **CV par défaut** (`CV.par_defaut`,
+  `CV.home_location`) via Nominatim, puis calcule un itinéraire **routier** par
+  OSRM côté client (aucune clé). Un lien 🚆 renvoie vers Google Maps pour le
+  calcul en transport en commun. Le plugin Chrome récupère la zone géographique
+  via `jobLocation` (schema.org) puis sélecteurs DOM.
 - Coaching IA (issues #33, #34, #39) : `tracking/ai.py` (clients REST stdlib pour
   **Gemini, Mistral, OpenAI/ChatGPT, Anthropic/Claude, Perplexity** ;
   `generate(..., provider=...)` aiguille — OpenAI/Mistral/Perplexity partagent le

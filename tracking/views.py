@@ -127,10 +127,16 @@ def candidature_detail(request, pk):
     candidature = get_object_or_404(
         Candidature.objects.select_related("site", "cv"), pk=pk
     )
+    # Origine du calcul de trajet : adresse du CV par défaut (issue #52).
+    default_cv = CV.default()
     return render(
         request,
         "tracking/candidature_detail.html",
-        {"candidature": candidature},
+        {
+            "candidature": candidature,
+            "home_location": default_cv.home_location if default_cv else "",
+            "default_cv": default_cv,
+        },
     )
 
 
@@ -300,6 +306,7 @@ def cv_list(request):
         {
             "cvs": [cv for cv in cvs if cv.actif],
             "cvs_archives": [cv for cv in cvs if not cv.actif],
+            "export_formats": cv_exporters.EXPORT_LABELS,
         },
     )
 
@@ -313,6 +320,25 @@ def cv_toggle_active(request, pk):
     etat = "réactivé" if cv.actif else "archivé"
     messages.success(request, f"CV « {cv.label} » {etat}.")
     # On ne redirige vers « next » que s'il pointe vers ce site (anti open-redirect).
+    next_url = request.POST.get("next")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
+    return redirect("tracking:cv_list")
+
+
+@require_POST
+def cv_set_default(request, pk):
+    """Désigne (ou retire) le CV par défaut, origine des trajets (issue #52)."""
+    cv = get_object_or_404(CV, pk=pk)
+    if cv.par_defaut:
+        cv.par_defaut = False
+        cv.save(update_fields=["par_defaut"])
+        messages.success(request, f"CV « {cv.label} » n'est plus le CV par défaut.")
+    else:
+        cv.set_as_default()
+        messages.success(request, f"CV « {cv.label} » défini comme CV par défaut.")
     next_url = request.POST.get("next")
     if next_url and url_has_allowed_host_and_scheme(
         next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
@@ -666,6 +692,7 @@ def api_candidature_create(request):
 
     url = (data.get("url") or "").strip()
     entreprise = (data.get("entreprise") or "").strip()
+    localisation = (data.get("localisation") or "").strip()
     source = (data.get("source") or "").strip()
     if source not in Source.values:
         source = Source.AUTRE
@@ -680,6 +707,7 @@ def api_candidature_create(request):
         entreprise=entreprise,
         poste="",
         url_offre=url,
+        localisation=localisation,
         source=source,
         statut=Statut.ENVOYEE,
         date_envoi=None,

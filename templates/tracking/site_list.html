@@ -19,17 +19,19 @@
                     {% if s.is_builtin %} <span class="badge">défaut</span>{% endif %}
                     {% if not s.actif %} <span class="badge">désactivé</span>{% endif %}</td>
                 <td>{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a>{% else %}—{% endif %}</td>
-                <td class="row-actions" style="white-space:nowrap;">
-                    <a href="{% url 'tracking:site_update' s.pk %}">Modifier</a>
-                    <form method="post" action="{% url 'tracking:site_toggle_active' s.pk %}" style="display:inline;">
-                        {% csrf_token %}
-                        <label class="switch" title="{% if s.actif %}Désactiver{% else %}Activer{% endif %}">
-                            <input type="checkbox" onchange="this.form.submit()"{% if s.actif %} checked{% endif %}
-                                   aria-label="{% if s.actif %}Désactiver{% else %}Activer{% endif %} {{ s.name }}">
-                            <span class="slider"></span>
-                        </label>
-                    </form>
-                    {% if not s.is_builtin %}<a href="{% url 'tracking:site_delete' s.pk %}">Supprimer</a>{% endif %}
+                <td>
+                    <div class="act-row">
+                        <a class="icon-btn" href="{% url 'tracking:site_update' s.pk %}" title="Modifier" aria-label="Modifier">✏️</a>
+                        <form method="post" action="{% url 'tracking:site_toggle_active' s.pk %}">
+                            {% csrf_token %}
+                            <label class="switch" title="{% if s.actif %}Désactiver{% else %}Activer{% endif %}">
+                                <input type="checkbox" onchange="this.form.submit()"{% if s.actif %} checked{% endif %}
+                                       aria-label="{% if s.actif %}Désactiver{% else %}Activer{% endif %} {{ s.name }}">
+                                <span class="slider"></span>
+                            </label>
+                        </form>
+                        {% if not s.is_builtin %}<a class="icon-btn danger" href="{% url 'tracking:site_delete' s.pk %}" title="Supprimer" aria-label="Supprimer">🗑️</a>{% endif %}
+                    </div>
                 </td>
             </tr>
             {% endfor %}

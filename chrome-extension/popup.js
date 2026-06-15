@@ -16,7 +16,22 @@ function extractFromPage() {
     return el ? (el.textContent || "").trim() : "";
   }
 
+  // Compose a readable location string from a schema.org PostalAddress (issue #52).
+  function formatAddress(addr) {
+    if (!addr) return "";
+    if (typeof addr === "string") return addr;
+    if (Array.isArray(addr)) return formatAddress(addr[0]);
+    if (addr["@type"] === "Place" && addr.address) return formatAddress(addr.address);
+    var parts = [addr.streetAddress, addr.postalCode, addr.addressLocality,
+      addr.addressRegion, addr.addressCountry];
+    return parts
+      .map(function (p) { return p && typeof p === "object" ? (p.name || "") : (p || ""); })
+      .filter(function (p) { return p; })
+      .join(", ");
+  }
+
   var entreprise = "";
+  var localisation = "";
 
   // 1) schema.org JobPosting (JSON-LD) — most reliable when present.
   var scripts = document.querySelectorAll('script[type="application/ld+json"]');
@@ -34,7 +49,12 @@ function extractFromPage() {
         if (isJob && node.hiringOrganization) {
           var org = node.hiringOrganization;
           var name = typeof org === "string" ? org : org.name;
-          if (name) { entreprise = String(name); break; }
+          if (name) { entreprise = String(name); }
+        }
+        // Zone géographique de l'offre (issue #52).
+        if (isJob && !localisation && node.jobLocation) {
+          var loc = Array.isArray(node.jobLocation) ? node.jobLocation[0] : node.jobLocation;
+          if (loc) localisation = formatAddress(loc.address || loc);
         }
       }
     } catch (e) { /* ignore malformed JSON-LD */ }
@@ -43,10 +63,11 @@ function extractFromPage() {
   // 2) Site-specific DOM selectors (pages without JSON-LD, e.g. LinkedIn signed-in).
   if (!entreprise) {
     var selectors = [
-      ".topcard__org-name-link",                           // LinkedIn (déconnecté)
-      ".topcard__flavor",                                  // LinkedIn (déconnecté, variante)
-      ".job-details-jobs-unified-top-card__company-name",  // LinkedIn (connecté)
-      ".jobs-unified-top-card__company-name",              // LinkedIn (ancienne UI)
+      ".topcard__org-name-link",                            // LinkedIn (déconnecté)
+      ".topcard__flavor",                                   // LinkedIn (déconnecté, variante)
+      ".job-details-jobs-unified-top-card__company-name a", // LinkedIn (connecté, lien société)
+      ".job-details-jobs-unified-top-card__company-name",   // LinkedIn (connecté)
+      ".jobs-unified-top-card__company-name",               // LinkedIn (ancienne UI)
       '[data-testid="inlineHeader-companyName"]',          // Indeed
       '[data-testid="company-name"]',                      // Indeed (variante)
       ".jobsearch-CompanyInfoContainer a",                 // Indeed (ancienne UI)
@@ -57,6 +78,42 @@ function extractFromPage() {
     }
   }
 
+  // 2bis) Sélecteurs DOM pour la localisation (issue #52).
+  if (!localisation) {
+    var locSelectors = [
+      ".topcard__flavor--bullet",                              // LinkedIn (déconnecté)
+      ".job-details-jobs-unified-top-card__bullet",            // LinkedIn (ancienne UI connectée)
+      '[data-testid="inlineHeader-companyLocation"]',          // Indeed
+      '[data-testid="job-location"]',                          // Indeed (variante)
+      '[data-testid="jobsearch-JobInfoHeader-companyLocation"]', // Indeed (ancienne UI)
+      ".location",                                             // génériques (APEC, Monster…)
+    ];
+    for (var m = 0; m < locSelectors.length && !localisation; m++) {
+      localisation = text(locSelectors[m]);
+    }
+  }
+
+  // 2ter) LinkedIn (UI connectée récente, vues /jobs/view et /jobs/collections) :
+  // la localisation est le 1er segment (avant « · ») du conteneur de description
+  // sous le titre, mêlée à la date de publication et au nombre de candidats.
+  if (!localisation) {
+    var descSelectors = [
+      ".job-details-jobs-unified-top-card__primary-description-container",
+      ".job-details-jobs-unified-top-card__tertiary-description-container",
+      ".jobs-unified-top-card__primary-description",
+    ];
+    for (var p = 0; p < descSelectors.length && !localisation; p++) {
+      var raw = text(descSelectors[p]);
+      if (!raw) continue;
+      var segs = raw.split(/[·•|]/)
+        .map(function (s) { return s.replace(/\s+/g, " ").trim(); })
+        .filter(function (s) { return s; });
+      // Ignore un éventuel 1er segment qui répète le nom de l'entreprise.
+      if (segs.length && entreprise && segs[0] === entreprise) segs.shift();
+      if (segs.length) localisation = segs[0];
+    }
+  }
+
   // 3) Open Graph — but ignore generic job-board names (LinkedIn, Indeed…).
   if (!entreprise) {
     var og = meta("og:site_name");
@@ -64,7 +121,7 @@ function extractFromPage() {
     if (og && !generic.test(og)) entreprise = og;
   }
 
-  return { url: location.href, entreprise: entreprise.trim() };
+  return { url: location.href, entreprise: entreprise.trim(), localisation: localisation.trim() };
 }
 
 function sourceFromUrl(url) {
@@ -117,6 +174,7 @@ document.addEventListener("DOMContentLoaded", function () {
         var data = results[0].result || {};
         if (data.entreprise) document.getElementById("entreprise").value = data.entreprise;
         if (data.url) document.getElementById("url").value = data.url;
+        if (data.localisation) document.getElementById("localisation").value = data.localisation;
       }
     );
   });
@@ -131,6 +189,7 @@ document.addEventListener("DOMContentLoaded", function () {
       var payload = {
         url: document.getElementById("url").value.trim(),
         entreprise: document.getElementById("entreprise").value.trim(),
+        localisation: document.getElementById("localisation").value.trim(),
         source: current.source
       };
       btn.disabled = true;

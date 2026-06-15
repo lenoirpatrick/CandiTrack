@@ -17,6 +17,7 @@ class CandidatureForm(forms.ModelForm):
             "cv",
             "source",
             "url_offre",
+            "localisation",
             "date_envoi",
             "canal_envoi",
             "statut",
@@ -37,6 +38,9 @@ class CandidatureForm(forms.ModelForm):
         widgets = {
             "libelle": forms.TextInput(
                 attrs={"placeholder": "Laisser vide : généré depuis entreprise et poste"}
+            ),
+            "localisation": forms.TextInput(
+                attrs={"placeholder": "Ville ou zone géographique de l'offre"}
             ),
             "date_envoi": forms.DateInput(attrs={"type": "date"}),
             "date_entretien_1": forms.DateInput(attrs={"type": "date"}),

@@ -1,0 +1,17 @@
+{% comment %}
+Menu déroulant de téléchargement d'un CV par format (issue #52).
+Attend `cv` et, pour les exports structurés, `export_formats` (EXPORT_LABELS).
+{% endcomment %}
+<details class="dd">
+    <summary class="btn secondary">⬇️ Télécharger ▾</summary>
+    <div class="dd-menu">
+        <a href="{{ cv.file.url }}" target="_blank" rel="noopener">📄 Fichier original</a>
+        {% if cv.is_analyzed %}
+        <a href="{% url 'tracking:cv_print' cv.pk %}" target="_blank" rel="noopener">🖨️ PDF professionnel</a>
+        <div class="dd-sep"></div>
+        {% for fmt, label in export_formats.items %}
+        <a href="{% url 'tracking:cv_export' cv.pk fmt %}">🧩 {{ label }}</a>
+        {% endfor %}
+        {% endif %}
+    </div>
+</details>

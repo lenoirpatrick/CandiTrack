@@ -53,6 +53,7 @@
         <tr><th>URL de l'offre</th><td>
             {% if candidature.url_offre %}<a href="{{ candidature.url_offre }}" target="_blank" rel="noopener">{{ candidature.url_offre }}</a>{% else %}—{% endif %}
         </td></tr>
+        <tr><th>Localisation</th><td>{% if candidature.localisation %}📍 {{ candidature.localisation }}{% else %}<span class="muted">—</span>{% endif %}</td></tr>
         <tr><th>Notes</th><td>{{ candidature.notes|linebreaksbr|default:"—" }}</td></tr>
     </table>
 </div>
@@ -73,6 +74,30 @@
     {% endif %}
 </div>
 
+{% if candidature.localisation %}
+<div class="card">
+    <h2 style="margin-top:0;">🚏 Temps de trajet</h2>
+    {% if home_location %}
+    <p class="muted" style="margin-top:0;">
+        Depuis <strong>{{ home_location }}</strong> (CV par défaut « {{ default_cv.label }} »)
+        vers <strong>{{ candidature.localisation }}</strong>.
+    </p>
+    <p id="trajet-resultat" class="muted">🚗 Calcul de l'itinéraire routier…</p>
+    <p>
+        <a id="trajet-transit" href="#" target="_blank" rel="noopener">🚆 Voir le trajet en transport en commun (Google Maps)</a>
+    </p>
+    {{ home_location|json_script:"trajet-origine" }}
+    {{ candidature.localisation|json_script:"trajet-destination" }}
+    {% else %}
+    <p class="muted" style="margin-top:0;">
+        Aucune adresse de domicile disponible. Définissez un
+        <a href="{% url 'tracking:cv_list' %}">CV par défaut</a> analysé renseignant une localisation
+        pour estimer le temps de trajet.
+    </p>
+    {% endif %}
+</div>
+{% endif %}
+
 <a href="{% url 'tracking:candidature_list' %}" class="muted">← Retour à la liste</a>
 
 <script>
@@ -89,4 +114,62 @@
     });
 })();
 </script>
+
+{% if candidature.localisation and home_location %}
+<script>
+// Temps de trajet (issue #52) : géocodage Nominatim des deux adresses puis
+// itinéraire routier via OSRM (aucune clé requise, comme la carte des CV). Le
+// lien 🚆 renvoie vers Google Maps pour le calcul en transport en commun.
+(function () {
+    var origine = JSON.parse(document.getElementById("trajet-origine").textContent);
+    var destination = JSON.parse(document.getElementById("trajet-destination").textContent);
+
+    // Lien Google Maps en transport en commun, immédiat (pas besoin de géocoder).
+    var lien = document.getElementById("trajet-transit");
+    lien.href = "https://www.google.fr/maps/dir/?api=1"
+        + "&origin=" + encodeURIComponent(origine)
+        + "&destination=" + encodeURIComponent(destination)
+        + "&travelmode=transit";
+
+    var resultat = document.getElementById("trajet-resultat");
+    function geocode(q) {
+        var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q="
+            + encodeURIComponent(q);
+        return fetch(url, { headers: { "Accept-Language": "fr" } })
+            .then(function (r) { return r.json(); })
+            .then(function (hits) {
+                if (!hits || !hits.length) return null;
+                return [parseFloat(hits[0].lon), parseFloat(hits[0].lat)];
+            });
+    }
+    var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+
+    (async function () {
+        try {
+            var a = await geocode(origine);
+            await sleep(1100);  // Politique d'usage Nominatim (~1 req/s).
+            var b = await geocode(destination);
+            if (!a || !b) {
+                resultat.textContent = "🚗 Itinéraire routier indisponible (adresse introuvable).";
+                return;
+            }
+            var url = "https://router.project-osrm.org/route/v1/driving/"
+                + a[0] + "," + a[1] + ";" + b[0] + "," + b[1] + "?overview=false";
+            var res = await fetch(url);
+            var data = await res.json();
+            if (!data.routes || !data.routes.length) {
+                resultat.textContent = "🚗 Itinéraire routier indisponible.";
+                return;
+            }
+            var route = data.routes[0];
+            var minutes = Math.round(route.duration / 60);
+            var km = (route.distance / 1000).toFixed(1);
+            resultat.textContent = "🚗 Environ " + minutes + " min en voiture (" + km + " km).";
+        } catch (e) {
+            resultat.textContent = "🚗 Itinéraire routier indisponible.";
+        }
+    })();
+})();
+</script>
+{% endif %}
 {% endblock %}

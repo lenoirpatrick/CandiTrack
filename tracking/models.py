@@ -109,6 +109,9 @@ class Candidature(models.Model):
         "source", max_length=20, choices=Source.choices, default=Source.AUTRE
     )
     url_offre = models.URLField("URL de l'offre", blank=True)
+    # Zone géographique de l'offre (issue #52) : sert au calcul du temps de
+    # trajet depuis le domicile (localisation du CV par défaut).
+    localisation = models.CharField("localisation", max_length=200, blank=True)
     date_envoi = models.DateField(
         "date d'envoi", default=timezone.localdate, null=True, blank=True
     )
@@ -376,6 +379,9 @@ class CV(models.Model):
     # Un CV archivé reste en base mais n'est plus proposé pour de nouvelles
     # candidatures (issues #48, #49).
     actif = models.BooleanField("actif", default=True)
+    # CV par défaut (issue #52) : son adresse sert d'origine au calcul du temps
+    # de trajet des candidatures. Un seul CV est par défaut à la fois.
+    par_defaut = models.BooleanField("CV par défaut", default=False)
 
     # Analyse IA du contenu du CV (issue #44).
     analysis = models.JSONField("analyse IA", default=dict, blank=True)
@@ -407,6 +413,28 @@ class CV(models.Model):
     def is_analyzed(self):
         """Vrai si une analyse IA exploitable a été enregistrée (issue #44)."""
         return bool(self.analyzed_at and self.analysis)
+
+    @property
+    def home_location(self):
+        """Adresse/ville du candidat, origine des trajets (issue #52).
+
+        Tirée de l'analyse IA : adresse précise si disponible, sinon la
+        localisation générale du profil. Vide si le CV n'est pas analysé.
+        """
+        coords = self.analysis.get("coordonnees") or {}
+        return coords.get("adresse") or self.analysis.get("localisation") or ""
+
+    @classmethod
+    def default(cls):
+        """CV par défaut actif, ou ``None`` (issue #52)."""
+        return cls.objects.filter(par_defaut=True, actif=True).first()
+
+    def set_as_default(self):
+        """Désigne ce CV comme défaut, en retirant le marqueur des autres (issue #52)."""
+        CV.objects.exclude(pk=self.pk).update(par_defaut=False)
+        if not self.par_defaut:
+            self.par_defaut = True
+            self.save(update_fields=["par_defaut"])
 
     @property
     def analysis_provider_label(self):

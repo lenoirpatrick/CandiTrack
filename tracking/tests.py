@@ -1458,6 +1458,72 @@ class CVCandidatureLinkTests(TestCase):
         self.assertIsNone(cand.cv)
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class LocalisationTrajetTests(TestCase):
+    """Issue #52 — localisation des candidatures et CV par défaut."""
+
+    def _make_cv(self, label="CV", **extra):
+        cv = CV.objects.create(label=label, file=SimpleUploadedFile(f"{label}.txt", b"x"))
+        if extra:
+            CV.objects.filter(pk=cv.pk).update(**extra)
+            cv.refresh_from_db()
+        return cv
+
+    def test_localisation_enregistree_sur_la_candidature(self):
+        self.client.post(reverse("tracking:candidature_create"), {
+            "poste": "Dev", "localisation": "Lyon", "source": "autre",
+            "canal_envoi": "email", "statut": Statut.ENVOYEE,
+        })
+        self.assertEqual(Candidature.objects.get().localisation, "Lyon")
+
+    def test_un_seul_cv_par_defaut(self):
+        a = self._make_cv("A")
+        b = self._make_cv("B")
+        a.set_as_default()
+        b.set_as_default()
+        a.refresh_from_db()
+        self.assertFalse(a.par_defaut)
+        self.assertTrue(b.par_defaut)
+        self.assertEqual(CV.default(), b)
+
+    def test_set_default_toggle_via_vue(self):
+        cv = self._make_cv()
+        self.client.post(reverse("tracking:cv_set_default", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertTrue(cv.par_defaut)
+        self.client.post(reverse("tracking:cv_set_default", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertFalse(cv.par_defaut)
+
+    def test_set_default_refuse_get(self):
+        cv = self._make_cv()
+        resp = self.client.get(reverse("tracking:cv_set_default", args=[cv.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_home_location_depuis_analyse(self):
+        cv = self._make_cv(analysis={"coordonnees": {"adresse": "1 rue X, Paris"}})
+        self.assertEqual(cv.home_location, "1 rue X, Paris")
+        cv2 = self._make_cv("C2", analysis={"localisation": "Nantes"})
+        self.assertEqual(cv2.home_location, "Nantes")
+
+    def test_detail_affiche_carte_trajet_si_domicile(self):
+        self._make_cv("Défaut", par_defaut=True, analysis={"localisation": "Paris"})
+        cand = Candidature.objects.create(poste="Dev", localisation="Lyon")
+        resp = self.client.get(reverse("tracking:candidature_detail", args=[cand.pk]))
+        self.assertContains(resp, "Temps de trajet")
+        self.assertContains(resp, "travelmode=transit")
+
+    def test_api_enregistre_la_localisation(self):
+        tok = ApiToken.objects.create(token=ApiToken.new_token())
+        self.client.post(
+            reverse("tracking:api_candidature_create"),
+            data=json.dumps({"entreprise": "ACME", "localisation": "Lille"}),
+            content_type="application/json",
+            HTTP_X_API_TOKEN=tok.token,
+        )
+        self.assertEqual(Candidature.objects.get().localisation, "Lille")
+
+
 def io_bytes(data):
     """Petit helper : un flux binaire lisible pour simuler HTTPError.read()."""
     import io

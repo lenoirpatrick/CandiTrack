@@ -9,7 +9,7 @@ counts in the interview funnel).
 from django.db.models import Count
 from django.db.models.functions import TruncMonth
 
-from .models import Candidature, Source, Statut, StatusHistory
+from .models import Candidature, Statut, StatusHistory
 
 # A reply from the company = it reacted to the application in any way.
 RESPONSE_STATUSES = {
@@ -120,15 +120,16 @@ def compute_stats():
         if status_counts.get(value, 0)
     ]
 
-    # Breakdown by source.
-    source_counts = {
-        row["source"]: row["count"]
-        for row in qs.values("source").annotate(count=Count("id"))
-    }
+    # Breakdown by source site (issue #52) : la source est un JobSite ; les
+    # candidatures sans source sont regroupées sous « Non précisée ».
     by_source = [
-        {"label": label, "count": source_counts.get(value, 0)}
-        for value, label in Source.choices
-        if source_counts.get(value, 0)
+        {"label": row["source__name"] or "Non précisée", "count": row["count"]}
+        for row in (
+            qs.values("source__name")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        if row["count"]
     ]
     source_total = _donut_segments(by_source)
 

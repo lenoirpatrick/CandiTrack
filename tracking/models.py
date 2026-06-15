@@ -47,16 +47,6 @@ class JobSite(models.Model):
         return self.name
 
 
-class Source(models.TextChoices):
-    FRANCE_TRAVAIL = "france_travail", "France Travail"
-    APEC = "apec", "APEC"
-    LINKEDIN = "linkedin", "LinkedIn"
-    INDEED = "indeed", "Indeed"
-    MONSTER = "monster", "Monster"
-    CADREMPLOI = "cadremploi", "Cadremploi"
-    AUTRE = "autre", "Autre"
-
-
 class Canal(models.TextChoices):
     # Une icône précède chaque libellé pour les menus déroulants (issue #14).
     EMAIL = "email", "✉️ Email direct"
@@ -97,16 +87,16 @@ class Candidature(models.Model):
     libelle = models.CharField(LIBELLE_VERBOSE, max_length=200, blank=True)
     entreprise = models.CharField("entreprise", max_length=200, blank=True)
     poste = models.CharField("poste", max_length=200)
-    site = models.ForeignKey(
+    # Source = site d'emploi d'où provient la candidature (issues #52) : unique
+    # référence au site (l'ancien champ `site` a été fusionné ici), tirée des
+    # JobSite actifs pour inclure les sites personnalisés et afficher leur favicon.
+    source = models.ForeignKey(
         JobSite,
-        verbose_name="site",
+        verbose_name="source",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="candidatures",
-    )
-    source = models.CharField(
-        "source", max_length=20, choices=Source.choices, default=Source.AUTRE
     )
     url_offre = models.URLField("URL de l'offre", blank=True)
     # Zone géographique de l'offre (issue #52) : sert au calcul du temps de

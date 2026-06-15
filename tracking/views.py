@@ -2,6 +2,7 @@ import io
 import json
 import zipfile
 from pathlib import Path
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.contrib import messages
@@ -24,7 +25,6 @@ from .models import (
     ApiToken,
     Candidature,
     JobSite,
-    Source,
     Statut,
     StatusHistory,
 )
@@ -49,23 +49,9 @@ CANDIDATURE_SORTS = {
 }
 
 
-def _source_logos():
-    """Map a Source value to a JobSite logo URL (issue #8).
-
-    The source enum mirrors the built-in job sites by display name, so we
-    can surface the source site's logo in the list.
-    """
-    sites = {s.name.lower(): s.logo_url for s in JobSite.objects.all() if s.logo_url}
-    return {
-        value: sites[label.lower()]
-        for value, label in Source.choices
-        if label.lower() in sites
-    }
-
-
 @require_GET
 def candidature_list(request):
-    candidatures = Candidature.objects.select_related("site")
+    candidatures = Candidature.objects.select_related("source")
 
     # Recherche plein texte sur les principaux champs (issue #11).
     query = (request.GET.get("q") or "").strip()
@@ -76,6 +62,16 @@ def candidature_list(request):
             | Q(poste__icontains=query)
             | Q(notes__icontains=query)
         )
+
+    # Candidatures « archivées » = abouties à 100 % : clôturées (motif) ou
+    # acceptées (issue #52). On les sépare de la liste active via un bouton.
+    archived_q = ~Q(motif_cloture="") | Q(acceptation=True)
+    show_archived = request.GET.get("archivees") == "1"
+    archived_count = candidatures.filter(archived_q).count()
+    if show_archived:
+        candidatures = candidatures.filter(archived_q)
+    else:
+        candidatures = candidatures.exclude(archived_q)
 
     # Tri par colonne (issue #11).
     sort = request.GET.get("sort")
@@ -92,12 +88,6 @@ def candidature_list(request):
         )
     ).order_by("_closed", f"{prefix}{field}", "-created_at")
 
-    # Logo du site source pour chaque candidature (issue #8).
-    logos = _source_logos()
-    candidatures = list(candidatures)
-    for c in candidatures:
-        c.source_logo = logos.get(c.source, "")
-
     return render(
         request,
         "tracking/candidature_list.html",
@@ -106,6 +96,8 @@ def candidature_list(request):
             "q": query,
             "sort": sort,
             "dir": direction,
+            "show_archived": show_archived,
+            "archived_count": archived_count,
         },
     )
 
@@ -125,7 +117,7 @@ def _celebrer_acceptation(request):
 @require_GET
 def candidature_detail(request, pk):
     candidature = get_object_or_404(
-        Candidature.objects.select_related("site", "cv"), pk=pk
+        Candidature.objects.select_related("source", "cv"), pk=pk
     )
     # Origine du calcul de trajet : adresse du CV par défaut (issue #52).
     default_cv = CV.default()
@@ -664,6 +656,39 @@ def extension_download(request):
 # --- API for the Chrome extension (issue #2) ------------------------------
 
 
+# Codes de source envoyés par l'extension -> nom du JobSite équivalent (issue #52).
+EXTENSION_SOURCE_NAMES = {
+    "france_travail": "France Travail",
+    "apec": "APEC",
+    "linkedin": "LinkedIn",
+    "indeed": "Indeed",
+    "monster": "Monster",
+    "cadremploi": "Cadremploi",
+}
+
+
+def _resolve_source_site(code, url):
+    """Associe la candidature à un JobSite actif (issue #52).
+
+    On tente d'abord par le code de source de l'extension (LinkedIn, Indeed…),
+    puis par le domaine de l'URL de l'offre ; faute de correspondance, ``None``.
+    """
+    code = (code or "").strip().lower()
+    name = EXTENSION_SOURCE_NAMES.get(code)
+    if name:
+        site = JobSite.objects.filter(actif=True, name__iexact=name).first()
+        if site:
+            return site
+    # Correspondance par domaine avec un site connu (couvre les sites custom).
+    domain = urlparse(url).netloc.lower().removeprefix("www.") if url else ""
+    if domain:
+        for site in JobSite.objects.filter(actif=True).exclude(url=""):
+            site_domain = urlparse(site.url).netloc.lower().removeprefix("www.")
+            if site_domain and site_domain == domain:
+                return site
+    return None
+
+
 # @csrf_exempt est sûr ici (hotspot SonarCloud csrf/S4502, issue #29) :
 # l'endpoint est authentifié par un jeton dans l'en-tête custom X-Api-Token,
 # jamais par un cookie de session. Le CSRF n'exploite que l'envoi automatique
@@ -693,9 +718,7 @@ def api_candidature_create(request):
     url = (data.get("url") or "").strip()
     entreprise = (data.get("entreprise") or "").strip()
     localisation = (data.get("localisation") or "").strip()
-    source = (data.get("source") or "").strip()
-    if source not in Source.values:
-        source = Source.AUTRE
+    source = _resolve_source_site(data.get("source"), url)
     if not (entreprise or url):
         return JsonResponse({"error": "empty payload"}, status=400)
 

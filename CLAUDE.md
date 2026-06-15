@@ -54,7 +54,10 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 l'issue #43 ; `logo_url` n'est plus saisi mais déduit du favicon, issue #50),
 `Candidature` (cœur
 du suivi, étapes de progression + `motif_cloture` = clôture ; `cv` = CV joint,
-issue #49 ; `localisation` = zone géographique de l'offre, issue #52),
+issue #49 ; `localisation` = zone géographique de l'offre, issue #52 ; `source`
+= FK vers le `JobSite` d'origine — remplace l'ancienne énumération figée **et**
+l'ancien champ `site` (fusionnés), pour proposer tous les sites actifs avec
+favicon, issue #52),
 `StatusHistory`,
 `Reminder`, `Interview`, `Contact`, `ApiToken`, `CV` (avec analyse IA des
 informations principales — champs `analysis`/`analyzed_at`/… , issue #44 ;
@@ -62,7 +65,7 @@ informations principales — champs `analysis`/`analyzed_at`/… , issue #44 ;
 aux trajets, issue #52),
 `AIConfig` (singleton de
 config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations
-`TextChoices` : `Source`, `Canal`, `Statut`, `MotifCloture` (certaines avec icône
+`TextChoices` : `Canal`, `Statut`, `MotifCloture` (certaines avec icône
 emoji dans le libellé pour les menus).
 
 - Seed des sites par défaut : migrations `0002_seed_jobsites` et

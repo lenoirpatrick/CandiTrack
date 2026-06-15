@@ -13,7 +13,6 @@ class CandidatureForm(forms.ModelForm):
             "libelle",
             "entreprise",
             "poste",
-            "site",
             "cv",
             "source",
             "url_offre",
@@ -51,21 +50,21 @@ class CandidatureForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Ne proposer que les sites actifs (issue #22), mais conserver le site
-        # déjà associé à la candidature même s'il a été désactivé depuis.
-        qs = JobSite.objects.filter(actif=True)
-        current = getattr(self.instance, "site_id", None)
-        if current:
-            qs = (qs | JobSite.objects.filter(pk=current)).distinct()
-        self.fields["site"].queryset = qs
-
-        # Idem pour les CV : on ne propose que les CV actifs (issue #48), tout en
-        # conservant celui déjà lié à la candidature (issue #49).
+        # On ne propose que les CV actifs (issue #48), tout en conservant celui
+        # déjà lié à la candidature (issue #49).
         cv_qs = CV.objects.filter(actif=True)
         current_cv = getattr(self.instance, "cv_id", None)
         if current_cv:
             cv_qs = (cv_qs | CV.objects.filter(pk=current_cv)).distinct()
         self.fields["cv"].queryset = cv_qs
+
+        # La source est le site d'emploi : seulement les sites actifs (issue #22),
+        # en gardant la source courante même si désactivée depuis (issue #52).
+        source_qs = JobSite.objects.filter(actif=True)
+        current_source = getattr(self.instance, "source_id", None)
+        if current_source:
+            source_qs = (source_qs | JobSite.objects.filter(pk=current_source)).distinct()
+        self.fields["source"].queryset = source_qs
 
     def save(self, commit=True):
         instance = super().save(commit=False)

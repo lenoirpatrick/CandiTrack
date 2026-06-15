@@ -14,10 +14,24 @@ target URL (create or update).
             {% include "tracking/_field.html" with field=form.entreprise %}
             {% include "tracking/_field.html" with field=form.poste %}
         </div>
-        <div class="grid2">
-            {% include "tracking/_field.html" with field=form.site %}
-            {% include "tracking/_field.html" with field=form.source %}
-        </div>
+        <p class="field">
+                <label>Source</label>
+                {% with sel=form.source.value|stringformat:"s" %}
+                <details class="dd source-dd">
+                    <summary class="btn secondary source-summary">
+                        {% for s in form.source.field.queryset %}{% if s.pk|stringformat:"s" == sel %}{% if s.logo_url %}<img src="{{ s.logo_url }}" class="src-logo" alt="">{% endif %}{{ s.name }}{% endif %}{% endfor %}{% if not form.source.value %}— Choisir un site —{% endif %} ▾
+                    </summary>
+                    <div class="dd-menu">
+                        <a href="#" data-value="" data-label="— Aucune —" data-logo="">— Aucune —</a>
+                        {% for s in form.source.field.queryset %}
+                        <a href="#" data-value="{{ s.pk }}" data-label="{{ s.name }}" data-logo="{{ s.logo_url }}">{% if s.logo_url %}<img src="{{ s.logo_url }}" class="src-logo" alt="">{% endif %}{{ s.name }}</a>
+                        {% endfor %}
+                    </div>
+                </details>
+                <input type="hidden" name="source" value="{{ form.source.value|default_if_none:'' }}">
+                {% endwith %}
+                {% for error in form.source.errors %}<small class="error">{{ error }}</small>{% endfor %}
+        </p>
         {% include "tracking/_field.html" with field=form.cv %}
         {% include "tracking/_field.html" with field=form.url_offre %}
         {% include "tracking/_field.html" with field=form.localisation %}

@@ -65,8 +65,12 @@ fiche, issue #58),
 `StatusHistory`,
 `Reminder`, `Interview`, `Contact`, `ApiToken`, `CV` (avec analyse IA des
 informations principales — champs `analysis`/`analyzed_at`/… , issue #44 ;
+analyse **éditable manuellement** via `cv_edit`, issue #61 ;
 `actif` = archivage, issue #48 ; `par_defaut` = CV dont l'adresse sert d'origine
 aux trajets, issue #52),
+`Reference` (référent à fournir : nom/prénom/téléphone/email/linkedin, rattaché
+à une expérience du CV via `experience_index` = rang dans
+`CV.analysis['experiences']` ; géré depuis la fiche CV, issue #62),
 `AIConfig` (singleton de
 config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations
 `TextChoices` : `Canal`, `Statut`, `MotifCloture` (certaines avec icône
@@ -107,6 +111,16 @@ emoji dans le libellé pour les menus).
   formations en timeline et **cartographie les lieux** (`_cv_localisations`) avec
   **OpenStreetMap/Leaflet** (géocodage **Nominatim**, marqueur emoji par type,
   popup société) — aucune clé API requise.
+- Édition de l'analyse (issue #61) : vue `cv_edit` + template `cv_edit.html`
+  (formulaire dynamique JS qui sérialise les sections en JSON, sans formset). Le
+  POST repasse par `coaching.normalize_cv_analysis` (alias public de
+  `_normalize_cv_analysis`) pour garantir la même structure que l'IA ; un CV non
+  analysé devient « analysé » dès la première saisie manuelle.
+- Références (issue #62) : modèle `Reference` (FK `CV`), `ReferenceForm` propose
+  l'expérience associée dans une liste déroulante (rang -> libellé) construite
+  depuis `cv.analysis['experiences']`. Vues `reference_create/update/delete`,
+  affichage et ajout depuis `cv_detail`. La section « 📇 Références » de l'ancien
+  bloc coordonnées a été renommée « Coordonnées » pour libérer le terme.
 - Exports de CV (issue #44) : `tracking/cv_export.py` convertit `CV.analysis` en
   **JSON Resume**, **Europass** (SkillsPassport) et **HR-Open Standards**
   (`EXPORTERS`/`EXPORT_LABELS`, stdlib) ; vues `cv_export` (téléchargement JSON) et

@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.db.models import Case, IntegerField, Q, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
@@ -17,7 +18,7 @@ from django.views.decorators.http import require_GET, require_POST
 from . import coaching
 from . import cv_export as cv_exporters
 from .ai import AIError
-from .forms import CandidatureForm, CVForm, JobSiteForm
+from .forms import CandidatureForm, CVForm, JobSiteForm, ReferenceForm
 from .models import (
     CV,
     AIConfig,
@@ -25,6 +26,7 @@ from .models import (
     ApiToken,
     Candidature,
     JobSite,
+    Reference,
     Statut,
     StatusHistory,
 )
@@ -447,6 +449,91 @@ def cv_analyze(request, pk):
     else:
         _analyze_cv_safely(request, cv)
     return redirect("tracking:cv_detail", pk=pk)
+
+
+def cv_edit(request, pk):
+    """Édition manuelle des sections de l'analyse d'un CV (issue #61).
+
+    Permet de corriger/compléter les informations extraites par l'IA — ou d'en
+    saisir de toutes pièces si le CV n'a pas été analysé. Les données arrivent
+    sérialisées en JSON (construit côté client) puis sont normalisées comme une
+    analyse IA pour garantir une structure stable.
+    """
+    cv = get_object_or_404(CV, pk=pk)
+    if request.method == "POST":
+        raw = request.POST.get("analysis", "")
+        try:
+            data = json.loads(raw) if raw else {}
+        except (json.JSONDecodeError, ValueError):
+            data = None
+        if not isinstance(data, dict):
+            messages.error(request, "Données d'analyse invalides.")
+        else:
+            cv.analysis = coaching.normalize_cv_analysis(data)
+            cv.analysis_error = ""
+            # Un CV jamais analysé devient « analysé » dès la première saisie.
+            if not cv.analyzed_at:
+                cv.analyzed_at = timezone.now()
+            cv.save(update_fields=["analysis", "analysis_error", "analyzed_at"])
+            messages.success(request, "Analyse du CV mise à jour.")
+            return redirect("tracking:cv_detail", pk=cv.pk)
+    return render(
+        request,
+        "tracking/cv_edit.html",
+        {
+            "cv": cv,
+            "analysis_json": json.dumps(cv.analysis or {}, ensure_ascii=False),
+        },
+    )
+
+
+def reference_create(request, cv_pk):
+    """Ajoute une référence rattachée à un CV (issue #62)."""
+    cv = get_object_or_404(CV, pk=cv_pk)
+    if request.method == "POST":
+        form = ReferenceForm(request.POST, cv=cv)
+        if form.is_valid():
+            reference = form.save(commit=False)
+            reference.cv = cv
+            reference.save()
+            messages.success(request, "Référence ajoutée.")
+            return redirect("tracking:cv_detail", pk=cv.pk)
+    else:
+        form = ReferenceForm(cv=cv)
+    return render(
+        request,
+        "tracking/reference_form.html",
+        {"form": form, "cv": cv, "title": "Ajouter une référence"},
+    )
+
+
+def reference_update(request, pk):
+    """Modifie une référence existante (issue #62)."""
+    reference = get_object_or_404(Reference, pk=pk)
+    cv = reference.cv
+    if request.method == "POST":
+        form = ReferenceForm(request.POST, instance=reference, cv=cv)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Référence mise à jour.")
+            return redirect("tracking:cv_detail", pk=cv.pk)
+    else:
+        form = ReferenceForm(instance=reference, cv=cv)
+    return render(
+        request,
+        "tracking/reference_form.html",
+        {"form": form, "cv": cv, "title": "Modifier la référence"},
+    )
+
+
+@require_POST
+def reference_delete(request, pk):
+    """Supprime une référence (issue #62)."""
+    reference = get_object_or_404(Reference, pk=pk)
+    cv_pk = reference.cv_id
+    reference.delete()
+    messages.success(request, "Référence supprimée.")
+    return redirect("tracking:cv_detail", pk=cv_pk)
 
 
 def cv_delete(request, pk):

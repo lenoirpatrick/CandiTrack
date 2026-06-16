@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Modifier l'analyse — {{ cv.label }}{% endblock %}
+{% block content %}
+<style>
+    /* Édition de l'analyse d'un CV (issue #61). */
+    .edit-head { display:flex; justify-content:space-between; align-items:center;
+                 gap:1rem; margin-bottom:1rem; flex-wrap:wrap; }
+    .edit-head h1 { margin:0; }
+    .edit-sec { margin-bottom:1.1rem; }
+    .edit-sec > h2 { display:flex; align-items:center; gap:0.5rem; margin:0 0 0.8rem;
+                     font-size:1.05rem; color:var(--accent); }
+    .edit-item { border:1px solid var(--border); border-radius:var(--radius-sm);
+                 padding:0.8rem 0.9rem; margin-bottom:0.8rem; position:relative;
+                 background:var(--input-bg); }
+    .edit-item .item-del { position:absolute; top:0.5rem; right:0.5rem; }
+    .edit-list { display:flex; flex-direction:column; gap:0.5rem; }
+    .edit-chip-row { display:flex; gap:0.4rem; align-items:center; }
+    .edit-chip-row input { flex:1; }
+    .add-btn { margin-top:0.2rem; }
+</style>
+
+<div class="edit-head">
+    <h1>✏️ Modifier l'analyse</h1>
+    <a class="btn secondary" href="{% url 'tracking:cv_detail' cv.pk %}">← Retour</a>
+</div>
+<p class="muted" style="margin-top:-0.5rem;">CV « {{ cv.label }} » — corrigez ou complétez chaque section, ajoutez expériences, formations, compétences…</p>
+
+{{ analysis_json|json_script:"cv-analysis-data" }}
+
+<form method="post" id="cv-edit-form">
+    {% csrf_token %}
+    <input type="hidden" name="analysis" id="analysis-input">
+
+    <div class="card edit-sec">
+        <h2><span>👤</span> Profil</h2>
+        <div class="field">
+            <label for="f-titre">Titre du profil</label>
+            <input type="text" id="f-titre" data-field="titre_profil">
+        </div>
+        <div class="field">
+            <label for="f-loc">Localisation</label>
+            <input type="text" id="f-loc" data-field="localisation">
+        </div>
+    </div>
+
+    <div class="card edit-sec">
+        <h2><span>💼</span> Expériences</h2>
+        <div id="experiences-list" class="edit-list"></div>
+        <button type="button" class="btn secondary add-btn" data-add="experiences">＋ Ajouter une expérience</button>
+    </div>
+
+    <div class="card edit-sec">
+        <h2><span>🎓</span> Formations</h2>
+        <div id="formations-list" class="edit-list"></div>
+        <button type="button" class="btn secondary add-btn" data-add="formations">＋ Ajouter une formation</button>
+    </div>
+
+    <div class="card edit-sec">
+        <h2><span>📇</span> Coordonnées</h2>
+        <div class="grid2">
+            <div class="field"><label for="c-adresse">Adresse</label>
+                <input type="text" id="c-adresse" data-coord="adresse"></div>
+            <div class="field"><label for="c-tel">Téléphone</label>
+                <input type="text" id="c-tel" data-coord="telephone"></div>
+            <div class="field"><label for="c-email">Email</label>
+                <input type="text" id="c-email" data-coord="email"></div>
+            <div class="field"><label for="c-permis">Permis</label>
+                <input type="text" id="c-permis" data-coord="permis"></div>
+        </div>
+    </div>
+
+    <div class="card edit-sec">
+        <h2><span>🛠️</span> Compétences</h2>
+        <div id="competences-list" class="edit-list"></div>
+        <button type="button" class="btn secondary add-btn" data-addchip="competences">＋ Ajouter une compétence</button>
+    </div>
+
+    <div class="card edit-sec">
+        <h2><span>🌐</span> Langues</h2>
+        <div id="langues-list" class="edit-list"></div>
+        <button type="button" class="btn secondary add-btn" data-addchip="langues">＋ Ajouter une langue</button>
+    </div>
+
+    <div class="card edit-sec">
+        <h2><span>🎨</span> Loisirs</h2>
+        <div id="loisirs-list" class="edit-list"></div>
+        <button type="button" class="btn secondary add-btn" data-addchip="loisirs">＋ Ajouter un loisir</button>
+    </div>
+
+    <div class="card edit-sec">
+        <h2><span>ℹ️</span> Informations diverses</h2>
+        <div class="field">
+            <textarea id="f-infos" rows="4" data-field="infos"></textarea>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn">💾 Enregistrer</button>
+        <a class="btn secondary" href="{% url 'tracking:cv_detail' cv.pk %}">Annuler</a>
+    </div>
+</form>
+
+<script>
+(function () {
+    var data = JSON.parse(document.getElementById("cv-analysis-data").textContent) || {};
+
+    // Champs d'un objet « expérience » / « formation » : clé -> libellé.
+    var EXP_FIELDS = [
+        ["poste", "Poste"], ["entreprise", "Entreprise"], ["lieu", "Lieu"],
+        ["periode", "Période"], ["lien", "Lien (URL)"], ["description", "Description"]
+    ];
+    var FORM_FIELDS = [
+        ["intitule", "Intitulé"], ["etablissement", "Établissement"],
+        ["lieu", "Lieu"], ["periode", "Période"], ["lien", "Lien (URL)"]
+    ];
+    var CONFIG = {
+        experiences: { fields: EXP_FIELDS, area: "description" },
+        formations: { fields: FORM_FIELDS, area: null }
+    };
+
+    function el(tag, attrs) {
+        var n = document.createElement(tag);
+        if (attrs) { for (var k in attrs) { n.setAttribute(k, attrs[k]); } }
+        return n;
+    }
+
+    // Bloc éditable pour une expérience / formation.
+    function addItem(kind, values) {
+        values = values || {};
+        var cfg = CONFIG[kind];
+        var wrap = el("div", { "class": "edit-item" });
+        var del = el("button", { type: "button", "class": "icon-btn danger item-del", title: "Supprimer" });
+        del.textContent = "🗑️";
+        del.addEventListener("click", function () { wrap.remove(); });
+        wrap.appendChild(del);
+        cfg.fields.forEach(function (f) {
+            var key = f[0], label = f[1];
+            var field = el("div", { "class": "field" });
+            var lab = el("label"); lab.textContent = label;
+            field.appendChild(lab);
+            var input = cfg.area === key ? el("textarea", { rows: "3" }) : el("input", { type: "text" });
+            input.setAttribute("data-key", key);
+            if (values[key]) { input.value = values[key]; }
+            field.appendChild(input);
+            wrap.appendChild(field);
+        });
+        document.getElementById(kind + "-list").appendChild(wrap);
+    }
+
+    // Ligne d'une liste de chaînes (compétence / langue / loisir).
+    function addChip(kind, value) {
+        var row = el("div", { "class": "edit-chip-row" });
+        var input = el("input", { type: "text", "data-chip": kind });
+        if (value) { input.value = value; }
+        var del = el("button", { type: "button", "class": "icon-btn danger", title: "Supprimer" });
+        del.textContent = "🗑️";
+        del.addEventListener("click", function () { row.remove(); });
+        row.appendChild(input); row.appendChild(del);
+        document.getElementById(kind + "-list").appendChild(row);
+    }
+
+    // Pré-remplissage à partir de l'analyse existante.
+    function setVal(field, value) {
+        var n = document.querySelector('[data-field="' + field + '"]');
+        if (n) { n.value = value || ""; }
+    }
+    setVal("titre_profil", data.titre_profil);
+    setVal("localisation", data.localisation);
+    setVal("infos", data.infos);
+    var coord = data.coordonnees || {};
+    document.querySelectorAll("[data-coord]").forEach(function (n) {
+        n.value = coord[n.getAttribute("data-coord")] || "";
+    });
+    (data.experiences || []).forEach(function (e) { addItem("experiences", e); });
+    (data.formations || []).forEach(function (f) { addItem("formations", f); });
+    (data.competences || []).forEach(function (c) { addChip("competences", c); });
+    (data.langues || []).forEach(function (l) { addChip("langues", l); });
+    (data.loisirs || []).forEach(function (h) { addChip("loisirs", h); });
+
+    // Boutons « ajouter ».
+    document.querySelectorAll("[data-add]").forEach(function (btn) {
+        btn.addEventListener("click", function () { addItem(btn.getAttribute("data-add"), {}); });
+    });
+    document.querySelectorAll("[data-addchip]").forEach(function (btn) {
+        btn.addEventListener("click", function () { addChip(btn.getAttribute("data-addchip"), ""); });
+    });
+
+    // Sérialisation à la soumission.
+    function collectItems(kind) {
+        var rows = [];
+        document.querySelectorAll("#" + kind + "-list .edit-item").forEach(function (item) {
+            var obj = {};
+            item.querySelectorAll("[data-key]").forEach(function (input) {
+                obj[input.getAttribute("data-key")] = input.value.trim();
+            });
+            rows.push(obj);
+        });
+        return rows;
+    }
+    function collectChips(kind) {
+        var out = [];
+        document.querySelectorAll('[data-chip="' + kind + '"]').forEach(function (input) {
+            var v = input.value.trim();
+            if (v) { out.push(v); }
+        });
+        return out;
+    }
+
+    document.getElementById("cv-edit-form").addEventListener("submit", function () {
+        var payload = {
+            titre_profil: (document.querySelector('[data-field="titre_profil"]').value || "").trim(),
+            localisation: (document.querySelector('[data-field="localisation"]').value || "").trim(),
+            infos: (document.querySelector('[data-field="infos"]').value || "").trim(),
+            coordonnees: {},
+            experiences: collectItems("experiences"),
+            formations: collectItems("formations"),
+            competences: collectChips("competences"),
+            langues: collectChips("langues"),
+            loisirs: collectChips("loisirs")
+        };
+        document.querySelectorAll("[data-coord]").forEach(function (n) {
+            payload.coordonnees[n.getAttribute("data-coord")] = n.value.trim();
+        });
+        document.getElementById("analysis-input").value = JSON.stringify(payload);
+    });
+})();
+</script>
+{% endblock %}

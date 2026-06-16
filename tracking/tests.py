@@ -7,6 +7,7 @@ from cryptography.fernet import Fernet
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from . import ai, coaching, cv_export, views
 from .forms import CandidatureForm, CVForm, JobSiteForm
@@ -19,6 +20,7 @@ from .models import (
     Candidature,
     JobSite,
     MotifCloture,
+    Reference,
     Statut,
 )
 from .statistics import compute_stats
@@ -1788,4 +1790,135 @@ class StatsAnimationTests(TestCase):
         resp = self.client.get(reverse("tracking:stats"))
         self.assertContains(resp, "js-bar")
         self.assertContains(resp, "js-seg")
-        self.assertContains(resp, "data-dash")
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CVEditTests(TestCase):
+    """Issue #61 — édition manuelle des sections de l'analyse d'un CV."""
+
+    def _make_cv(self, **kwargs):
+        return CV.objects.create(
+            label="CV", file=SimpleUploadedFile("cv.txt", b"x"), **kwargs
+        )
+
+    def _post(self, cv, payload):
+        return self.client.post(
+            reverse("tracking:cv_edit", args=[cv.pk]),
+            {"analysis": json.dumps(payload)},
+        )
+
+    def test_edition_enregistre_les_sections(self):
+        cv = self._make_cv()
+        payload = {
+            "titre_profil": "Dev",
+            "experiences": [{"poste": "Lead", "entreprise": "Acme"}],
+            "competences": ["Python", ""],
+        }
+        resp = self._post(cv, payload)
+        self.assertRedirects(resp, reverse("tracking:cv_detail", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertTrue(cv.is_analyzed)
+        self.assertEqual(cv.analysis["titre_profil"], "Dev")
+        self.assertEqual(len(cv.analysis["experiences"]), 1)
+        # La normalisation retire les chaînes vides des listes.
+        self.assertEqual(cv.analysis["competences"], ["Python"])
+
+    def test_edition_marque_le_cv_analyse(self):
+        cv = self._make_cv()
+        self.assertFalse(cv.is_analyzed)
+        self._post(cv, {"titre_profil": "X"})
+        cv.refresh_from_db()
+        self.assertIsNotNone(cv.analyzed_at)
+
+    def test_json_invalide_n_ecrase_pas(self):
+        cv = self._make_cv(
+            analysis={"titre_profil": "Ancien"}, analyzed_at=timezone.now()
+        )
+        resp = self.client.post(
+            reverse("tracking:cv_edit", args=[cv.pk]), {"analysis": "{pas du json"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        cv.refresh_from_db()
+        self.assertEqual(cv.analysis["titre_profil"], "Ancien")
+
+    def test_page_edition_accessible(self):
+        cv = self._make_cv()
+        resp = self.client.get(reverse("tracking:cv_edit", args=[cv.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Modifier l'analyse")
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ReferenceTests(TestCase):
+    """Issue #62 — références à fournir, rattachées à un CV."""
+
+    def setUp(self):
+        self.cv = CV.objects.create(
+            label="CV",
+            file=SimpleUploadedFile("cv.txt", b"x"),
+            analysis={
+                "experiences": [
+                    {"poste": "Lead", "entreprise": "Acme"},
+                    {"poste": "Dev", "entreprise": "Globex"},
+                ]
+            },
+            analyzed_at=timezone.now(),
+        )
+
+    def test_creation_reference(self):
+        resp = self.client.post(
+            reverse("tracking:reference_create", args=[self.cv.pk]),
+            {
+                "nom": "Durand",
+                "prenom": "Marie",
+                "email": "marie@example.com",
+                "experience_index": "0",
+            },
+        )
+        self.assertRedirects(resp, reverse("tracking:cv_detail", args=[self.cv.pk]))
+        ref = Reference.objects.get()
+        self.assertEqual(ref.cv, self.cv)
+        self.assertEqual(ref.experience_index, 0)
+        self.assertEqual(ref.experience_label, "Lead · Acme")
+
+    def test_reference_sans_experience(self):
+        self.client.post(
+            reverse("tracking:reference_create", args=[self.cv.pk]),
+            {"nom": "Petit", "experience_index": ""},
+        )
+        ref = Reference.objects.get()
+        self.assertIsNone(ref.experience_index)
+        self.assertEqual(ref.experience_label, "")
+
+    def test_experience_label_hors_borne(self):
+        ref = Reference.objects.create(cv=self.cv, nom="X", experience_index=9)
+        self.assertEqual(ref.experience_label, "")
+
+    def test_modification_reference(self):
+        ref = Reference.objects.create(cv=self.cv, nom="X")
+        self.client.post(
+            reverse("tracking:reference_update", args=[ref.pk]),
+            {"nom": "Y", "experience_index": "1"},
+        )
+        ref.refresh_from_db()
+        self.assertEqual(ref.nom, "Y")
+        self.assertEqual(ref.experience_index, 1)
+
+    def test_suppression_reference(self):
+        ref = Reference.objects.create(cv=self.cv, nom="X")
+        resp = self.client.post(reverse("tracking:reference_delete", args=[ref.pk]))
+        self.assertRedirects(resp, reverse("tracking:cv_detail", args=[self.cv.pk]))
+        self.assertEqual(Reference.objects.count(), 0)
+
+    def test_suppression_refuse_get(self):
+        ref = Reference.objects.create(cv=self.cv, nom="X")
+        resp = self.client.get(reverse("tracking:reference_delete", args=[ref.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_reference_affichee_sur_la_fiche(self):
+        Reference.objects.create(
+            cv=self.cv, nom="Durand", prenom="Marie", experience_index=0
+        )
+        resp = self.client.get(reverse("tracking:cv_detail", args=[self.cv.pk]))
+        self.assertContains(resp, "Marie Durand")
+        self.assertContains(resp, "Lead · Acme")

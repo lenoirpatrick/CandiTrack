@@ -316,6 +316,11 @@ def _normalize_cv_analysis(data):
     }
 
 
+# Alias public : l'édition manuelle d'un CV réutilise la même normalisation
+# que l'analyse IA pour garantir une structure stable (issue #61).
+normalize_cv_analysis = _normalize_cv_analysis
+
+
 def _parse_cv_analysis(text):
     """Parse la réponse de l'IA en dict normalisé, ou ``None`` si illisible."""
     cleaned = text.strip()

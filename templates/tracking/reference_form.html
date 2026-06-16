@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — CandiTrack{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="muted" style="margin-top:-0.5rem;">CV « {{ cv.label }} »</p>
+<div class="card">
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="form-actions">
+            <button type="submit" class="btn">Enregistrer</button>
+            <a class="btn secondary" href="{% url 'tracking:cv_detail' cv.pk %}">Annuler</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

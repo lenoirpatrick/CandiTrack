@@ -6,6 +6,19 @@ versionnage [SemVer](https://semver.org/lang/fr/). Chaque version correspond à
 un milestone GitHub ; la liste des issues traitées est aussi publiée dans la
 release du même nom.
 
+## [Non publié] — 1.3.0
+
+- #61 — CV : **édition manuelle de l'analyse**. Une fois un CV chargé (analysé
+  par l'IA ou non), un bouton « ✏️ Modifier l'analyse » ouvre un formulaire
+  permettant de corriger ou compléter chaque section (profil, coordonnées,
+  compétences, langues, loisirs, infos) et d'**ajouter/supprimer** des
+  expériences et des formations. Les données sont normalisées comme une analyse
+  IA pour conserver une structure stable.
+- #62 — CV : **références à fournir**. Depuis la fiche d'un CV (en pratique le CV
+  par défaut), on peut enregistrer des référents (nom, prénom, téléphone, email,
+  LinkedIn), chacun pouvant être **rattaché à une expérience professionnelle** du
+  CV. Les références s'affichent sur la fiche avec des liens de contact directs.
+
 ## [Non publié] — 1.2.2
 
 - #55 — Sites d'emploi : ajout d'un **type** (Généraliste / ESN / Direct) ; les

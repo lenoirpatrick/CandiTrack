@@ -28,11 +28,20 @@ urlpatterns = [
     path("cv/charger/", views.cv_create, name="cv_create"),
     path("cv/<int:pk>/", views.cv_detail, name="cv_detail"),
     path("cv/<int:pk>/analyser/", views.cv_analyze, name="cv_analyze"),
+    path("cv/<int:pk>/modifier/", views.cv_edit, name="cv_edit"),
     path("cv/<int:pk>/archiver/", views.cv_toggle_active, name="cv_toggle_active"),
     path("cv/<int:pk>/defaut/", views.cv_set_default, name="cv_set_default"),
     path("cv/<int:pk>/export/<str:fmt>/", views.cv_export, name="cv_export"),
     path("cv/<int:pk>/imprimer/", views.cv_print, name="cv_print"),
     path("cv/<int:pk>/supprimer/", views.cv_delete, name="cv_delete"),
+    # Références d'un CV (issue #62)
+    path(
+        "cv/<int:cv_pk>/references/ajouter/",
+        views.reference_create,
+        name="reference_create",
+    ),
+    path("references/<int:pk>/modifier/", views.reference_update, name="reference_update"),
+    path("references/<int:pk>/supprimer/", views.reference_delete, name="reference_delete"),
     # Aide & configuration de l'extension (issue #6)
     path("aide/", views.help_page, name="help"),
     path("aide/extension.zip", views.extension_download, name="extension_download"),

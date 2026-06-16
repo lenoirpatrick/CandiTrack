@@ -75,6 +75,21 @@
                  border:2px solid var(--accent); box-shadow:var(--shadow);
                  font-size:0.95rem; }
 
+    /* Références à fournir (issue #62). */
+    .cv-reflist { display:flex; flex-direction:column; gap:0.7rem; }
+    .cv-refcard { border:1px solid var(--border); border-radius:var(--radius-sm);
+                  padding:0.7rem 0.85rem; display:flex; justify-content:space-between;
+                  gap:0.8rem; flex-wrap:wrap; align-items:flex-start; }
+    .cv-refcard .ref-name { font-weight:700; color:var(--text); }
+    .cv-refcard .ref-exp { font-size:0.78rem; color:var(--accent); background:var(--accent-soft);
+                  display:inline-block; padding:0.1rem 0.5rem; border-radius:999px; margin-top:0.3rem; }
+    .cv-refcard .ref-contacts { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.4rem; }
+    .cv-refcard .ref-contacts a { display:inline-flex; align-items:center; gap:0.25rem;
+                  font-size:0.8rem; padding:0.1rem 0.5rem; border-radius:999px;
+                  background:var(--chip-bg); color:var(--chip-text); text-decoration:none; }
+    .cv-refcard .ref-contacts a:hover { text-decoration:underline; }
+    .cv-refcard .ref-acts { display:flex; gap:0.35rem; }
+
     /* Barre d'export (JSON Resume, Europass, HR-Open, PDF). */
     .cv-exports { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
     .cv-exports-label { font-weight:600; color:var(--muted); margin-right:0.2rem; }
@@ -91,6 +106,7 @@
                 {% if cv.is_analyzed %}🔄 Ré-analyser{% else %}✨ Analyser avec l'IA{% endif %}
             </button>
         </form>
+        <a class="btn secondary" href="{% url 'tracking:cv_edit' cv.pk %}">✏️ Modifier l'analyse</a>
         <form method="post" action="{% url 'tracking:cv_toggle_active' cv.pk %}" style="display:inline;">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.path }}">
@@ -203,7 +219,7 @@
         {% if a.coordonnees %}
         {% with c=a.coordonnees %}
         <div class="card">
-            <h2 class="cv-section-title"><span class="ico">📇</span> Références</h2>
+            <h2 class="cv-section-title"><span class="ico">📇</span> Coordonnées</h2>
             <div class="cv-refs">
                 {% if c.adresse %}
                 <div class="cv-ref"><span class="ico">🏠</span>
@@ -336,4 +352,39 @@
 {% elif not cv.analysis_error %}
 <p class="muted">Ce CV n'a pas encore été analysé.</p>
 {% endif %}
+
+{# Références à fournir (issue #62) — indépendantes de l'analyse IA. #}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+        <h2 class="cv-section-title" style="margin:0;"><span class="ico">🤝</span> Références à fournir</h2>
+        <a class="btn secondary" href="{% url 'tracking:reference_create' cv.pk %}">＋ Ajouter une référence</a>
+    </div>
+    {% if cv.references.all %}
+    <div class="cv-reflist" style="margin-top:0.9rem;">
+        {% for ref in cv.references.all %}
+        <div class="cv-refcard">
+            <div>
+                <span class="ref-name">{{ ref }}</span>
+                {% if ref.experience_label %}<div><span class="ref-exp">💼 {{ ref.experience_label }}</span></div>{% endif %}
+                <div class="ref-contacts">
+                    {% if ref.telephone %}<a href="tel:{{ ref.telephone }}">📞 {{ ref.telephone }}</a>{% endif %}
+                    {% if ref.email %}<a href="mailto:{{ ref.email }}">✉️ {{ ref.email }}</a>{% endif %}
+                    {% if ref.linkedin %}<a href="{{ ref.linkedin }}" target="_blank" rel="noopener">🔗 LinkedIn</a>{% endif %}
+                </div>
+            </div>
+            <div class="ref-acts">
+                <a class="icon-btn" href="{% url 'tracking:reference_update' ref.pk %}" title="Modifier">✏️</a>
+                <form method="post" action="{% url 'tracking:reference_delete' ref.pk %}"
+                      onsubmit="return confirm('Supprimer cette référence ?');">
+                    {% csrf_token %}
+                    <button type="submit" class="icon-btn danger" title="Supprimer">🗑️</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted" style="margin:0.9rem 0 0;">Aucune référence enregistrée pour ce CV.</p>
+    {% endif %}
+</div>
 {% endblock %}

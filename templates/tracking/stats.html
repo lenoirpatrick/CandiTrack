@@ -14,11 +14,12 @@
     <div class="kpi"><div class="kpi-value">{% if kpis.avg_response_delay is not None %}{{ kpis.avg_response_delay }}<small> j</small>{% else %}—{% endif %}</div><div class="kpi-label">Délai moyen de réponse</div></div>
 </div>
 
+<div class="chart-grid">
 <div class="card">
     <h2 style="margin-top:0;">Répartition par statut</h2>
     {% for row in by_status %}
     <div class="bar-row">
-        <span class="bar-label">{{ row.label }}</span>
+        <span class="bar-label" title="{{ row.label }}">{{ row.label }}</span>
         <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_status 100 %}"></span></span>
         <span class="bar-count">{{ row.count }}</span>
     </div>
@@ -40,13 +41,14 @@
     <h2 style="margin-top:0;">Répartition par canal d'envoi</h2>
     {% for row in by_canal %}
     <div class="bar-row">
-        <span class="bar-label">{{ row.label }}</span>
+        <span class="bar-label" title="{{ row.label }}">{{ row.label }}</span>
         <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_canal 100 %}"></span></span>
         <span class="bar-count">{{ row.count }}</span>
     </div>
     {% endfor %}
 </div>
 {% endif %}
+</div>
 
 {% if by_month %}
 <div class="card">
@@ -80,10 +82,18 @@
     .kpi-value { font-size:1.9rem; font-weight:700; color:var(--accent); line-height:1; }
     .kpi-value small { font-size:1rem; color:var(--muted); }
     .kpi-label { color:var(--muted); margin-top:0.35rem; font-size:0.9rem; }
-    /* Barres plafonnées en largeur : les graphiques ne s'étirent plus sur toute
-       la page (les cartes KPI, elles, restent pleine largeur). */
+    /* Graphiques de répartition (statut, source, type, canal) en deux colonnes :
+       chaque graphique occupe ~la moitié de la largeur. Bascule en une colonne
+       sous 720px. « Candidatures par mois » reste pleine largeur, hors grille. */
+    .chart-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr));
+                  gap:1rem; align-items:start; }
     .bar-row { display:flex; align-items:center; gap:0.75rem; margin:0.4rem 0; max-width:620px; }
-    .bar-label { flex:0 0 9rem; font-size:0.9rem; }
+    /* Libellé tronqué (avec tooltip) plutôt qu'un retour à la ligne disgracieux. */
+    .bar-label { flex:0 0 8rem; font-size:0.9rem; white-space:nowrap; overflow:hidden;
+                 text-overflow:ellipsis; }
+    /* Donut deux fois plus petit dans la grille (issue #56). */
+    .chart-grid .donut { width:96px; height:96px; }
+    .chart-grid .donut-wrap { gap:1rem; }
     .bar-row .bar-track { flex:1; }
     /* Apparition progressive des barres (issue #35) */
     .bar-fill { transition:width .9s cubic-bezier(.22,.61,.36,1); }

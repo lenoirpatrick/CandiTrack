@@ -91,6 +91,7 @@
         var form = body.querySelector("form");
         if (!form) return;
         if (window.initSourcePicker) window.initSourcePicker(body);
+        if (window.enhanceDateInputs) window.enhanceDateInputs(body);
         body.querySelectorAll("[data-close]").forEach(function (el) {
             el.addEventListener("click", function (e) { e.preventDefault(); modal.close(); });
         });

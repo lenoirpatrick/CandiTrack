@@ -53,7 +53,8 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 `JobSite` (nom, URL, `is_builtin`, `logo_url` — plus d'identifiants depuis
 l'issue #43 ; `logo_url` n'est plus saisi mais déduit du favicon, issue #50 ;
 `type` = `JobSite.Type` Généraliste/ESN/Direct, défaut Généraliste pour les
-sites par défaut, issue #55),
+sites par défaut, issue #55 ; côté UI la section est intitulée **« Contacts »**
+et une fiche `site_detail` liste les opportunités associées, issue #63),
 `Candidature` (cœur
 du suivi, étapes de progression + `motif_cloture` = clôture ; `cv` = CV joint,
 issue #49 ; `localisation` = zone géographique de l'offre, issue #52 ; `source`
@@ -65,8 +66,12 @@ fiche, issue #58),
 `StatusHistory`,
 `Reminder`, `Interview`, `Contact`, `ApiToken`, `CV` (avec analyse IA des
 informations principales — champs `analysis`/`analyzed_at`/… , issue #44 ;
+analyse **éditable manuellement** via `cv_edit`, issue #61 ;
 `actif` = archivage, issue #48 ; `par_defaut` = CV dont l'adresse sert d'origine
 aux trajets, issue #52),
+`Reference` (référent à fournir : nom/prénom/téléphone/email/linkedin, rattaché
+à une expérience du CV via `experience_index` = rang dans
+`CV.analysis['experiences']` ; géré depuis la fiche CV, issue #62),
 `AIConfig` (singleton de
 config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations
 `TextChoices` : `Canal`, `Statut`, `MotifCloture` (certaines avec icône
@@ -92,9 +97,11 @@ emoji dans le libellé pour les menus).
   `<provider>_api_key/_model/_monthly_limit`, accès générique par getattr), le
   `provider` actif détermine `api_key`/`model`. `MODELS_BY_PROVIDER`, `DEFAULTS`
   et `PROVIDER_INFO` (tier gratuit + liens doc/clé) pilotent l'UI. Config via `/aide/` (page Options,
-  catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan) et
-  `api/candidatures/<pk>/relance/` (mail de relance) ; UI = modal partagé
-  `#ai-modal` dans `base.html` (spinner + rendu Markdown).
+  catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan),
+  `api/candidatures/<pk>/relance/` (mail de relance) et
+  `api/cv/<pk>/references/` (extrait d'email des références,
+  `coaching.references_email`, issue #64) ; UI = modal partagé `#ai-modal` dans
+  `base.html` (spinner + rendu Markdown), ouvert via `window.openAiModal`.
 - Analyse de CV (issue #44) : `coaching.analyze_cv(cv)` demande à l'IA un JSON
   structuré (profil, expériences, formations, compétences, langues, coordonnées/
   références — adresse, téléphone, email, permis —, loisirs, infos diverses),
@@ -107,6 +114,22 @@ emoji dans le libellé pour les menus).
   formations en timeline et **cartographie les lieux** (`_cv_localisations`) avec
   **OpenStreetMap/Leaflet** (géocodage **Nominatim**, marqueur emoji par type,
   popup société) — aucune clé API requise.
+- Édition de l'analyse (issue #61) : **par section**. `CV_SECTIONS` (vues)
+  décrit chaque section éditable (label/icône/`kind`) ; la vue
+  `cv_edit(pk, section)` ne modifie que la section ciblée (`_apply_cv_section`)
+  puis re-normalise tout via `coaching.normalize_cv_analysis` (alias public de
+  `_normalize_cv_analysis`). Template `cv_edit.html` = éditeur JS dynamique
+  piloté par `kind` (profile/coord/text/chips/experiences/formations),
+  sérialisé dans un champ caché `value` (objet passé via `json_script`, **pas**
+  pré-`json.dumps` sinon double encodage). `cv_detail` affiche toutes les
+  sections (même vides) avec un bouton `.sec-edit` par section. Un CV non
+  analysé devient « analysé » dès la première saisie. Les descriptions
+  d'expériences sont rendues avec `linebreaksbr` (puces « - » → retours ligne).
+- Références (issue #62) : modèle `Reference` (FK `CV`), `ReferenceForm` propose
+  l'expérience associée dans une liste déroulante (rang -> libellé) construite
+  depuis `cv.analysis['experiences']`. Vues `reference_create/update/delete`,
+  affichage et ajout depuis `cv_detail`. La section « 📇 Références » de l'ancien
+  bloc coordonnées a été renommée « Coordonnées » pour libérer le terme.
 - Exports de CV (issue #44) : `tracking/cv_export.py` convertit `CV.analysis` en
   **JSON Resume**, **Europass** (SkillsPassport) et **HR-Open Standards**
   (`EXPORTERS`/`EXPORT_LABELS`, stdlib) ; vues `cv_export` (téléchargement JSON) et

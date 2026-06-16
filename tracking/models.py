@@ -455,6 +455,62 @@ class CV(models.Model):
         self.analysis_error = ""
 
 
+class Reference(models.Model):
+    """Personne pouvant servir de référence pour un CV (issue #62).
+
+    Coordonnées d'un référent à transmettre à un interlocuteur, rattachées
+    facultativement à une expérience professionnelle du CV — désignée par son
+    rang dans l'analyse IA (``CV.analysis['experiences']``). Les références sont
+    gérées depuis la fiche du CV, en pratique le CV par défaut.
+    """
+
+    cv = models.ForeignKey(
+        CV,
+        verbose_name="CV",
+        on_delete=models.CASCADE,
+        related_name="references",
+    )
+    nom = models.CharField("nom", max_length=100)
+    prenom = models.CharField("prénom", max_length=100, blank=True)
+    telephone = models.CharField("téléphone", max_length=40, blank=True)
+    email = models.EmailField("email", blank=True)
+    linkedin = models.URLField("LinkedIn", blank=True)
+    # Rang de l'expérience associée dans l'analyse du CV (issue #62) ; null si la
+    # référence n'est rattachée à aucune expérience précise.
+    experience_index = models.PositiveIntegerField(
+        "expérience associée", null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "référence"
+        verbose_name_plural = "références"
+        ordering = ["nom", "prenom"]
+
+    def __str__(self):
+        parts = [p for p in (self.prenom, self.nom) if p]
+        return " ".join(parts) or "Référence"
+
+    @property
+    def experience(self):
+        """Expérience associée (dict de l'analyse), ou ``None`` (issue #62)."""
+        if self.experience_index is None:
+            return None
+        experiences = (self.cv.analysis or {}).get("experiences") or []
+        if 0 <= self.experience_index < len(experiences):
+            return experiences[self.experience_index]
+        return None
+
+    @property
+    def experience_label(self):
+        """Libellé court de l'expérience associée, ou chaîne vide (issue #62)."""
+        exp = self.experience
+        if not exp:
+            return ""
+        parts = [p for p in (exp.get("poste"), exp.get("entreprise")) if p]
+        return " · ".join(parts)
+
+
 class AIConfig(models.Model):
     """Configuration du module de coaching IA (issues #33, #34, #39).
 

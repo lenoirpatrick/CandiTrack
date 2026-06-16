@@ -7,6 +7,7 @@ from cryptography.fernet import Fernet
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from . import ai, coaching, cv_export, views
 from .forms import CandidatureForm, CVForm, JobSiteForm
@@ -19,6 +20,7 @@ from .models import (
     Candidature,
     JobSite,
     MotifCloture,
+    Reference,
     Statut,
 )
 from .statistics import compute_stats
@@ -852,6 +854,52 @@ class AIRelanceViewTests(TestCase):
         )
         self.assertContains(resp, "Mail de relance (IA)")
         self.assertContains(resp, "openAiModal")
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY, MEDIA_ROOT=tempfile.mkdtemp())
+class AIReferencesViewTests(TestCase):
+    """Issue #64 — extrait d'email des références via l'IA."""
+
+    def setUp(self):
+        self.cv = CV.objects.create(label="CV", file=SimpleUploadedFile("cv.txt", b"x"))
+        config = AIConfig.load()
+        config.gemini_api_key = "k"
+        config.save()
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("Comme demandé, voici mes références.", 5, 8, 13),
+    )
+    def test_returns_excerpt(self, gen):
+        Reference.objects.create(
+            cv=self.cv, nom="Durand", prenom="Marie", telephone="0102030405"
+        )
+        resp = self.client.post(reverse("tracking:ai_references", args=[self.cv.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("références", resp.json()["text"])
+        # Le prompt envoyé mentionne la référence et ses coordonnées.
+        prompt = gen.call_args.args[0]
+        self.assertIn("Durand", prompt)
+        self.assertIn("0102030405", prompt)
+
+    def test_sans_reference_erreur_400(self):
+        resp = self.client.post(reverse("tracking:ai_references", args=[self.cv.pk]))
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("référence", resp.json()["error"])
+
+    def test_unknown_cv_404(self):
+        resp = self.client.post(reverse("tracking:ai_references", args=[99999]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_refuse_get(self):
+        resp = self.client.get(reverse("tracking:ai_references", args=[self.cv.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_detail_page_shows_button(self):
+        Reference.objects.create(cv=self.cv, nom="Durand")
+        resp = self.client.get(reverse("tracking:cv_detail", args=[self.cv.pk]))
+        self.assertContains(resp, "Extrait pour email (IA)")
+        self.assertContains(resp, reverse("tracking:ai_references", args=[self.cv.pk]))
 
 
 class GeminiClientTests(TestCase):
@@ -1788,4 +1836,193 @@ class StatsAnimationTests(TestCase):
         resp = self.client.get(reverse("tracking:stats"))
         self.assertContains(resp, "js-bar")
         self.assertContains(resp, "js-seg")
-        self.assertContains(resp, "data-dash")
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class CVEditTests(TestCase):
+    """Issue #61 — édition manuelle des sections de l'analyse d'un CV."""
+
+    def _make_cv(self, **kwargs):
+        return CV.objects.create(
+            label="CV", file=SimpleUploadedFile("cv.txt", b"x"), **kwargs
+        )
+
+    def _post(self, cv, section, value):
+        return self.client.post(
+            reverse("tracking:cv_edit", args=[cv.pk, section]),
+            {"value": json.dumps(value)},
+        )
+
+    def test_edition_section_experiences(self):
+        cv = self._make_cv()
+        resp = self._post(cv, "experiences", [{"poste": "Lead", "entreprise": "Acme"}])
+        self.assertRedirects(resp, reverse("tracking:cv_detail", args=[cv.pk]))
+        cv.refresh_from_db()
+        self.assertTrue(cv.is_analyzed)
+        self.assertEqual(len(cv.analysis["experiences"]), 1)
+
+    def test_edition_section_profil(self):
+        cv = self._make_cv()
+        self._post(cv, "profil", {"titre_profil": "Dev", "localisation": "Lyon"})
+        cv.refresh_from_db()
+        self.assertEqual(cv.analysis["titre_profil"], "Dev")
+        self.assertEqual(cv.analysis["localisation"], "Lyon")
+
+    def test_edition_section_ne_touche_pas_les_autres(self):
+        cv = self._make_cv(
+            analysis={"titre_profil": "Dev", "competences": ["Python"]},
+            analyzed_at=timezone.now(),
+        )
+        # On ne modifie que les langues : le reste doit être préservé.
+        self._post(cv, "langues", ["Anglais"])
+        cv.refresh_from_db()
+        self.assertEqual(cv.analysis["langues"], ["Anglais"])
+        self.assertEqual(cv.analysis["titre_profil"], "Dev")
+        self.assertEqual(cv.analysis["competences"], ["Python"])
+
+    def test_section_inconnue_404(self):
+        cv = self._make_cv()
+        resp = self.client.get(reverse("tracking:cv_edit", args=[cv.pk, "inexistante"]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_edition_marque_le_cv_analyse(self):
+        cv = self._make_cv()
+        self.assertFalse(cv.is_analyzed)
+        self._post(cv, "profil", {"titre_profil": "X"})
+        cv.refresh_from_db()
+        self.assertIsNotNone(cv.analyzed_at)
+
+    def test_json_invalide_n_ecrase_pas(self):
+        cv = self._make_cv(
+            analysis={"titre_profil": "Ancien"}, analyzed_at=timezone.now()
+        )
+        resp = self.client.post(
+            reverse("tracking:cv_edit", args=[cv.pk, "profil"]),
+            {"value": "{pas du json"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        cv.refresh_from_db()
+        self.assertEqual(cv.analysis["titre_profil"], "Ancien")
+
+    def test_page_edition_prefille_la_valeur(self):
+        cv = self._make_cv(
+            analysis={"titre_profil": "Dev Python"}, analyzed_at=timezone.now()
+        )
+        resp = self.client.get(reverse("tracking:cv_edit", args=[cv.pk, "profil"]))
+        self.assertEqual(resp.status_code, 200)
+        # La valeur courante est sérialisée pour pré-remplir l'éditeur JS.
+        self.assertContains(resp, "Dev Python")
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ReferenceTests(TestCase):
+    """Issue #62 — références à fournir, rattachées à un CV."""
+
+    def setUp(self):
+        self.cv = CV.objects.create(
+            label="CV",
+            file=SimpleUploadedFile("cv.txt", b"x"),
+            analysis={
+                "experiences": [
+                    {"poste": "Lead", "entreprise": "Acme"},
+                    {"poste": "Dev", "entreprise": "Globex"},
+                ]
+            },
+            analyzed_at=timezone.now(),
+        )
+
+    def test_creation_reference(self):
+        resp = self.client.post(
+            reverse("tracking:reference_create", args=[self.cv.pk]),
+            {
+                "nom": "Durand",
+                "prenom": "Marie",
+                "email": "marie@example.com",
+                "experience_index": "0",
+            },
+        )
+        self.assertRedirects(resp, reverse("tracking:cv_detail", args=[self.cv.pk]))
+        ref = Reference.objects.get()
+        self.assertEqual(ref.cv, self.cv)
+        self.assertEqual(ref.experience_index, 0)
+        self.assertEqual(ref.experience_label, "Lead · Acme")
+
+    def test_reference_sans_experience(self):
+        self.client.post(
+            reverse("tracking:reference_create", args=[self.cv.pk]),
+            {"nom": "Petit", "experience_index": ""},
+        )
+        ref = Reference.objects.get()
+        self.assertIsNone(ref.experience_index)
+        self.assertEqual(ref.experience_label, "")
+
+    def test_experience_label_hors_borne(self):
+        ref = Reference.objects.create(cv=self.cv, nom="X", experience_index=9)
+        self.assertEqual(ref.experience_label, "")
+
+    def test_modification_reference(self):
+        ref = Reference.objects.create(cv=self.cv, nom="X")
+        self.client.post(
+            reverse("tracking:reference_update", args=[ref.pk]),
+            {"nom": "Y", "experience_index": "1"},
+        )
+        ref.refresh_from_db()
+        self.assertEqual(ref.nom, "Y")
+        self.assertEqual(ref.experience_index, 1)
+
+    def test_suppression_reference(self):
+        ref = Reference.objects.create(cv=self.cv, nom="X")
+        resp = self.client.post(reverse("tracking:reference_delete", args=[ref.pk]))
+        self.assertRedirects(resp, reverse("tracking:cv_detail", args=[self.cv.pk]))
+        self.assertEqual(Reference.objects.count(), 0)
+
+    def test_suppression_refuse_get(self):
+        ref = Reference.objects.create(cv=self.cv, nom="X")
+        resp = self.client.get(reverse("tracking:reference_delete", args=[ref.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_reference_affichee_sur_la_fiche(self):
+        Reference.objects.create(
+            cv=self.cv, nom="Durand", prenom="Marie", experience_index=0
+        )
+        resp = self.client.get(reverse("tracking:cv_detail", args=[self.cv.pk]))
+        self.assertContains(resp, "Marie Durand")
+        self.assertContains(resp, "Lead · Acme")
+
+
+class ContactDetailTests(TestCase):
+    """Issue #63 — section « Contacts » et opportunités associées au détail."""
+
+    def test_nav_et_liste_renommees_en_contacts(self):
+        resp = self.client.get(reverse("tracking:site_list"))
+        # Libellé de navigation et titre de page renommés.
+        self.assertContains(resp, "Contacts")
+        self.assertContains(resp, "+ Ajouter un contact")
+
+    def test_liste_lie_vers_le_detail(self):
+        site = JobSite.objects.create(name="Acme")
+        resp = self.client.get(reverse("tracking:site_list"))
+        self.assertContains(resp, reverse("tracking:site_detail", args=[site.pk]))
+
+    def test_detail_liste_les_opportunites_associees(self):
+        acme = JobSite.objects.create(name="Acme")
+        autre = JobSite.objects.create(name="Globex")
+        liee = Candidature.objects.create(poste="Dev", entreprise="Acme", source=acme)
+        Candidature.objects.create(poste="Lead", entreprise="Globex", source=autre)
+        resp = self.client.get(reverse("tracking:site_detail", args=[acme.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Opportunités associées")
+        self.assertContains(resp, str(liee))
+        # Une candidature d'un autre contact ne doit pas apparaître.
+        self.assertNotContains(resp, "Lead")
+
+    def test_detail_sans_opportunite(self):
+        site = JobSite.objects.create(name="Acme")
+        resp = self.client.get(reverse("tracking:site_detail", args=[site.pk]))
+        self.assertContains(resp, "Aucune opportunité associée")
+
+    def test_message_creation_parle_de_contact(self):
+        resp = self.client.post(
+            reverse("tracking:site_create"), {"name": "Nouveau"}, follow=True
+        )
+        self.assertContains(resp, "Contact ajouté.")

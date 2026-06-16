@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.db.models import Case, IntegerField, Q, When
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
@@ -17,7 +18,7 @@ from django.views.decorators.http import require_GET, require_POST
 from . import coaching
 from . import cv_export as cv_exporters
 from .ai import AIError
-from .forms import CandidatureForm, CVForm, JobSiteForm
+from .forms import CandidatureForm, CVForm, JobSiteForm, ReferenceForm
 from .models import (
     CV,
     AIConfig,
@@ -25,6 +26,7 @@ from .models import (
     ApiToken,
     Candidature,
     JobSite,
+    Reference,
     Statut,
     StatusHistory,
 )
@@ -215,9 +217,24 @@ def candidature_delete(request, pk):
 
 @require_GET
 def site_list(request):
-    """Issue #366 — list of job sites with manual management."""
+    """Issue #366 — liste des contacts (sites/employeurs), gérés à la main."""
     sites = JobSite.objects.all()
     return render(request, "tracking/site_list.html", {"sites": sites})
+
+
+@require_GET
+def site_detail(request, pk):
+    """Détail d'un contact et de ses opportunités associées (issue #63).
+
+    Les opportunités sont les candidatures dont ce contact est la source
+    (`Candidature.source`), via le related_name ``candidatures``.
+    """
+    site = get_object_or_404(JobSite, pk=pk)
+    return render(
+        request,
+        "tracking/site_detail.html",
+        {"site": site, "candidatures": site.candidatures.all()},
+    )
 
 
 def site_create(request):
@@ -225,14 +242,14 @@ def site_create(request):
         form = JobSiteForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Site ajouté.")
+            messages.success(request, "Contact ajouté.")
             return redirect(SITE_LIST_ROUTE)
     else:
         form = JobSiteForm()
     return render(
         request,
         "tracking/site_form.html",
-        {"form": form, "title": "Ajouter un site"},
+        {"form": form, "title": "Ajouter un contact"},
     )
 
 
@@ -242,7 +259,7 @@ def site_update(request, pk):
         form = JobSiteForm(request.POST, instance=site)
         if form.is_valid():
             form.save()
-            messages.success(request, "Site mis à jour.")
+            messages.success(request, "Contact mis à jour.")
             return redirect(SITE_LIST_ROUTE)
     else:
         form = JobSiteForm(instance=site)
@@ -255,28 +272,28 @@ def site_update(request, pk):
 
 def site_delete(request, pk):
     site = get_object_or_404(JobSite, pk=pk)
-    # Les sites par défaut ne se suppriment pas : on les désactive (issue #22).
+    # Les contacts par défaut ne se suppriment pas : on les désactive (issue #22).
     if site.is_builtin:
         messages.error(
             request,
-            f"« {site.name} » est un site par défaut : désactivez-le plutôt que de le supprimer.",
+            f"« {site.name} » est un contact par défaut : désactivez-le plutôt que de le supprimer.",
         )
         return redirect(SITE_LIST_ROUTE)
     if request.method == "POST":
         site.delete()
-        messages.success(request, "Site supprimé.")
+        messages.success(request, "Contact supprimé.")
         return redirect(SITE_LIST_ROUTE)
     return render(request, "tracking/site_confirm_delete.html", {"site": site})
 
 
 def site_toggle_active(request, pk):
-    """Issue #22 — activer/désactiver un site (surtout les sites par défaut)."""
+    """Issue #22 — activer/désactiver un contact (surtout ceux par défaut)."""
     site = get_object_or_404(JobSite, pk=pk)
     if request.method == "POST":
         site.actif = not site.actif
         site.save(update_fields=["actif", "updated_at"])
         etat = "activé" if site.actif else "désactivé"
-        messages.success(request, f"Site « {site.name} » {etat}.")
+        messages.success(request, f"Contact « {site.name} » {etat}.")
     return redirect(SITE_LIST_ROUTE)
 
 
@@ -447,6 +464,128 @@ def cv_analyze(request, pk):
     else:
         _analyze_cv_safely(request, cv)
     return redirect("tracking:cv_detail", pk=pk)
+
+
+# Sections éditables d'une analyse de CV (issue #61). Chaque section porte un
+# libellé et un « kind » qui pilote le widget d'édition côté gabarit.
+CV_SECTIONS = {
+    "profil": {"label": "Profil", "icon": "👤", "kind": "profile"},
+    "experiences": {"label": "Expériences", "icon": "💼", "kind": "experiences"},
+    "formations": {"label": "Formations", "icon": "🎓", "kind": "formations"},
+    "coordonnees": {"label": "Coordonnées", "icon": "📇", "kind": "coord"},
+    "competences": {"label": "Compétences", "icon": "🛠️", "kind": "chips"},
+    "langues": {"label": "Langues", "icon": "🌐", "kind": "chips"},
+    "loisirs": {"label": "Loisirs", "icon": "🎨", "kind": "chips"},
+    "infos": {"label": "Informations diverses", "icon": "ℹ️", "kind": "text"},
+}
+
+
+def _cv_section_value(cv, section):
+    """Valeur courante d'une section de l'analyse, pour pré-remplir l'éditeur."""
+    analysis = cv.analysis or {}
+    if section == "profil":
+        return {
+            "titre_profil": analysis.get("titre_profil", ""),
+            "localisation": analysis.get("localisation", ""),
+        }
+    if section == "coordonnees":
+        return analysis.get("coordonnees") or {}
+    if section == "infos":
+        return analysis.get("infos", "")
+    return analysis.get(section) or []
+
+
+def _apply_cv_section(analysis, section, value):
+    """Fusionne la valeur éditée d'une section dans l'analyse (issue #61)."""
+    data = dict(analysis or {})
+    if section == "profil":
+        data["titre_profil"] = (value or {}).get("titre_profil", "")
+        data["localisation"] = (value or {}).get("localisation", "")
+    else:
+        data[section] = value
+    return data
+
+
+def cv_edit(request, pk, section):
+    """Édition localisée d'une section de l'analyse d'un CV (issue #61).
+
+    Une seule section est modifiée à la fois (les autres restent intactes) ;
+    l'ensemble est re-normalisé comme une analyse IA pour garantir une structure
+    stable. Un CV jamais analysé devient « analysé » dès la première saisie.
+    """
+    cv = get_object_or_404(CV, pk=pk)
+    meta = CV_SECTIONS.get(section)
+    if meta is None:
+        raise Http404("Section inconnue.")
+    if request.method == "POST":
+        raw = request.POST.get("value", "")
+        try:
+            value = json.loads(raw) if raw else None
+        except (json.JSONDecodeError, ValueError):
+            messages.error(request, "Données invalides.")
+        else:
+            merged = _apply_cv_section(cv.analysis, section, value)
+            cv.analysis = coaching.normalize_cv_analysis(merged)
+            cv.analysis_error = ""
+            if not cv.analyzed_at:
+                cv.analyzed_at = timezone.now()
+            cv.save(update_fields=["analysis", "analysis_error", "analyzed_at"])
+            messages.success(request, f"Section « {meta['label']} » mise à jour.")
+            return redirect("tracking:cv_detail", pk=cv.pk)
+    return render(
+        request,
+        "tracking/cv_edit.html",
+        {"cv": cv, "section": section, "meta": meta, "value": _cv_section_value(cv, section)},
+    )
+
+
+def reference_create(request, cv_pk):
+    """Ajoute une référence rattachée à un CV (issue #62)."""
+    cv = get_object_or_404(CV, pk=cv_pk)
+    if request.method == "POST":
+        form = ReferenceForm(request.POST, cv=cv)
+        if form.is_valid():
+            reference = form.save(commit=False)
+            reference.cv = cv
+            reference.save()
+            messages.success(request, "Référence ajoutée.")
+            return redirect("tracking:cv_detail", pk=cv.pk)
+    else:
+        form = ReferenceForm(cv=cv)
+    return render(
+        request,
+        "tracking/reference_form.html",
+        {"form": form, "cv": cv, "title": "Ajouter une référence"},
+    )
+
+
+def reference_update(request, pk):
+    """Modifie une référence existante (issue #62)."""
+    reference = get_object_or_404(Reference, pk=pk)
+    cv = reference.cv
+    if request.method == "POST":
+        form = ReferenceForm(request.POST, instance=reference, cv=cv)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Référence mise à jour.")
+            return redirect("tracking:cv_detail", pk=cv.pk)
+    else:
+        form = ReferenceForm(instance=reference, cv=cv)
+    return render(
+        request,
+        "tracking/reference_form.html",
+        {"form": form, "cv": cv, "title": "Modifier la référence"},
+    )
+
+
+@require_POST
+def reference_delete(request, pk):
+    """Supprime une référence (issue #62)."""
+    reference = get_object_or_404(Reference, pk=pk)
+    cv_pk = reference.cv_id
+    reference.delete()
+    messages.success(request, "Référence supprimée.")
+    return redirect("tracking:cv_detail", pk=cv_pk)
 
 
 def cv_delete(request, pk):
@@ -635,6 +774,18 @@ def ai_relance(request, pk):
     """Renvoie un brouillon de mail de relance IA pour une candidature."""
     candidature = get_object_or_404(Candidature, pk=pk)
     return _ai_endpoint(request, lambda: coaching.relance_email(candidature))
+
+
+@require_POST
+def ai_references(request, pk):
+    """Renvoie un extrait d'email transmettant les références d'un CV (issue #64)."""
+    cv = get_object_or_404(CV, pk=pk)
+    if not cv.references.exists():
+        return JsonResponse(
+            {"error": "Aucune référence enregistrée pour ce CV. Ajoutez-en d'abord."},
+            status=400,
+        )
+    return _ai_endpoint(request, lambda: coaching.references_email(cv))
 
 
 @require_GET

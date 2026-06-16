@@ -6,6 +6,30 @@ versionnage [SemVer](https://semver.org/lang/fr/). Chaque version correspond à
 un milestone GitHub ; la liste des issues traitées est aussi publiée dans la
 release du même nom.
 
+## [Non publié] — 1.2.3
+
+- #64 — CV : bouton **« ✨ Extrait pour email (IA) »** dans la section Références.
+  Il génère, via l'IA, un court texte prêt à coller dans un email (« Comme
+  demandé, je vous joins les références… ») listant chaque référent et ses
+  coordonnées, affiché dans le modal IA partagé (copie en un clic).
+- #63 — La section **« Sites » est renommée « Contacts »** (navigation, titres,
+  libellés et messages). Le nom d'un contact ouvre désormais une **fiche de
+  détail** présentant son type, son URL et la **liste des opportunités
+  associées** (candidatures dont il est la source), avec accès direct à chacune.
+
+- #61 — CV : **édition manuelle de l'analyse, section par section**. Chaque
+  section de la fiche (profil, expériences, formations, coordonnées,
+  compétences, langues, loisirs, infos) porte son propre bouton « ✏️ » qui
+  ouvre un éditeur dédié ; on peut corriger, compléter, **ajouter/supprimer** et
+  **réagencer** (boutons ⬆️/⬇️) expériences, formations et items de liste sans
+  toucher au reste. Les sections vides sont affichées et restent éditables.
+  L'analyse IA distingue désormais les puces « - » des descriptions et les
+  restitue en **retours à la ligne**.
+- #62 — CV : **références à fournir**. Depuis la fiche d'un CV (en pratique le CV
+  par défaut), on peut enregistrer des référents (nom, prénom, téléphone, email,
+  LinkedIn), chacun pouvant être **rattaché à une expérience professionnelle** du
+  CV. Les références s'affichent sur la fiche avec des liens de contact directs.
+
 ## [Non publié] — 1.2.2
 
 - #55 — Sites d'emploi : ajout d'un **type** (Généraliste / ESN / Direct) ; les

@@ -203,6 +203,49 @@ def relance_email(candidature, config=None):
     return _run(config, prompt)
 
 
+def references_email(cv, config=None):
+    """Rédige un extrait d'email transmettant les références d'un CV (issue #64).
+
+    Produit un court texte prêt à coller dans un email (« Comme demandé, je vous
+    joins les références… ») listant chaque référent et ses coordonnées.
+    """
+    config = config or AIConfig.load()
+
+    lines = []
+    for ref in cv.references.all():
+        details = []
+        if ref.experience_label:
+            details.append(f"référent pour : {ref.experience_label}")
+        if ref.telephone:
+            details.append(f"tél. {ref.telephone}")
+        if ref.email:
+            details.append(f"email {ref.email}")
+        if ref.linkedin:
+            details.append(f"LinkedIn {ref.linkedin}")
+        line = f"- {ref}"
+        if details:
+            line += " (" + " ; ".join(details) + ")"
+        lines.append(line)
+
+    prompt = (
+        "Tu es un assistant qui rédige des emails professionnels en français, "
+        "polis et concis.\n\n"
+        "Rédige un court extrait à insérer dans un email pour transmettre à un "
+        "recruteur les références professionnelles ci-dessous (du type « Comme "
+        "demandé, je vous joins les références que vous pouvez contacter… »).\n\n"
+        "Références :\n" + "\n".join(lines) + "\n\n"
+        "Consignes :\n"
+        "- Commence par une phrase d'introduction courtoise.\n"
+        "- Présente chaque référence de façon lisible (nom, lien avec le poste "
+        "ou l'expérience le cas échéant, puis coordonnées : téléphone, email, "
+        "LinkedIn).\n"
+        "- Termine par une formule indiquant qu'elles peuvent être contactées.\n"
+        "- N'invente aucune coordonnée absente de la liste ci-dessus."
+    )
+
+    return _run(config, prompt)
+
+
 # --- Analyse de CV (issue #44) --------------------------------------------
 
 # Schéma JSON attendu de l'IA. On l'impose dans le prompt et on normalise la
@@ -230,6 +273,10 @@ CV_ANALYSIS_PROMPT = (
     "centre de formation : reprends-la si elle figure dans le CV, sinon déduis "
     "l'URL officielle la plus plausible quand tu la connais avec certitude "
     "(format https://…), et laisse vide en cas de doute.\n"
+    'Dans "description", lorsque le CV présente plusieurs missions ou tâches '
+    "introduites par des tirets « - » (ou des puces), restitue chacune sur sa "
+    "propre ligne en les séparant par des retours à la ligne (\\n), pour une "
+    "mise en page lisible.\n"
     "Utilise une liste vide ou une chaîne vide quand l'information est absente. "
     "N'invente pas d'expériences, de formations ni de coordonnées. "
     "Réponds en français."
@@ -314,6 +361,11 @@ def _normalize_cv_analysis(data):
         "loisirs": _as_str_list(data.get("loisirs")),
         "infos": _as_text(data.get("infos")),
     }
+
+
+# Alias public : l'édition manuelle d'un CV réutilise la même normalisation
+# que l'analyse IA pour garantir une structure stable (issue #61).
+normalize_cv_analysis = _normalize_cv_analysis
 
 
 def _parse_cv_analysis(text):

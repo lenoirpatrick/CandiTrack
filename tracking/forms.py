@@ -3,7 +3,7 @@ import os
 from django import forms
 
 from .logos import favicon_service_url
-from .models import CV, Candidature, JobSite
+from .models import CV, Candidature, JobSite, Reference
 
 
 class CandidatureForm(forms.ModelForm):
@@ -132,3 +132,39 @@ class CVForm(forms.ModelForm):
                 f"Fichier trop volumineux ({actuel:.1f} Mo). Taille maximale : {limite} Mo."
             )
         return f
+
+
+class ReferenceForm(forms.ModelForm):
+    """Saisie d'une référence rattachée à un CV (issue #62).
+
+    L'expérience associée est proposée dans une liste déroulante construite à
+    partir des expériences analysées du CV (rang -> libellé).
+    """
+
+    class Meta:
+        model = Reference
+        fields = ["nom", "prenom", "telephone", "email", "linkedin", "experience_index"]
+        widgets = {
+            "telephone": forms.TextInput(attrs={"placeholder": "06 12 34 56 78"}),
+            "linkedin": forms.URLInput(
+                attrs={"placeholder": "https://www.linkedin.com/in/…"}
+            ),
+        }
+
+    def __init__(self, *args, cv=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        cv = cv or getattr(self.instance, "cv", None)
+        experiences = (cv.analysis or {}).get("experiences") or [] if cv else []
+        choices = [("", "— Aucune —")]
+        for i, exp in enumerate(experiences):
+            parts = [p for p in (exp.get("poste"), exp.get("entreprise")) if p]
+            choices.append((str(i), " · ".join(parts) or f"Expérience {i + 1}"))
+        # On remplace le champ entier par une liste déroulante des expériences,
+        # tout en conservant un entier (ou None) côté modèle.
+        self.fields["experience_index"] = forms.TypedChoiceField(
+            label="Expérience associée",
+            choices=choices,
+            required=False,
+            coerce=int,
+            empty_value=None,
+        )

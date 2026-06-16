@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Modifier « {{ meta.label }} » — {{ cv.label }}{% endblock %}
+{% block content %}
+<style>
+    /* Édition localisée d'une section de l'analyse d'un CV (issue #61). */
+    .edit-head { display:flex; justify-content:space-between; align-items:center;
+                 gap:1rem; margin-bottom:1rem; flex-wrap:wrap; }
+    .edit-head h1 { margin:0; font-size:1.3rem; }
+    .edit-item { border:1px solid var(--border); border-radius:var(--radius-sm);
+                 padding:0.8rem 0.9rem; margin-bottom:0.8rem;
+                 background:var(--input-bg); }
+    .item-acts { display:flex; justify-content:flex-end; gap:0.3rem; margin-bottom:0.4rem; }
+    .edit-list { display:flex; flex-direction:column; gap:0.5rem; }
+    .edit-chip-row { display:flex; gap:0.3rem; align-items:center; }
+    .edit-chip-row input { flex:1; }
+    .add-btn { margin-top:0.2rem; }
+</style>
+
+<div class="edit-head">
+    <h1>{{ meta.icon }} Modifier — {{ meta.label }}</h1>
+    <a class="btn secondary" href="{% url 'tracking:cv_detail' cv.pk %}">← Retour</a>
+</div>
+<p class="muted" style="margin-top:-0.5rem;">CV « {{ cv.label }} » — seule cette section est modifiée, le reste de l'analyse est conservé.</p>
+
+{{ value|json_script:"cv-section-value" }}
+
+<form method="post" id="cv-edit-form">
+    {% csrf_token %}
+    <input type="hidden" name="value" id="value-input">
+    <div class="card">
+        <div id="editor"></div>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn">💾 Enregistrer</button>
+        <a class="btn secondary" href="{% url 'tracking:cv_detail' cv.pk %}">Annuler</a>
+    </div>
+</form>
+
+<script>
+(function () {
+    var KIND = "{{ meta.kind }}";
+    var value = JSON.parse(document.getElementById("cv-section-value").textContent);
+    var editor = document.getElementById("editor");
+
+    var EXP_FIELDS = [
+        ["poste", "Poste", "input"], ["entreprise", "Entreprise", "input"],
+        ["lieu", "Lieu", "input"], ["periode", "Période", "input"],
+        ["lien", "Lien (URL)", "input"], ["description", "Description", "textarea"]
+    ];
+    var FORM_FIELDS = [
+        ["intitule", "Intitulé", "input"], ["etablissement", "Établissement", "input"],
+        ["lieu", "Lieu", "input"], ["periode", "Période", "input"], ["lien", "Lien (URL)", "input"]
+    ];
+    var COORD_FIELDS = [
+        ["adresse", "Adresse"], ["telephone", "Téléphone"],
+        ["email", "Email"], ["permis", "Permis"]
+    ];
+
+    function el(tag, attrs) {
+        var n = document.createElement(tag);
+        if (attrs) { for (var k in attrs) { n.setAttribute(k, attrs[k]); } }
+        return n;
+    }
+    function fieldBlock(label, input) {
+        var f = el("div", { "class": "field" });
+        var lab = el("label"); lab.textContent = label;
+        f.appendChild(lab); f.appendChild(input);
+        return f;
+    }
+    function makeInput(type, val) {
+        var n = type === "textarea" ? el("textarea", { rows: "3" }) : el("input", { type: "text" });
+        if (val) { n.value = val; }
+        return n;
+    }
+    function actionBtn(label, title, cls) {
+        var b = el("button", { type: "button", "class": "icon-btn " + (cls || ""), title: title });
+        b.textContent = label;
+        return b;
+    }
+    // Déplace un élément parmi ses frères (réagencement, ordre = ordre DOM).
+    function move(node, dir) {
+        var sib = dir < 0 ? node.previousElementSibling : node.nextElementSibling;
+        if (!sib) { return; }
+        if (dir < 0) { node.parentNode.insertBefore(node, sib); }
+        else { node.parentNode.insertBefore(sib, node); }
+    }
+
+    // --- Constructeurs par type de section -------------------------------
+    function buildProfile() {
+        var titre = makeInput("input", value.titre_profil);
+        titre.id = "f-titre";
+        var loc = makeInput("input", value.localisation);
+        loc.id = "f-loc";
+        editor.appendChild(fieldBlock("Titre du profil", titre));
+        editor.appendChild(fieldBlock("Localisation", loc));
+    }
+    function buildCoord() {
+        COORD_FIELDS.forEach(function (f) {
+            var input = makeInput("input", (value || {})[f[0]]);
+            input.setAttribute("data-coord", f[0]);
+            editor.appendChild(fieldBlock(f[1], input));
+        });
+    }
+    function buildText() {
+        var area = makeInput("textarea", value);
+        area.id = "f-text"; area.setAttribute("rows", "5");
+        editor.appendChild(fieldBlock("Contenu", area));
+    }
+    function itemFields() { return KIND === "experiences" ? EXP_FIELDS : FORM_FIELDS; }
+    function actionsRow(node) {
+        var acts = el("div", { "class": "item-acts" });
+        var up = actionBtn("⬆️", "Monter");
+        var down = actionBtn("⬇️", "Descendre");
+        var del = actionBtn("🗑️", "Supprimer", "danger");
+        up.addEventListener("click", function () { move(node, -1); });
+        down.addEventListener("click", function () { move(node, 1); });
+        del.addEventListener("click", function () { node.remove(); });
+        acts.appendChild(up); acts.appendChild(down); acts.appendChild(del);
+        return acts;
+    }
+    function addItem(values) {
+        values = values || {};
+        var wrap = el("div", { "class": "edit-item" });
+        wrap.appendChild(actionsRow(wrap));
+        itemFields().forEach(function (f) {
+            var input = makeInput(f[2], values[f[0]]);
+            input.setAttribute("data-key", f[0]);
+            wrap.appendChild(fieldBlock(f[1], input));
+        });
+        document.getElementById("items-list").appendChild(wrap);
+    }
+    function buildItems() {
+        var list = el("div", { id: "items-list", "class": "edit-list" });
+        editor.appendChild(list);
+        var btn = el("button", { type: "button", "class": "btn secondary add-btn" });
+        btn.textContent = KIND === "experiences" ? "＋ Ajouter une expérience" : "＋ Ajouter une formation";
+        btn.addEventListener("click", function () { addItem({}); });
+        editor.appendChild(btn);
+        (value || []).forEach(function (v) { addItem(v); });
+    }
+    function addChip(v) {
+        var row = el("div", { "class": "edit-chip-row" });
+        var input = makeInput("input", v); input.setAttribute("data-chip", "1");
+        var up = actionBtn("⬆️", "Monter");
+        var down = actionBtn("⬇️", "Descendre");
+        var del = actionBtn("🗑️", "Supprimer", "danger");
+        up.addEventListener("click", function () { move(row, -1); });
+        down.addEventListener("click", function () { move(row, 1); });
+        del.addEventListener("click", function () { row.remove(); });
+        row.appendChild(input); row.appendChild(up); row.appendChild(down); row.appendChild(del);
+        document.getElementById("chips-list").appendChild(row);
+    }
+    function buildChips() {
+        var list = el("div", { id: "chips-list", "class": "edit-list" });
+        editor.appendChild(list);
+        var btn = el("button", { type: "button", "class": "btn secondary add-btn" });
+        btn.textContent = "＋ Ajouter";
+        btn.addEventListener("click", function () { addChip(""); });
+        editor.appendChild(btn);
+        (value || []).forEach(function (v) { addChip(v); });
+    }
+
+    var BUILDERS = {
+        profile: buildProfile, coord: buildCoord, text: buildText,
+        experiences: buildItems, formations: buildItems, chips: buildChips
+    };
+    (BUILDERS[KIND] || function () {})();
+
+    // --- Sérialisation à la soumission -----------------------------------
+    function collect() {
+        if (KIND === "profile") {
+            return {
+                titre_profil: document.getElementById("f-titre").value.trim(),
+                localisation: document.getElementById("f-loc").value.trim()
+            };
+        }
+        if (KIND === "coord") {
+            var out = {};
+            document.querySelectorAll("[data-coord]").forEach(function (n) {
+                out[n.getAttribute("data-coord")] = n.value.trim();
+            });
+            return out;
+        }
+        if (KIND === "text") {
+            return document.getElementById("f-text").value.trim();
+        }
+        if (KIND === "chips") {
+            var chips = [];
+            document.querySelectorAll('[data-chip]').forEach(function (n) {
+                var v = n.value.trim();
+                if (v) { chips.push(v); }
+            });
+            return chips;
+        }
+        // experiences / formations
+        var rows = [];
+        document.querySelectorAll("#items-list .edit-item").forEach(function (item) {
+            var obj = {};
+            item.querySelectorAll("[data-key]").forEach(function (input) {
+                obj[input.getAttribute("data-key")] = input.value.trim();
+            });
+            rows.push(obj);
+        });
+        return rows;
+    }
+
+    document.getElementById("cv-edit-form").addEventListener("submit", function () {
+        document.getElementById("value-input").value = JSON.stringify(collect());
+    });
+})();
+</script>
+{% endblock %}

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Sites — CandiTrack{% endblock %}
+{% block title %}Contacts — CandiTrack{% endblock %}
 {% block content %}
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-    <h1 style="margin:0;">Sites d'emploi</h1>
-    <a class="btn" href="{% url 'tracking:site_create' %}">+ Ajouter un site</a>
+    <h1 style="margin:0;">Contacts</h1>
+    <a class="btn" href="{% url 'tracking:site_create' %}">+ Ajouter un contact</a>
 </div>
 <p class="muted">Le logo (favicon du site) est récupéré automatiquement à l'enregistrement.</p>
 
@@ -15,13 +15,14 @@
             {% for s in sites %}
             <tr{% if not s.actif %} class="closed-row"{% endif %}>
                 <td>{% if s.logo_url %}<img src="{{ s.logo_url }}" alt="" height="24" style="vertical-align:middle;">{% else %}<span class="muted">—</span>{% endif %}</td>
-                <td>{{ s.name }}
+                <td><a href="{% url 'tracking:site_detail' s.pk %}">{{ s.name }}</a>
                     {% if s.is_builtin %} <span class="badge">défaut</span>{% endif %}
                     {% if not s.actif %} <span class="badge">désactivé</span>{% endif %}</td>
                 <td>{{ s.get_type_display }}</td>
                 <td>{% if s.url %}<a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url }}</a>{% else %}—{% endif %}</td>
                 <td>
                     <div class="act-row">
+                        <a class="icon-btn" href="{% url 'tracking:site_detail' s.pk %}" title="Détails" aria-label="Détails">👁️</a>
                         <a class="icon-btn" href="{% url 'tracking:site_update' s.pk %}" title="Modifier" aria-label="Modifier">✏️</a>
                         <form method="post" action="{% url 'tracking:site_toggle_active' s.pk %}">
                             {% csrf_token %}
@@ -39,7 +40,7 @@
         </tbody>
     </table>
     {% else %}
-    <p class="muted">Aucun site. <a href="{% url 'tracking:site_create' %}">Ajoutez-en un</a>.</p>
+    <p class="muted">Aucun contact. <a href="{% url 'tracking:site_create' %}">Ajoutez-en un</a>.</p>
     {% endif %}
 </div>
 {% endblock %}

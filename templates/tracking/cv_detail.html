@@ -26,6 +26,10 @@
     .cv-section-title { display:flex; align-items:center; gap:0.5rem; margin:0 0 0.9rem;
                         font-size:1.05rem; color:var(--accent); }
     .cv-section-title .ico { font-size:1.15rem; }
+    /* Bouton d'édition localisée d'une section (issue #61). */
+    .sec-edit, .sec-edit:visited, .sec-edit:hover { margin-left:auto; flex:0 0 auto;
+                        font-size:0.9rem; width:30px; height:30px; }
+    .cv-empty { color:var(--muted); font-size:0.9rem; margin:0; }
 
     /* Timeline pour expériences et formations. */
     .cv-timeline { list-style:none; padding:0; margin:0; position:relative; }
@@ -75,6 +79,21 @@
                  border:2px solid var(--accent); box-shadow:var(--shadow);
                  font-size:0.95rem; }
 
+    /* Références à fournir (issue #62). */
+    .cv-reflist { display:flex; flex-direction:column; gap:0.7rem; }
+    .cv-refcard { border:1px solid var(--border); border-radius:var(--radius-sm);
+                  padding:0.7rem 0.85rem; display:flex; justify-content:space-between;
+                  gap:0.8rem; flex-wrap:wrap; align-items:flex-start; }
+    .cv-refcard .ref-name { font-weight:700; color:var(--text); }
+    .cv-refcard .ref-exp { font-size:0.78rem; color:var(--accent); background:var(--accent-soft);
+                  display:inline-block; padding:0.1rem 0.5rem; border-radius:999px; margin-top:0.3rem; }
+    .cv-refcard .ref-contacts { display:flex; flex-wrap:wrap; gap:0.4rem; margin-top:0.4rem; }
+    .cv-refcard .ref-contacts a { display:inline-flex; align-items:center; gap:0.25rem;
+                  font-size:0.8rem; padding:0.1rem 0.5rem; border-radius:999px;
+                  background:var(--chip-bg); color:var(--chip-text); text-decoration:none; }
+    .cv-refcard .ref-contacts a:hover { text-decoration:underline; }
+    .cv-refcard .ref-acts { display:flex; gap:0.35rem; }
+
     /* Barre d'export (JSON Resume, Europass, HR-Open, PDF). */
     .cv-exports { display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; }
     .cv-exports-label { font-weight:600; color:var(--muted); margin-right:0.2rem; }
@@ -85,7 +104,8 @@
 <div class="cv-head">
     <h1>{{ cv.label }}{% if not cv.actif %} <span class="badge">archivé</span>{% endif %}</h1>
     <div class="cv-actions">
-        <form method="post" action="{% url 'tracking:cv_analyze' cv.pk %}" style="display:inline;">
+        <form method="post" action="{% url 'tracking:cv_analyze' cv.pk %}" style="display:inline;"
+              {% if cv.is_analyzed %}onsubmit="return confirm('La ré-analyse par l’IA remplacera l’analyse actuelle : toutes vos modifications manuelles seront perdues. Continuer ?');"{% endif %}>
             {% csrf_token %}
             <button type="submit" class="btn"{% if not ai_config.is_configured %} disabled{% endif %}>
                 {% if cv.is_analyzed %}🔄 Ré-analyser{% else %}✨ Analyser avec l'IA{% endif %}
@@ -100,12 +120,20 @@
     </div>
 </div>
 
-<div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+<div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem 1.5rem; flex-wrap:wrap;">
     <span>
         📄 <a href="{{ cv.file.url }}" target="_blank" rel="noopener">Télécharger le fichier</a>
         · <span class="muted">Ajouté le {{ cv.uploaded_at|date:"d/m/Y H:i" }}</span>
     </span>
-    {% if not ai_config.is_configured %}
+    {% if cv.is_analyzed %}
+    <div class="cv-exports">
+        <span class="cv-exports-label">⬇️ Exporter :</span>
+        {% for fmt, label in export_formats.items %}
+        <a class="btn secondary" href="{% url 'tracking:cv_export' cv.pk fmt %}">{{ label }}</a>
+        {% endfor %}
+        <a class="btn" href="{% url 'tracking:cv_print' cv.pk %}" target="_blank" rel="noopener">📄 PDF professionnel</a>
+    </div>
+    {% elif not ai_config.is_configured %}
     <span class="muted">Configurez une IA dans <a href="{% url 'tracking:help' %}#ia">Options → IA</a> pour analyser ce CV.</span>
     {% endif %}
 </div>
@@ -125,34 +153,29 @@
 <div style="padding:0.8rem 1rem; border:1px solid var(--border); border-left:4px solid #e0584b; border-radius:8px; margin-bottom:1.1rem;">⚠️ {{ cv.analysis_error }}</div>
 {% endif %}
 
-{% if cv.is_analyzed %}
 {% with a=cv.analysis %}
 <div class="cv-hero">
     <div class="cv-avatar">👤</div>
     <div>
-        <div class="cv-hero-title">{% if a.titre_profil %}{{ a.titre_profil }}{% else %}Profil analysé{% endif %}</div>
+        <div class="cv-hero-title">{% if a.titre_profil %}{{ a.titre_profil }}{% else %}Profil à compléter{% endif %}</div>
         {% if a.localisation %}<div class="cv-hero-sub">📍 {{ a.localisation }}</div>{% endif %}
+        {% if cv.is_analyzed %}
         <div class="cv-hero-sub">
             Analysé le {{ cv.analyzed_at|date:"d/m/Y H:i" }}
             {% if cv.analysis_provider_label %}par {{ cv.analysis_provider_label }}{% endif %}
             {% if cv.analysis_model %} · {{ cv.analysis_model }}{% endif %}
         </div>
+        {% endif %}
     </div>
-</div>
-
-<div class="card cv-exports">
-    <span class="cv-exports-label">⬇️ Exporter :</span>
-    {% for fmt, label in export_formats.items %}
-    <a class="btn secondary" href="{% url 'tracking:cv_export' cv.pk fmt %}">{{ label }}</a>
-    {% endfor %}
-    <a class="btn" href="{% url 'tracking:cv_print' cv.pk %}" target="_blank" rel="noopener">📄 PDF professionnel</a>
+    <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'profil' %}" title="Modifier le profil">✏️</a>
 </div>
 
 <div class="cv-grid">
     <div class="cv-main">
-        {% if a.experiences %}
         <div class="card">
-            <h2 class="cv-section-title"><span class="ico">💼</span> Expériences</h2>
+            <h2 class="cv-section-title"><span class="ico">💼</span> Expériences
+                <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'experiences' %}" title="Modifier">✏️</a></h2>
+            {% if a.experiences %}
             <ul class="cv-timeline">
                 {% for exp in a.experiences %}
                 <li>
@@ -164,16 +187,17 @@
                         {% if exp.lieu %}<span class="cv-item-place">📍 {{ exp.lieu }}</span>{% endif %}
                         {% if exp.lien %}<a class="cv-item-link" href="{{ exp.lien }}" target="_blank" rel="noopener">🔗 Site</a>{% endif %}
                     </div>
-                    {% if exp.description %}<div class="cv-item-desc">{{ exp.description }}</div>{% endif %}
+                    {% if exp.description %}<div class="cv-item-desc">{{ exp.description|linebreaksbr }}</div>{% endif %}
                 </li>
                 {% endfor %}
             </ul>
+            {% else %}<p class="cv-empty">Aucune expérience renseignée.</p>{% endif %}
         </div>
-        {% endif %}
 
-        {% if a.formations %}
         <div class="card">
-            <h2 class="cv-section-title"><span class="ico">🎓</span> Formations</h2>
+            <h2 class="cv-section-title"><span class="ico">🎓</span> Formations
+                <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'formations' %}" title="Modifier">✏️</a></h2>
+            {% if a.formations %}
             <ul class="cv-timeline">
                 {% for f in a.formations %}
                 <li>
@@ -188,22 +212,23 @@
                 </li>
                 {% endfor %}
             </ul>
+            {% else %}<p class="cv-empty">Aucune formation renseignée.</p>{% endif %}
         </div>
-        {% endif %}
 
-        {% if a.infos %}
         <div class="card">
-            <h2 class="cv-section-title"><span class="ico">ℹ️</span> Informations diverses</h2>
-            <p class="muted" style="margin:0;">{{ a.infos|linebreaksbr }}</p>
+            <h2 class="cv-section-title"><span class="ico">ℹ️</span> Informations diverses
+                <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'infos' %}" title="Modifier">✏️</a></h2>
+            {% if a.infos %}<p class="muted" style="margin:0;">{{ a.infos|linebreaksbr }}</p>
+            {% else %}<p class="cv-empty">Aucune information renseignée.</p>{% endif %}
         </div>
-        {% endif %}
     </div>
 
     <div class="cv-side">
-        {% if a.coordonnees %}
-        {% with c=a.coordonnees %}
         <div class="card">
-            <h2 class="cv-section-title"><span class="ico">📇</span> Références</h2>
+            <h2 class="cv-section-title"><span class="ico">📇</span> Coordonnées
+                <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'coordonnees' %}" title="Modifier">✏️</a></h2>
+            {% with c=a.coordonnees %}
+            {% if c.adresse or c.telephone or c.email or c.permis %}
             <div class="cv-refs">
                 {% if c.adresse %}
                 <div class="cv-ref"><span class="ico">🏠</span>
@@ -224,36 +249,39 @@
                     <span><span class="ref-label">Permis</span>{{ c.permis }}</span></div>
                 {% endif %}
             </div>
+            {% else %}<p class="cv-empty">Aucune coordonnée renseignée.</p>{% endif %}
+            {% endwith %}
         </div>
-        {% endwith %}
-        {% endif %}
 
-        {% if a.competences %}
         <div class="card">
-            <h2 class="cv-section-title"><span class="ico">🛠️</span> Compétences</h2>
+            <h2 class="cv-section-title"><span class="ico">🛠️</span> Compétences
+                <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'competences' %}" title="Modifier">✏️</a></h2>
+            {% if a.competences %}
             <div class="cv-chips">
                 {% for c in a.competences %}<span class="cv-chip">{{ c }}</span>{% endfor %}
             </div>
+            {% else %}<p class="cv-empty">Aucune compétence renseignée.</p>{% endif %}
         </div>
-        {% endif %}
 
-        {% if a.langues %}
         <div class="card">
-            <h2 class="cv-section-title"><span class="ico">🌐</span> Langues</h2>
+            <h2 class="cv-section-title"><span class="ico">🌐</span> Langues
+                <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'langues' %}" title="Modifier">✏️</a></h2>
+            {% if a.langues %}
             <div class="cv-chips">
                 {% for l in a.langues %}<span class="cv-chip lang">{{ l }}</span>{% endfor %}
             </div>
+            {% else %}<p class="cv-empty">Aucune langue renseignée.</p>{% endif %}
         </div>
-        {% endif %}
 
-        {% if a.loisirs %}
         <div class="card">
-            <h2 class="cv-section-title"><span class="ico">🎨</span> Loisirs</h2>
+            <h2 class="cv-section-title"><span class="ico">🎨</span> Loisirs
+                <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'loisirs' %}" title="Modifier">✏️</a></h2>
+            {% if a.loisirs %}
             <div class="cv-chips">
                 {% for h in a.loisirs %}<span class="cv-chip">{{ h }}</span>{% endfor %}
             </div>
+            {% else %}<p class="cv-empty">Aucun loisir renseigné.</p>{% endif %}
         </div>
-        {% endif %}
 
         {% if localisations %}
         <div class="card">
@@ -333,7 +361,63 @@
 </script>
 {% endif %}
 {% endwith %}
-{% elif not cv.analysis_error %}
-<p class="muted">Ce CV n'a pas encore été analysé.</p>
-{% endif %}
+
+{# Références à fournir (issue #62) — indépendantes de l'analyse IA. #}
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+        <h2 class="cv-section-title" style="margin:0;"><span class="ico">🤝</span> Références à fournir</h2>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            {% if cv.references.all %}
+            <button type="button" class="btn secondary" id="js-ref-extract"
+                    title="Générer un extrait d'email transmettant ces références"
+                    {% if not ai_config.is_configured %}disabled{% endif %}>✨ Extrait pour email (IA)</button>
+            {% endif %}
+            <a class="btn secondary" href="{% url 'tracking:reference_create' cv.pk %}">＋ Ajouter une référence</a>
+        </div>
+    </div>
+    {% if cv.references.all %}
+    <div class="cv-reflist" style="margin-top:0.9rem;">
+        {% for ref in cv.references.all %}
+        <div class="cv-refcard">
+            <div>
+                <span class="ref-name">{{ ref }}</span>
+                {% if ref.experience_label %}<div><span class="ref-exp">💼 {{ ref.experience_label }}</span></div>{% endif %}
+                <div class="ref-contacts">
+                    {% if ref.telephone %}<a href="tel:{{ ref.telephone }}">📞 {{ ref.telephone }}</a>{% endif %}
+                    {% if ref.email %}<a href="mailto:{{ ref.email }}">✉️ {{ ref.email }}</a>{% endif %}
+                    {% if ref.linkedin %}<a href="{{ ref.linkedin }}" target="_blank" rel="noopener">🔗 LinkedIn</a>{% endif %}
+                </div>
+            </div>
+            <div class="ref-acts">
+                <a class="icon-btn" href="{% url 'tracking:reference_update' ref.pk %}" title="Modifier">✏️</a>
+                <form method="post" action="{% url 'tracking:reference_delete' ref.pk %}"
+                      onsubmit="return confirm('Supprimer cette référence ?');">
+                    {% csrf_token %}
+                    <button type="submit" class="icon-btn danger" title="Supprimer">🗑️</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted" style="margin:0.9rem 0 0;">Aucune référence enregistrée pour ce CV.</p>
+    {% endif %}
+</div>
+
+<script>
+    // Extrait d'email des références via l'IA (issue #64) : modal partagé.
+    // openAiModal est défini plus bas dans base.html : on l'appelle dans le
+    // gestionnaire de clic (et non à l'attache) pour qu'il soit disponible.
+    (function () {
+        var btn = document.getElementById("js-ref-extract");
+        if (!btn) { return; }
+        btn.addEventListener("click", function () {
+            window.openAiModal({
+                title: "✨ Extrait de références",
+                url: "{% url 'tracking:ai_references' cv.pk %}",
+                loading: "Rédaction de l'extrait à transmettre…"
+            });
+        });
+    })();
+</script>
 {% endblock %}

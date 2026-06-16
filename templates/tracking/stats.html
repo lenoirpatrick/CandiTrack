@@ -68,9 +68,7 @@
 {% endif %}
 
 <style>
-    /* Tuiles KPI compactes : largeur plafonnée pour ne pas s'étirer sur toute
-       la page, alignées à gauche (le reste de la ligne reste en blanc). */
-    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 170px)); gap:1rem; margin-bottom:1rem; justify-content:start; }
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:1rem; margin-bottom:1rem; }
     .kpi { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.25rem;
            box-shadow:var(--shadow); transition:transform .15s ease, box-shadow .15s ease;
            animation:kpi-in .5s both; }
@@ -82,7 +80,9 @@
     .kpi-value { font-size:1.9rem; font-weight:700; color:var(--accent); line-height:1; }
     .kpi-value small { font-size:1rem; color:var(--muted); }
     .kpi-label { color:var(--muted); margin-top:0.35rem; font-size:0.9rem; }
-    .bar-row { display:flex; align-items:center; gap:0.75rem; margin:0.4rem 0; }
+    /* Barres plafonnées en largeur : les graphiques ne s'étirent plus sur toute
+       la page (les cartes KPI, elles, restent pleine largeur). */
+    .bar-row { display:flex; align-items:center; gap:0.75rem; margin:0.4rem 0; max-width:620px; }
     .bar-label { flex:0 0 9rem; font-size:0.9rem; }
     .bar-row .bar-track { flex:1; }
     /* Apparition progressive des barres (issue #35) */

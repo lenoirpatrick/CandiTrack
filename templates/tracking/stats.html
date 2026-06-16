@@ -7,9 +7,9 @@
 {% if kpis.total %}
 <div class="kpi-grid">
     <div class="kpi"><div class="kpi-value">{{ kpis.total }}</div><div class="kpi-label">Candidatures</div></div>
-    <div class="kpi"><div class="kpi-value">{{ kpis.responded }}</div><div class="kpi-label">Réponses <span class="muted">({{ kpis.response_rate }} %)</span></div></div>
-    <div class="kpi"><div class="kpi-value">{{ kpis.interviewed }}</div><div class="kpi-label">Entretiens <span class="muted">({{ kpis.interview_rate }} %)</span></div></div>
-    <div class="kpi"><div class="kpi-value">{{ kpis.offers }}</div><div class="kpi-label">Offres <span class="muted">({{ kpis.offer_rate }} %)</span></div></div>
+    {% include "tracking/_gauge.html" with percent=kpis.response_rate count=kpis.responded label="Réponses" %}
+    {% include "tracking/_gauge.html" with percent=kpis.interview_rate count=kpis.interviewed label="Entretiens" %}
+    {% include "tracking/_gauge.html" with percent=kpis.offer_rate count=kpis.offers label="Offres" %}
     <div class="kpi"><div class="kpi-value">{{ kpis.pending }}</div><div class="kpi-label">En attente</div></div>
     <div class="kpi"><div class="kpi-value">{% if kpis.avg_response_delay is not None %}{{ kpis.avg_response_delay }}<small> j</small>{% else %}—{% endif %}</div><div class="kpi-label">Délai moyen de réponse</div></div>
 </div>
@@ -82,6 +82,12 @@
     .kpi-value { font-size:1.9rem; font-weight:700; color:var(--accent); line-height:1; }
     .kpi-value small { font-size:1rem; color:var(--muted); }
     .kpi-label { color:var(--muted); margin-top:0.35rem; font-size:0.9rem; }
+    /* Jauge semi-circulaire pour les KPI en pourcentage (issue #56). */
+    .kpi-gauge { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+    .kpi-gauge .gauge { width:120px; height:auto; display:block; }
+    .gauge-pct { font-size:8px; font-weight:700; fill:var(--accent); }
+    .gauge-unit { font-size:3.4px; fill:var(--muted); }
+    .js-gauge { transition:stroke-dasharray 1s cubic-bezier(.22,.61,.36,1); }
     /* Graphiques de répartition (statut, source, type, canal) en deux colonnes :
        chaque graphique occupe ~la moitié de la largeur. Bascule en une colonne
        sous 720px. « Candidatures par mois » reste pleine largeur, hors grille. */
@@ -120,6 +126,15 @@
             requestAnimationFrame(function () { el.style.width = el.dataset.width + "%"; });
         });
     }
+    // Jauges : remplissage de l'arc de 0 vers le pourcentage cible.
+    function animateGauges() {
+        document.querySelectorAll(".js-gauge").forEach(function (el) {
+            var pct = parseFloat(el.dataset.pct) || 0;
+            requestAnimationFrame(function () {
+                el.setAttribute("stroke-dasharray", pct + " 100");
+            });
+        });
+    }
     // Donut : tracé progressif des segments (stroke-dasharray 0 -> valeur).
     function animateDonut() {
         document.querySelectorAll(".js-seg").forEach(function (el) {
@@ -147,7 +162,7 @@
             });
         });
     }
-    function start() { animateBars(); animateDonut(); linkLegend(); }
+    function start() { animateBars(); animateGauges(); animateDonut(); linkLegend(); }
     if (document.readyState !== "loading") { requestAnimationFrame(start); }
     else { document.addEventListener("DOMContentLoaded", start); }
 })();

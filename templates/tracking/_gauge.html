@@ -1,0 +1,17 @@
+{% comment %}
+Jauge semi-circulaire pour un KPI exprimé en pourcentage (issue #56). Attend :
+percent (0-100), count (effectif associé) et label. L'arc se remplit de la
+gauche vers la droite proportionnellement au pourcentage (animé au chargement).
+{% endcomment %}
+{% load l10n %}
+<div class="kpi kpi-gauge">
+    <svg class="gauge" viewBox="0 0 42 25" role="img" aria-label="{{ label }} : {{ percent }} %">
+        <path class="gauge-track" d="M3 21 A18 18 0 0 1 39 21" fill="none"
+              stroke="var(--track)" stroke-width="4" stroke-linecap="round" pathLength="100"></path>
+        <path class="gauge-fill js-gauge" d="M3 21 A18 18 0 0 1 39 21" fill="none"
+              stroke="var(--accent)" stroke-width="4" stroke-linecap="round" pathLength="100"
+              stroke-dasharray="0 100" data-pct="{{ percent|unlocalize }}"></path>
+        <text x="21" y="19" text-anchor="middle" class="gauge-pct">{{ percent }}<tspan class="gauge-unit"> %</tspan></text>
+    </svg>
+    <div class="kpi-label">{{ label }} <span class="muted">({{ count }})</span></div>
+</div>

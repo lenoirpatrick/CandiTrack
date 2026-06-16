@@ -776,6 +776,18 @@ def ai_relance(request, pk):
     return _ai_endpoint(request, lambda: coaching.relance_email(candidature))
 
 
+@require_POST
+def ai_references(request, pk):
+    """Renvoie un extrait d'email transmettant les références d'un CV (issue #64)."""
+    cv = get_object_or_404(CV, pk=pk)
+    if not cv.references.exists():
+        return JsonResponse(
+            {"error": "Aucune référence enregistrée pour ce CV. Ajoutez-en d'abord."},
+            status=400,
+        )
+    return _ai_endpoint(request, lambda: coaching.references_email(cv))
+
+
 @require_GET
 def extension_download(request):
     """Serve the chrome-extension/ folder as a zip the user can install (issue #6)."""

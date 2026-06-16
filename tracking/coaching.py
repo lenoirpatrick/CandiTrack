@@ -203,6 +203,49 @@ def relance_email(candidature, config=None):
     return _run(config, prompt)
 
 
+def references_email(cv, config=None):
+    """Rédige un extrait d'email transmettant les références d'un CV (issue #64).
+
+    Produit un court texte prêt à coller dans un email (« Comme demandé, je vous
+    joins les références… ») listant chaque référent et ses coordonnées.
+    """
+    config = config or AIConfig.load()
+
+    lines = []
+    for ref in cv.references.all():
+        details = []
+        if ref.experience_label:
+            details.append(f"référent pour : {ref.experience_label}")
+        if ref.telephone:
+            details.append(f"tél. {ref.telephone}")
+        if ref.email:
+            details.append(f"email {ref.email}")
+        if ref.linkedin:
+            details.append(f"LinkedIn {ref.linkedin}")
+        line = f"- {ref}"
+        if details:
+            line += " (" + " ; ".join(details) + ")"
+        lines.append(line)
+
+    prompt = (
+        "Tu es un assistant qui rédige des emails professionnels en français, "
+        "polis et concis.\n\n"
+        "Rédige un court extrait à insérer dans un email pour transmettre à un "
+        "recruteur les références professionnelles ci-dessous (du type « Comme "
+        "demandé, je vous joins les références que vous pouvez contacter… »).\n\n"
+        "Références :\n" + "\n".join(lines) + "\n\n"
+        "Consignes :\n"
+        "- Commence par une phrase d'introduction courtoise.\n"
+        "- Présente chaque référence de façon lisible (nom, lien avec le poste "
+        "ou l'expérience le cas échéant, puis coordonnées : téléphone, email, "
+        "LinkedIn).\n"
+        "- Termine par une formule indiquant qu'elles peuvent être contactées.\n"
+        "- N'invente aucune coordonnée absente de la liste ci-dessus."
+    )
+
+    return _run(config, prompt)
+
+
 # --- Analyse de CV (issue #44) --------------------------------------------
 
 # Schéma JSON attendu de l'IA. On l'impose dans le prompt et on normalise la

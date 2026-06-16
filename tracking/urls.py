@@ -49,6 +49,7 @@ urlpatterns = [
     # Coaching IA (issue #33)
     path("api/coaching/", views.ai_coaching, name="ai_coaching"),
     path("api/candidatures/<int:pk>/relance/", views.ai_relance, name="ai_relance"),
+    path("api/cv/<int:pk>/references/", views.ai_references, name="ai_references"),
     # API for the Chrome extension (issue #2)
     path("api/candidatures/", views.api_candidature_create, name="api_candidature_create"),
 ]

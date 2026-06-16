@@ -856,6 +856,52 @@ class AIRelanceViewTests(TestCase):
         self.assertContains(resp, "openAiModal")
 
 
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY, MEDIA_ROOT=tempfile.mkdtemp())
+class AIReferencesViewTests(TestCase):
+    """Issue #64 — extrait d'email des références via l'IA."""
+
+    def setUp(self):
+        self.cv = CV.objects.create(label="CV", file=SimpleUploadedFile("cv.txt", b"x"))
+        config = AIConfig.load()
+        config.gemini_api_key = "k"
+        config.save()
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("Comme demandé, voici mes références.", 5, 8, 13),
+    )
+    def test_returns_excerpt(self, gen):
+        Reference.objects.create(
+            cv=self.cv, nom="Durand", prenom="Marie", telephone="0102030405"
+        )
+        resp = self.client.post(reverse("tracking:ai_references", args=[self.cv.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("références", resp.json()["text"])
+        # Le prompt envoyé mentionne la référence et ses coordonnées.
+        prompt = gen.call_args.args[0]
+        self.assertIn("Durand", prompt)
+        self.assertIn("0102030405", prompt)
+
+    def test_sans_reference_erreur_400(self):
+        resp = self.client.post(reverse("tracking:ai_references", args=[self.cv.pk]))
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("référence", resp.json()["error"])
+
+    def test_unknown_cv_404(self):
+        resp = self.client.post(reverse("tracking:ai_references", args=[99999]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_refuse_get(self):
+        resp = self.client.get(reverse("tracking:ai_references", args=[self.cv.pk]))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_detail_page_shows_button(self):
+        Reference.objects.create(cv=self.cv, nom="Durand")
+        resp = self.client.get(reverse("tracking:cv_detail", args=[self.cv.pk]))
+        self.assertContains(resp, "Extrait pour email (IA)")
+        self.assertContains(resp, reverse("tracking:ai_references", args=[self.cv.pk]))
+
+
 class GeminiClientTests(TestCase):
     """Issue #33 — client HTTP Gemini (parsing et erreurs), réseau simulé."""
 

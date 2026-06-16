@@ -367,7 +367,14 @@
 <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
         <h2 class="cv-section-title" style="margin:0;"><span class="ico">🤝</span> Références à fournir</h2>
-        <a class="btn secondary" href="{% url 'tracking:reference_create' cv.pk %}">＋ Ajouter une référence</a>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            {% if cv.references.all %}
+            <button type="button" class="btn secondary" id="js-ref-extract"
+                    title="Générer un extrait d'email transmettant ces références"
+                    {% if not ai_config.is_configured %}disabled{% endif %}>✨ Extrait pour email (IA)</button>
+            {% endif %}
+            <a class="btn secondary" href="{% url 'tracking:reference_create' cv.pk %}">＋ Ajouter une référence</a>
+        </div>
     </div>
     {% if cv.references.all %}
     <div class="cv-reflist" style="margin-top:0.9rem;">
@@ -397,4 +404,19 @@
     <p class="muted" style="margin:0.9rem 0 0;">Aucune référence enregistrée pour ce CV.</p>
     {% endif %}
 </div>
+
+<script>
+    // Extrait d'email des références via l'IA (issue #64) : modal partagé.
+    (function () {
+        var btn = document.getElementById("js-ref-extract");
+        if (!btn || !window.openAiModal) { return; }
+        btn.addEventListener("click", function () {
+            window.openAiModal({
+                title: "✨ Extrait de références",
+                url: "{% url 'tracking:ai_references' cv.pk %}",
+                loading: "Rédaction de l'extrait à transmettre…"
+            });
+        });
+    })();
+</script>
 {% endblock %}

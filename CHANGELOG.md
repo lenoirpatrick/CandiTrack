@@ -8,6 +8,10 @@ release du même nom.
 
 ## [Non publié] — 1.3.0
 
+- #64 — CV : bouton **« ✨ Extrait pour email (IA) »** dans la section Références.
+  Il génère, via l'IA, un court texte prêt à coller dans un email (« Comme
+  demandé, je vous joins les références… ») listant chaque référent et ses
+  coordonnées, affiché dans le modal IA partagé (copie en un clic).
 - #63 — La section **« Sites » est renommée « Contacts »** (navigation, titres,
   libellés et messages). Le nom d'un contact ouvre désormais une **fiche de
   détail** présentant son type, son URL et la **liste des opportunités

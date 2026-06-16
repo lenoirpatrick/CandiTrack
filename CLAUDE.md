@@ -97,9 +97,11 @@ emoji dans le libellé pour les menus).
   `<provider>_api_key/_model/_monthly_limit`, accès générique par getattr), le
   `provider` actif détermine `api_key`/`model`. `MODELS_BY_PROVIDER`, `DEFAULTS`
   et `PROVIDER_INFO` (tier gratuit + liens doc/clé) pilotent l'UI. Config via `/aide/` (page Options,
-  catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan) et
-  `api/candidatures/<pk>/relance/` (mail de relance) ; UI = modal partagé
-  `#ai-modal` dans `base.html` (spinner + rendu Markdown).
+  catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan),
+  `api/candidatures/<pk>/relance/` (mail de relance) et
+  `api/cv/<pk>/references/` (extrait d'email des références,
+  `coaching.references_email`, issue #64) ; UI = modal partagé `#ai-modal` dans
+  `base.html` (spinner + rendu Markdown), ouvert via `window.openAiModal`.
 - Analyse de CV (issue #44) : `coaching.analyze_cv(cv)` demande à l'IA un JSON
   structuré (profil, expériences, formations, compétences, langues, coordonnées/
   références — adresse, téléphone, email, permis —, loisirs, infos diverses),

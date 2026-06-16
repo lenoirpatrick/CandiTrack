@@ -53,6 +53,13 @@
         <h2 style="margin-top:0;">Répartition par type de site</h2>
         {% include "tracking/_donut.html" with rows=by_type total=type_total aria="Répartition des candidatures par type de site" %}
     </div>
+
+    {% if by_motif %}
+    <div class="card">
+        <h2 style="margin-top:0;">Répartition par motif de clôture</h2>
+        {% include "tracking/_donut.html" with rows=by_motif total=motif_total aria="Répartition des candidatures clôturées par motif" %}
+    </div>
+    {% endif %}
 </div>
 </div>
 

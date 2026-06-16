@@ -9,7 +9,7 @@ counts in the interview funnel).
 from django.db.models import Count
 from django.db.models.functions import TruncMonth
 
-from .models import Canal, Candidature, JobSite, Statut, StatusHistory
+from .models import Canal, Candidature, JobSite, MotifCloture, Statut, StatusHistory
 
 # A reply from the company = it reacted to the application in any way.
 RESPONSE_STATUSES = {
@@ -150,6 +150,24 @@ def compute_stats():
     ]
     type_total = _donut_segments(by_type)
 
+    # Breakdown by closing reason (motif de clôture) : uniquement les
+    # candidatures clôturées (motif renseigné), proportions en donut.
+    motif_labels = dict(MotifCloture.choices)
+    by_motif = [
+        {
+            "label": motif_labels.get(row["motif_cloture"], row["motif_cloture"]),
+            "count": row["count"],
+        }
+        for row in (
+            qs.exclude(motif_cloture="")
+            .values("motif_cloture")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        if row["count"]
+    ]
+    motif_total = _donut_segments(by_motif)
+
     # Breakdown by sending channel / mode de canal entrant (issue #56), ordonné
     # selon l'ordre canonique des canaux.
     canal_counts = {
@@ -179,10 +197,12 @@ def compute_stats():
         "by_status": by_status,
         "by_source": by_source,
         "by_type": by_type,
+        "by_motif": by_motif,
         "by_canal": by_canal,
         "by_month": by_month,
         "source_total": source_total,
         "type_total": type_total,
+        "motif_total": motif_total,
         "max_status": max((r["count"] for r in by_status), default=0),
         "max_source": max((r["count"] for r in by_source), default=0),
         "max_canal": max((r["count"] for r in by_canal), default=0),

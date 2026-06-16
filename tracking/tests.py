@@ -312,6 +312,34 @@ class CanalBreakdownTests(TestCase):
         self.assertContains(resp, "Répartition par canal d'envoi")
 
 
+class MotifClotureBreakdownTests(TestCase):
+    """Graphique de répartition par motif de clôture."""
+
+    def test_breakdown_excludes_open_candidatures(self):
+        Candidature.objects.create(poste="open")  # sans motif -> exclue
+        Candidature.objects.create(
+            poste="a", motif_cloture=MotifCloture.POSTE_POURVU
+        )
+        Candidature.objects.create(
+            poste="b", motif_cloture=MotifCloture.POSTE_POURVU
+        )
+        Candidature.objects.create(
+            poste="c", motif_cloture=MotifCloture.REFUS_SALAIRE
+        )
+        ctx = compute_stats()
+        counts = {r["label"]: r["count"] for r in ctx["by_motif"]}
+        self.assertEqual(ctx["motif_total"], 3)
+        self.assertEqual(counts.get(MotifCloture.POSTE_POURVU.label), 2)
+        self.assertEqual(counts.get(MotifCloture.REFUS_SALAIRE.label), 1)
+
+    def test_stats_page_shows_motif_chart(self):
+        Candidature.objects.create(
+            poste="a", motif_cloture=MotifCloture.POSTE_POURVU
+        )
+        resp = self.client.get(reverse("tracking:stats"))
+        self.assertContains(resp, "Répartition par motif de clôture")
+
+
 class CandidatureLibelleMergeTests(TestCase):
     """Issue #57 — fusion : plus de champ libellé, titre = entreprise — poste."""
 

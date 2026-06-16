@@ -329,6 +329,27 @@ class CandidatureLibelleMergeTests(TestCase):
         self.assertNotIn("libelle", CandidatureForm().fields)
 
 
+class CandidatureEditPrefillTests(TestCase):
+    """Issue #3 — les champs sont bien repris à l'édition (dates au format ISO)."""
+
+    def test_dates_rendered_in_iso_for_date_input(self):
+        import datetime
+        c = Candidature(
+            entreprise="ACME", poste="Dev",
+            date_envoi=datetime.date(2026, 6, 1),
+            date_entretien_1=datetime.date(2026, 6, 10),
+        )
+        form = CandidatureForm(instance=c)
+        # <input type="date"> n'affiche la valeur que si elle est en AAAA-MM-JJ.
+        self.assertIn('value="2026-06-01"', str(form["date_envoi"]))
+        self.assertIn('value="2026-06-10"', str(form["date_entretien_1"]))
+
+    def test_localisation_prefilled(self):
+        c = Candidature(entreprise="ACME", poste="Dev", localisation="Lyon")
+        form = CandidatureForm(instance=c)
+        self.assertIn('value="Lyon"', str(form["localisation"]))
+
+
 class CandidatureCreatedAtTests(TestCase):
     """Issue #58 — la date de création est visible sur le descriptif."""
 

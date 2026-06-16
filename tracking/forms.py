@@ -37,10 +37,13 @@ class CandidatureForm(forms.ModelForm):
             "localisation": forms.TextInput(
                 attrs={"placeholder": "Ville ou zone géographique de l'offre"}
             ),
-            "date_envoi": forms.DateInput(attrs={"type": "date"}),
-            "date_entretien_1": forms.DateInput(attrs={"type": "date"}),
-            "date_entretien_2": forms.DateInput(attrs={"type": "date"}),
-            "date_entretien_3": forms.DateInput(attrs={"type": "date"}),
+            # format ISO obligatoire : <input type="date"> n'affiche une valeur
+            # existante que si elle est au format AAAA-MM-JJ (sinon le champ
+            # paraît vide à l'édition, issue #3).
+            "date_envoi": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "date_entretien_1": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "date_entretien_2": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "date_entretien_3": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
 

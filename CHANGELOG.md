@@ -11,10 +11,11 @@ release du même nom.
 - #61 — CV : **édition manuelle de l'analyse, section par section**. Chaque
   section de la fiche (profil, expériences, formations, coordonnées,
   compétences, langues, loisirs, infos) porte son propre bouton « ✏️ » qui
-  ouvre un éditeur dédié ; on peut corriger, compléter et **ajouter/supprimer**
-  expériences, formations et items de liste sans toucher au reste. Les sections
-  vides sont affichées et restent éditables. L'analyse IA distingue désormais
-  les puces « - » des descriptions et les restitue en **retours à la ligne**.
+  ouvre un éditeur dédié ; on peut corriger, compléter, **ajouter/supprimer** et
+  **réagencer** (boutons ⬆️/⬇️) expériences, formations et items de liste sans
+  toucher au reste. Les sections vides sont affichées et restent éditables.
+  L'analyse IA distingue désormais les puces « - » des descriptions et les
+  restitue en **retours à la ligne**.
 - #62 — CV : **références à fournir**. Depuis la fiche d'un CV (en pratique le CV
   par défaut), on peut enregistrer des référents (nom, prénom, téléphone, email,
   LinkedIn), chacun pouvant être **rattaché à une expérience professionnelle** du

@@ -7,11 +7,11 @@
                  gap:1rem; margin-bottom:1rem; flex-wrap:wrap; }
     .edit-head h1 { margin:0; font-size:1.3rem; }
     .edit-item { border:1px solid var(--border); border-radius:var(--radius-sm);
-                 padding:0.8rem 0.9rem; margin-bottom:0.8rem; position:relative;
+                 padding:0.8rem 0.9rem; margin-bottom:0.8rem;
                  background:var(--input-bg); }
-    .edit-item .item-del { position:absolute; top:0.5rem; right:0.5rem; }
+    .item-acts { display:flex; justify-content:flex-end; gap:0.3rem; margin-bottom:0.4rem; }
     .edit-list { display:flex; flex-direction:column; gap:0.5rem; }
-    .edit-chip-row { display:flex; gap:0.4rem; align-items:center; }
+    .edit-chip-row { display:flex; gap:0.3rem; align-items:center; }
     .edit-chip-row input { flex:1; }
     .add-btn { margin-top:0.2rem; }
 </style>
@@ -72,6 +72,18 @@
         if (val) { n.value = val; }
         return n;
     }
+    function actionBtn(label, title, cls) {
+        var b = el("button", { type: "button", "class": "icon-btn " + (cls || ""), title: title });
+        b.textContent = label;
+        return b;
+    }
+    // Déplace un élément parmi ses frères (réagencement, ordre = ordre DOM).
+    function move(node, dir) {
+        var sib = dir < 0 ? node.previousElementSibling : node.nextElementSibling;
+        if (!sib) { return; }
+        if (dir < 0) { node.parentNode.insertBefore(node, sib); }
+        else { node.parentNode.insertBefore(sib, node); }
+    }
 
     // --- Constructeurs par type de section -------------------------------
     function buildProfile() {
@@ -95,13 +107,21 @@
         editor.appendChild(fieldBlock("Contenu", area));
     }
     function itemFields() { return KIND === "experiences" ? EXP_FIELDS : FORM_FIELDS; }
+    function actionsRow(node) {
+        var acts = el("div", { "class": "item-acts" });
+        var up = actionBtn("⬆️", "Monter");
+        var down = actionBtn("⬇️", "Descendre");
+        var del = actionBtn("🗑️", "Supprimer", "danger");
+        up.addEventListener("click", function () { move(node, -1); });
+        down.addEventListener("click", function () { move(node, 1); });
+        del.addEventListener("click", function () { node.remove(); });
+        acts.appendChild(up); acts.appendChild(down); acts.appendChild(del);
+        return acts;
+    }
     function addItem(values) {
         values = values || {};
         var wrap = el("div", { "class": "edit-item" });
-        var del = el("button", { type: "button", "class": "icon-btn danger item-del", title: "Supprimer" });
-        del.textContent = "🗑️";
-        del.addEventListener("click", function () { wrap.remove(); });
-        wrap.appendChild(del);
+        wrap.appendChild(actionsRow(wrap));
         itemFields().forEach(function (f) {
             var input = makeInput(f[2], values[f[0]]);
             input.setAttribute("data-key", f[0]);
@@ -121,10 +141,13 @@
     function addChip(v) {
         var row = el("div", { "class": "edit-chip-row" });
         var input = makeInput("input", v); input.setAttribute("data-chip", "1");
-        var del = el("button", { type: "button", "class": "icon-btn danger", title: "Supprimer" });
-        del.textContent = "🗑️";
+        var up = actionBtn("⬆️", "Monter");
+        var down = actionBtn("⬇️", "Descendre");
+        var del = actionBtn("🗑️", "Supprimer", "danger");
+        up.addEventListener("click", function () { move(row, -1); });
+        down.addEventListener("click", function () { move(row, 1); });
         del.addEventListener("click", function () { row.remove(); });
-        row.appendChild(input); row.appendChild(del);
+        row.appendChild(input); row.appendChild(up); row.appendChild(down); row.appendChild(del);
         document.getElementById("chips-list").appendChild(row);
     }
     function buildChips() {

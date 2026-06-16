@@ -31,7 +31,7 @@
     <table>
         <thead>
             <tr>
-                {% include "tracking/_sort_th.html" with key="candidature" label="Candidature" %}
+                <th>Candidature</th>
                 {% include "tracking/_sort_th.html" with key="entreprise" label="Entreprise" %}
                 {% include "tracking/_sort_th.html" with key="poste" label="Poste" %}
                 <th>Site source</th>
@@ -91,6 +91,7 @@
         var form = body.querySelector("form");
         if (!form) return;
         if (window.initSourcePicker) window.initSourcePicker(body);
+        if (window.enhanceDateInputs) window.enhanceDateInputs(body);
         body.querySelectorAll("[data-close]").forEach(function (el) {
             el.addEventListener("click", function (e) { e.preventDefault(); modal.close(); });
         });

@@ -24,12 +24,23 @@ class JobSite(models.Model):
     """A job board where applications are submitted (issue #366).
 
     Les identifiants/mots de passe ne sont plus stockés (issue #43) : on ne
-    conserve que l'identité du site (nom, URL, logo) et son état.
+    conserve que l'identité du site (nom, URL, logo), son type et son état.
     """
+
+    class Type(models.TextChoices):
+        """Nature du site / de l'employeur (issue #55)."""
+
+        GENERALISTE = "generaliste", "Généraliste"
+        ESN = "esn", "ESN"
+        DIRECT = "direct", "Direct"
 
     name = models.CharField("nom", max_length=100, unique=True)
     url = models.URLField("URL", blank=True)
     logo_url = models.URLField("URL du logo", blank=True)
+    # Type du site/employeur (issue #55) : les sites par défaut sont généralistes.
+    type = models.CharField(
+        "type", max_length=20, choices=Type.choices, default=Type.GENERALISTE
+    )
     is_builtin = models.BooleanField("site par défaut", default=False)
     # Un site désactivé reste en base mais n'est plus proposé pour de nouvelles
     # candidatures (issue #22) — utile pour masquer un site par défaut non voulu.
@@ -84,7 +95,6 @@ class MotifCloture(models.TextChoices):
 class Candidature(models.Model):
     """A single job application and its current state (issue #365)."""
 
-    libelle = models.CharField(LIBELLE_VERBOSE, max_length=200, blank=True)
     entreprise = models.CharField("entreprise", max_length=200, blank=True)
     poste = models.CharField("poste", max_length=200)
     # Source = site d'emploi d'où provient la candidature (issues #52) : unique
@@ -125,7 +135,7 @@ class Candidature(models.Model):
     )
 
     # Étapes d'avancement (issue #3) — la barre de progression en découle.
-    envoyee = models.BooleanField("candidature envoyée", default=False)
+    envoyee = models.BooleanField("candidature envoyée/reçue", default=False)
     traitee = models.BooleanField("candidature traitée", default=False)
     entretien_programme = models.BooleanField("entretien programmé", default=False)
     date_entretien_1 = models.DateField("date entretien 1", null=True, blank=True)
@@ -167,7 +177,10 @@ class Candidature(models.Model):
         ordering = ["-date_envoi", "-created_at"]
 
     def __str__(self):
-        return self.libelle or f"{self.entreprise} — {self.poste}"
+        # Libellé fusionné avec « entreprise — poste » (issue #57) : plus de champ
+        # dédié, le titre se compose des éléments renseignés.
+        parts = [p for p in (self.entreprise, self.poste) if p]
+        return " — ".join(parts) or "Candidature"
 
     def get_absolute_url(self):
         return reverse("tracking:candidature_detail", args=[self.pk])

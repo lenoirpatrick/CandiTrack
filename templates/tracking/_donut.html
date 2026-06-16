@@ -1,0 +1,27 @@
+{% comment %}
+Donut circulaire réutilisable (issues #15, #55). Attend : rows (avec color,
+dash, gap, offset, percent, count, label), total et aria (libellé accessible).
+La légende et les segments sont scopés au conteneur .donut-wrap.
+{% endcomment %}
+{% load l10n %}
+<div class="donut-wrap">
+    <svg viewBox="0 0 42 42" class="donut" role="img" aria-label="{{ aria }}">
+        <circle cx="21" cy="21" r="15.91549431" fill="transparent" stroke="var(--track)" stroke-width="5"></circle>
+        {% for row in rows %}
+        <circle class="js-seg" data-index="{{ forloop.counter0 }}" cx="21" cy="21" r="15.91549431" fill="transparent"
+                stroke="{{ row.color }}" stroke-width="5" pathLength="100"
+                stroke-dasharray="0 100" data-dash="{{ row.dash|unlocalize }}" data-gap="{{ row.gap|unlocalize }}"
+                stroke-dashoffset="{{ row.offset|unlocalize }}">
+            <title>{{ row.label }} : {{ row.count }} ({{ row.percent }} %)</title>
+        </circle>
+        {% endfor %}
+        <text x="21" y="21" class="donut-total" text-anchor="middle" dominant-baseline="central">{{ total }}</text>
+        <text x="21" y="26.5" class="donut-cap" text-anchor="middle">candidatures</text>
+    </svg>
+    <ul class="legend">
+        {% for row in rows %}
+        <li class="js-leg" data-index="{{ forloop.counter0 }}"><span class="swatch" style="background:{{ row.color }};"></span>
+            {{ row.label }} <span class="muted">— {{ row.count }} ({{ row.percent }} %)</span></li>
+        {% endfor %}
+    </ul>
+</div>

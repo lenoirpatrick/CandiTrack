@@ -151,6 +151,15 @@
         input:focus, select:focus, textarea:focus { outline:none; border-color:var(--accent);
                  box-shadow:0 0 0 3px var(--accent-soft); }
         input[type=checkbox] { width:auto; }
+        /* Champ date + bouton 📅 d'ouverture du calendrier (ajouté en JS). */
+        .date-field { display:flex; gap:0.4rem; align-items:stretch; }
+        .date-field input[type=date] { flex:1; min-width:0; }
+        /* On masque l'indicateur natif quand notre bouton est présent. */
+        input[type=date][data-picker]::-webkit-calendar-picker-indicator { display:none; }
+        .date-btn { flex:0 0 auto; width:auto; padding:0 0.7rem; border:1px solid var(--border);
+                 border-radius:var(--radius-sm); background:var(--card); color:var(--text);
+                 cursor:pointer; font-size:1rem; line-height:1; transition:background .15s, border-color .15s; }
+        .date-btn:hover { background:var(--chip-bg); border-color:var(--accent); }
         .messages { list-style:none; padding:0; }
         .messages li { background:var(--msg-bg); border:1px solid var(--msg-border); padding:0.6rem 0.9rem;
                  border-radius:var(--radius-sm); margin-bottom:0.5rem; }
@@ -388,6 +397,29 @@
         });
     };
     document.addEventListener("DOMContentLoaded", function () { window.initSourcePicker(document); });
+
+    // Bouton 📅 pour ouvrir le calendrier d'un champ date (le sélecteur natif
+    // est peu visible, surtout en thème sombre). Réutilisable après AJAX.
+    window.enhanceDateInputs = function (root) {
+        (root || document).querySelectorAll("input[type=date]:not([data-picker])").forEach(function (input) {
+            input.setAttribute("data-picker", "1");
+            var wrap = document.createElement("span");
+            wrap.className = "date-field";
+            input.parentNode.insertBefore(wrap, input);
+            wrap.appendChild(input);
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "date-btn";
+            btn.textContent = "📅";
+            btn.setAttribute("aria-label", "Sélectionner une date");
+            btn.addEventListener("click", function () {
+                if (typeof input.showPicker === "function") input.showPicker();
+                else input.focus();
+            });
+            wrap.appendChild(btn);
+        });
+    };
+    document.addEventListener("DOMContentLoaded", function () { window.enhanceDateInputs(document); });
 
     // Sidebar rétractable (issue #35) : état desktop persistant + tiroir mobile.
     (function () {

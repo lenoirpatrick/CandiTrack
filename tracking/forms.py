@@ -10,7 +10,6 @@ class CandidatureForm(forms.ModelForm):
     class Meta:
         model = Candidature
         fields = [
-            "libelle",
             "entreprise",
             "poste",
             "cv",
@@ -35,16 +34,16 @@ class CandidatureForm(forms.ModelForm):
             "notes",
         ]
         widgets = {
-            "libelle": forms.TextInput(
-                attrs={"placeholder": "Laisser vide : généré depuis entreprise et poste"}
-            ),
             "localisation": forms.TextInput(
                 attrs={"placeholder": "Ville ou zone géographique de l'offre"}
             ),
-            "date_envoi": forms.DateInput(attrs={"type": "date"}),
-            "date_entretien_1": forms.DateInput(attrs={"type": "date"}),
-            "date_entretien_2": forms.DateInput(attrs={"type": "date"}),
-            "date_entretien_3": forms.DateInput(attrs={"type": "date"}),
+            # format ISO obligatoire : <input type="date"> n'affiche une valeur
+            # existante que si elle est au format AAAA-MM-JJ (sinon le champ
+            # paraît vide à l'édition, issue #3).
+            "date_envoi": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "date_entretien_1": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "date_entretien_2": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "date_entretien_3": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
 
@@ -66,17 +65,6 @@ class CandidatureForm(forms.ModelForm):
             source_qs = (source_qs | JobSite.objects.filter(pk=current_source)).distinct()
         self.fields["source"].queryset = source_qs
 
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        # Auto-remplir le libellé si laissé vide (issue #3).
-        # L'entreprise est facultative ; on compose avec ce qui est disponible.
-        if not instance.libelle:
-            parts = [p for p in (instance.entreprise, instance.poste) if p]
-            instance.libelle = " — ".join(parts) or "Candidature"
-        if commit:
-            instance.save()
-        return instance
-
 
 class JobSiteForm(forms.ModelForm):
     """Manual create/edit form for a job site (issue #366).
@@ -87,13 +75,21 @@ class JobSiteForm(forms.ModelForm):
 
     class Meta:
         model = JobSite
-        fields = ["name", "url"]
+        fields = ["name", "url", "type"]
         widgets = {
             "url": forms.URLInput(attrs={"placeholder": "https://www.exemple.fr/"}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Type facultatif au formulaire : à défaut, le site est généraliste
+        # (issue #55), comme les sites par défaut.
+        self.fields["type"].required = False
+
     def save(self, commit=True):
         instance = super().save(commit=False)
+        if not instance.type:
+            instance.type = JobSite.Type.GENERALISTE
 
         # Logo dérivé automatiquement du favicon du site (issues #27, #50). On le
         # (re)calcule à la création, quand il manque, ou si l'URL a changé.

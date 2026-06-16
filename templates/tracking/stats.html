@@ -15,39 +15,45 @@
 </div>
 
 <div class="chart-grid">
-<div class="card">
-    <h2 style="margin-top:0;">Répartition par statut</h2>
-    {% for row in by_status %}
-    <div class="bar-row">
-        <span class="bar-label" title="{{ row.label }}">{{ row.label }}</span>
-        <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_status 100 %}"></span></span>
-        <span class="bar-count">{{ row.count }}</span>
+{# Colonne de gauche : les deux graphiques en barres, l'un sous l'autre. #}
+<div class="chart-col">
+    <div class="card">
+        <h2 style="margin-top:0;">Répartition par statut</h2>
+        {% for row in by_status %}
+        <div class="bar-row">
+            <span class="bar-label" title="{{ row.label }}">{{ row.label }}</span>
+            <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_status 100 %}"></span></span>
+            <span class="bar-count">{{ row.count }}</span>
+        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
-</div>
 
-<div class="card">
-    <h2 style="margin-top:0;">Répartition par source</h2>
-    {% include "tracking/_donut.html" with rows=by_source total=source_total aria="Répartition des candidatures par source" %}
-</div>
-
-<div class="card">
-    <h2 style="margin-top:0;">Répartition par type de site</h2>
-    {% include "tracking/_donut.html" with rows=by_type total=type_total aria="Répartition des candidatures par type de site" %}
-</div>
-
-{% if by_canal %}
-<div class="card">
-    <h2 style="margin-top:0;">Répartition par canal d'envoi</h2>
-    {% for row in by_canal %}
-    <div class="bar-row">
-        <span class="bar-label" title="{{ row.label }}">{{ row.label }}</span>
-        <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_canal 100 %}"></span></span>
-        <span class="bar-count">{{ row.count }}</span>
+    {% if by_canal %}
+    <div class="card">
+        <h2 style="margin-top:0;">Répartition par canal d'envoi</h2>
+        {% for row in by_canal %}
+        <div class="bar-row">
+            <span class="bar-label" title="{{ row.label }}">{{ row.label }}</span>
+            <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_canal 100 %}"></span></span>
+            <span class="bar-count">{{ row.count }}</span>
+        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
+    {% endif %}
 </div>
-{% endif %}
+
+{# Colonne de droite : les deux donuts, l'un sous l'autre. #}
+<div class="chart-col">
+    <div class="card">
+        <h2 style="margin-top:0;">Répartition par source</h2>
+        {% include "tracking/_donut.html" with rows=by_source total=source_total aria="Répartition des candidatures par source" %}
+    </div>
+
+    <div class="card">
+        <h2 style="margin-top:0;">Répartition par type de site</h2>
+        {% include "tracking/_donut.html" with rows=by_type total=type_total aria="Répartition des candidatures par type de site" %}
+    </div>
+</div>
 </div>
 
 {% if by_month %}
@@ -93,6 +99,9 @@
        sous 720px. « Candidatures par mois » reste pleine largeur, hors grille. */
     .chart-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr));
                   gap:1rem; align-items:start; }
+    /* Chaque colonne empile ses cartes verticalement (statut au-dessus du canal,
+       source au-dessus du type). */
+    .chart-col { display:flex; flex-direction:column; gap:1rem; }
     .bar-row { display:flex; align-items:center; gap:0.75rem; margin:0.4rem 0; max-width:620px; }
     /* Libellé tronqué (avec tooltip) plutôt qu'un retour à la ligne disgracieux. */
     .bar-label { flex:0 0 8rem; font-size:0.9rem; white-space:nowrap; overflow:hidden;

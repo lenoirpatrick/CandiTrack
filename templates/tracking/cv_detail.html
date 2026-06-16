@@ -104,7 +104,8 @@
 <div class="cv-head">
     <h1>{{ cv.label }}{% if not cv.actif %} <span class="badge">archivé</span>{% endif %}</h1>
     <div class="cv-actions">
-        <form method="post" action="{% url 'tracking:cv_analyze' cv.pk %}" style="display:inline;">
+        <form method="post" action="{% url 'tracking:cv_analyze' cv.pk %}" style="display:inline;"
+              {% if cv.is_analyzed %}onsubmit="return confirm('La ré-analyse par l’IA remplacera l’analyse actuelle : toutes vos modifications manuelles seront perdues. Continuer ?');"{% endif %}>
             {% csrf_token %}
             <button type="submit" class="btn"{% if not ai_config.is_configured %} disabled{% endif %}>
                 {% if cv.is_analyzed %}🔄 Ré-analyser{% else %}✨ Analyser avec l'IA{% endif %}

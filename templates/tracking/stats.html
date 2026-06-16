@@ -27,28 +27,26 @@
 
 <div class="card">
     <h2 style="margin-top:0;">Répartition par source</h2>
-    <div class="donut-wrap">
-        <svg viewBox="0 0 42 42" class="donut" role="img" aria-label="Répartition des candidatures par source">
-            <circle cx="21" cy="21" r="15.91549431" fill="transparent" stroke="var(--track)" stroke-width="5"></circle>
-            {% for row in by_source %}
-            <circle class="js-seg" data-index="{{ forloop.counter0 }}" cx="21" cy="21" r="15.91549431" fill="transparent"
-                    stroke="{{ row.color }}" stroke-width="5" pathLength="100"
-                    stroke-dasharray="0 100" data-dash="{{ row.dash|unlocalize }}" data-gap="{{ row.gap|unlocalize }}"
-                    stroke-dashoffset="{{ row.offset|unlocalize }}">
-                <title>{{ row.label }} : {{ row.count }} ({{ row.percent }} %)</title>
-            </circle>
-            {% endfor %}
-            <text x="21" y="21" class="donut-total" text-anchor="middle" dominant-baseline="central">{{ source_total }}</text>
-            <text x="21" y="26.5" class="donut-cap" text-anchor="middle">candidatures</text>
-        </svg>
-        <ul class="legend">
-            {% for row in by_source %}
-            <li class="js-leg" data-index="{{ forloop.counter0 }}"><span class="swatch" style="background:{{ row.color }};"></span>
-                {{ row.label }} <span class="muted">— {{ row.count }} ({{ row.percent }} %)</span></li>
-            {% endfor %}
-        </ul>
-    </div>
+    {% include "tracking/_donut.html" with rows=by_source total=source_total aria="Répartition des candidatures par source" %}
 </div>
+
+<div class="card">
+    <h2 style="margin-top:0;">Répartition par type de site</h2>
+    {% include "tracking/_donut.html" with rows=by_type total=type_total aria="Répartition des candidatures par type de site" %}
+</div>
+
+{% if by_canal %}
+<div class="card">
+    <h2 style="margin-top:0;">Répartition par canal d'envoi</h2>
+    {% for row in by_canal %}
+    <div class="bar-row">
+        <span class="bar-label">{{ row.label }}</span>
+        <span class="bar-track"><span class="bar-fill js-bar" style="width:0;" data-width="{% widthratio row.count max_canal 100 %}"></span></span>
+        <span class="bar-count">{{ row.count }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 
 {% if by_month %}
 <div class="card">
@@ -119,18 +117,21 @@
         });
     }
     // Survol interactif : la légende met en valeur le segment correspondant.
+    // Scopé à chaque .donut-wrap pour gérer plusieurs donuts (issues #15, #55).
     function linkLegend() {
-        var segs = document.querySelectorAll(".js-seg");
-        document.querySelectorAll(".js-leg").forEach(function (li) {
-            var idx = li.dataset.index;
-            li.addEventListener("mouseenter", function () {
-                segs.forEach(function (s) {
-                    if (s.dataset.index === idx) s.classList.add("hl");
-                    else s.classList.add("dim");
+        document.querySelectorAll(".donut-wrap").forEach(function (wrap) {
+            var segs = wrap.querySelectorAll(".js-seg");
+            wrap.querySelectorAll(".js-leg").forEach(function (li) {
+                var idx = li.dataset.index;
+                li.addEventListener("mouseenter", function () {
+                    segs.forEach(function (s) {
+                        if (s.dataset.index === idx) s.classList.add("hl");
+                        else s.classList.add("dim");
+                    });
                 });
-            });
-            li.addEventListener("mouseleave", function () {
-                segs.forEach(function (s) { s.classList.remove("hl", "dim"); });
+                li.addEventListener("mouseleave", function () {
+                    segs.forEach(function (s) { s.classList.remove("hl", "dim"); });
+                });
             });
         });
     }

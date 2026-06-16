@@ -40,6 +40,7 @@
             {% if candidature.cv %}<a href="{% url 'tracking:cv_detail' candidature.cv.pk %}">📄 {{ candidature.cv.label }}</a>{% else %}<span class="muted">—</span>{% endif %}
         </td></tr>
         <tr><th>Canal d'envoi</th><td>{{ candidature.get_canal_envoi_display }}</td></tr>
+        <tr><th>Date de création</th><td>{{ candidature.created_at|date:"d/m/Y H:i" }}</td></tr>
         <tr><th>Date d'envoi</th><td>{{ candidature.date_envoi|date:"d/m/Y"|default:"—" }}</td></tr>
         <tr><th>Dates d'entretien</th><td>
             {% if candidature.date_entretien_1 or candidature.date_entretien_2 or candidature.date_entretien_3 %}

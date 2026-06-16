@@ -41,7 +41,6 @@ SITE_LIST_ROUTE = "tracking:site_list"
 
 # Champs triables depuis la liste (issue #11) : clé d'URL -> champ modèle.
 CANDIDATURE_SORTS = {
-    "candidature": "libelle",
     "entreprise": "entreprise",
     "poste": "poste",
     "statut": "statut",
@@ -57,8 +56,7 @@ def candidature_list(request):
     query = (request.GET.get("q") or "").strip()
     if query:
         candidatures = candidatures.filter(
-            Q(libelle__icontains=query)
-            | Q(entreprise__icontains=query)
+            Q(entreprise__icontains=query)
             | Q(poste__icontains=query)
             | Q(notes__icontains=query)
         )
@@ -724,9 +722,7 @@ def api_candidature_create(request):
 
     # Le plugin enregistre une annonce : il ne renseigne ni l'intitulé du poste
     # ni la date d'envoi (laissés vides, à compléter ensuite dans CandiTrack).
-    libelle = entreprise or "Candidature"
     candidature = Candidature.objects.create(
-        libelle=libelle,
         entreprise=entreprise,
         poste="",
         url_offre=url,

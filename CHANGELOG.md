@@ -6,6 +6,18 @@ versionnage [SemVer](https://semver.org/lang/fr/). Chaque version correspond à
 un milestone GitHub ; la liste des issues traitées est aussi publiée dans la
 release du même nom.
 
+## [Non publié] — 1.2.2
+
+- #55 — Sites d'emploi : ajout d'un **type** (Généraliste / ESN / Direct) ; les
+  sites par défaut sont généralistes. Le type est éditable depuis le formulaire,
+  affiché dans la liste, et alimente un **graphique de répartition par type** sur
+  la page Statistiques.
+- #56 — Statistiques : nouveau graphique de **répartition par canal d'envoi**.
+- #57 — Candidatures : suppression du champ **Libellé**, qui faisait doublon avec
+  « entreprise — poste » (dont il était auto-généré). Le titre d'une candidature
+  se compose désormais directement de l'entreprise et du poste.
+- #58 — Candidatures : la **date de création** est affichée sur le descriptif.
+
 ## [Non publié] — 1.2.0
 
 - #44 — Import/analyse des CV : au chargement d'un CV, si une IA est configurée,

@@ -67,14 +67,14 @@ class CandidatureListTests(TestCase):
 
     def setUp(self):
         self.alpha = Candidature.objects.create(
-            libelle="Alpha", entreprise="Alpha", poste="Backend",
+            entreprise="Alpha", poste="Backend",
             envoyee=True, traitee=True,
         )
         self.beta = Candidature.objects.create(
-            libelle="Beta", entreprise="Beta", poste="Frontend",
+            entreprise="Beta", poste="Frontend",
         )
         self.zeta = Candidature.objects.create(
-            libelle="Zeta", entreprise="Zeta", poste="DevOps",
+            entreprise="Zeta", poste="DevOps",
             motif_cloture=MotifCloture.REFUS_CANDIDAT,
         )
 
@@ -117,7 +117,7 @@ class ToastTests(TestCase):
         resp = self.client.post(
             reverse("tracking:candidature_create"),
             {
-                "poste": "Dev", "libelle": "Test",
+                "poste": "Dev",
                 "statut": Statut.ENVOYEE, "canal_envoi": "email",
             },
             follow=True,
@@ -146,7 +146,7 @@ class ListSourceColumnTests(TestCase):
         site.logo_url = "https://x/li.png"
         site.save()
         Candidature.objects.create(
-            libelle="L", entreprise="ACME", poste="Dev", source=site
+            entreprise="ACME", poste="Dev", source=site
         )
         resp = self.client.get(reverse("tracking:candidature_list"))
         self.assertContains(resp, "Entreprise")
@@ -254,6 +254,94 @@ class SourceDonutTests(TestCase):
         self.assertContains(resp, "<svg")
         self.assertContains(resp, "donut")
         self.assertContains(resp, "stroke-dasharray")
+
+
+class SiteTypeTests(TestCase):
+    """Issue #55 — type des sites (Généraliste / ESN / Direct)."""
+
+    def test_default_type_generaliste(self):
+        site = JobSite.objects.create(name="Exemple", url="https://exemple.fr/")
+        self.assertEqual(site.type, JobSite.Type.GENERALISTE)
+
+    def test_form_defaults_to_generaliste_when_omitted(self):
+        form = JobSiteForm(data={"name": "Exemple", "url": "https://exemple.fr/"})
+        self.assertTrue(form.is_valid(), form.errors)
+        site = form.save()
+        self.assertEqual(site.type, JobSite.Type.GENERALISTE)
+
+    def test_form_accepts_chosen_type(self):
+        form = JobSiteForm(
+            data={"name": "Acme", "url": "https://acme.fr/", "type": "esn"}
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.save().type, JobSite.Type.ESN)
+
+    def test_type_shown_in_site_list(self):
+        JobSite.objects.create(name="Acme", type=JobSite.Type.ESN)
+        resp = self.client.get(reverse("tracking:site_list"))
+        self.assertContains(resp, "ESN")
+
+    def test_stats_breakdown_by_type(self):
+        esn = JobSite.objects.create(name="Acme", type=JobSite.Type.ESN)
+        direct = JobSite.objects.create(name="Globex", type=JobSite.Type.DIRECT)
+        Candidature.objects.create(poste="a", source=esn)
+        Candidature.objects.create(poste="b", source=esn)
+        Candidature.objects.create(poste="c", source=direct)
+        ctx = compute_stats()
+        labels = {r["label"]: r["count"] for r in ctx["by_type"]}
+        self.assertEqual(labels.get("ESN"), 2)
+        self.assertEqual(labels.get("Direct"), 1)
+        self.assertEqual(ctx["type_total"], 3)
+
+
+class CanalBreakdownTests(TestCase):
+    """Issue #56 — graphique de répartition par canal d'envoi."""
+
+    def test_breakdown_by_canal(self):
+        Candidature.objects.create(poste="a", canal_envoi=Canal.EMAIL)
+        Candidature.objects.create(poste="b", canal_envoi=Canal.EMAIL)
+        Candidature.objects.create(poste="c", canal_envoi=Canal.COOPTATION)
+        ctx = compute_stats()
+        counts = {r["label"]: r["count"] for r in ctx["by_canal"]}
+        self.assertEqual(counts.get(Canal.EMAIL.label), 2)
+        self.assertEqual(counts.get(Canal.COOPTATION.label), 1)
+
+    def test_stats_page_shows_canal_chart(self):
+        Candidature.objects.create(poste="a", canal_envoi=Canal.EMAIL)
+        resp = self.client.get(reverse("tracking:stats"))
+        self.assertContains(resp, "Répartition par canal d'envoi")
+
+
+class CandidatureLibelleMergeTests(TestCase):
+    """Issue #57 — fusion : plus de champ libellé, titre = entreprise — poste."""
+
+    def test_no_libelle_field_on_model(self):
+        self.assertFalse(hasattr(Candidature(), "libelle"))
+
+    def test_str_composes_entreprise_poste(self):
+        cand = Candidature.objects.create(entreprise="ACME", poste="Dev")
+        self.assertEqual(str(cand), "ACME — Dev")
+
+    def test_str_falls_back_when_empty(self):
+        self.assertEqual(str(Candidature.objects.create()), "Candidature")
+
+    def test_form_has_no_libelle_field(self):
+        self.assertNotIn("libelle", CandidatureForm().fields)
+
+
+class CandidatureCreatedAtTests(TestCase):
+    """Issue #58 — la date de création est visible sur le descriptif."""
+
+    def test_creation_date_shown_on_detail(self):
+        cand = Candidature.objects.create(poste="Dev")
+        resp = self.client.get(
+            reverse("tracking:candidature_detail", args=[cand.pk])
+        )
+        self.assertContains(resp, "Date de création")
+        from django.utils import timezone
+        self.assertContains(
+            resp, timezone.localtime(cand.created_at).strftime("%d/%m/%Y")
+        )
 
 
 class CVUploadLimitTests(TestCase):
@@ -1447,7 +1535,7 @@ class CVCandidatureLinkTests(TestCase):
 
     def test_detail_cv_affiche_les_candidatures(self):
         cv = self._make_cv()
-        Candidature.objects.create(libelle="ACME — Dev", poste="Dev", cv=cv)
+        Candidature.objects.create(entreprise="ACME", poste="Dev", cv=cv)
         resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
         self.assertContains(resp, "Candidatures liées")
         self.assertContains(resp, "ACME — Dev")
@@ -1584,23 +1672,23 @@ class CandidatureArchiveListTests(TestCase):
     """Issue #52 — les candidatures à 100 % sont séparées dans une vue archivée."""
 
     def setUp(self):
-        self.active = Candidature.objects.create(poste="Active", libelle="Active")
+        self.active = Candidature.objects.create(poste="Active")
         self.cloturee = Candidature.objects.create(
-            poste="Close", libelle="Close", motif_cloture=MotifCloture.POSTE_POURVU
+            poste="Close", motif_cloture=MotifCloture.POSTE_POURVU
         )
         self.acceptee = Candidature.objects.create(
-            poste="Win", libelle="Win", acceptation=True
+            poste="Win", acceptation=True
         )
 
     def test_liste_active_exclut_les_100pct(self):
         resp = self.client.get(reverse("tracking:candidature_list"))
-        libelles = [c.libelle for c in resp.context["candidatures"]]
+        libelles = [str(c) for c in resp.context["candidatures"]]
         self.assertEqual(libelles, ["Active"])
         self.assertEqual(resp.context["archived_count"], 2)
 
     def test_vue_archivee_montre_les_100pct(self):
         resp = self.client.get(reverse("tracking:candidature_list"), {"archivees": "1"})
-        libelles = sorted(c.libelle for c in resp.context["candidatures"])
+        libelles = sorted(str(c) for c in resp.context["candidatures"])
         self.assertEqual(libelles, ["Close", "Win"])
         self.assertNotIn("Active", libelles)
 

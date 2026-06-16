@@ -51,13 +51,17 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 ## Modèles (`tracking/models.py`)
 
 `JobSite` (nom, URL, `is_builtin`, `logo_url` — plus d'identifiants depuis
-l'issue #43 ; `logo_url` n'est plus saisi mais déduit du favicon, issue #50),
+l'issue #43 ; `logo_url` n'est plus saisi mais déduit du favicon, issue #50 ;
+`type` = `JobSite.Type` Généraliste/ESN/Direct, défaut Généraliste pour les
+sites par défaut, issue #55),
 `Candidature` (cœur
 du suivi, étapes de progression + `motif_cloture` = clôture ; `cv` = CV joint,
 issue #49 ; `localisation` = zone géographique de l'offre, issue #52 ; `source`
 = FK vers le `JobSite` d'origine — remplace l'ancienne énumération figée **et**
 l'ancien champ `site` (fusionnés), pour proposer tous les sites actifs avec
-favicon, issue #52),
+favicon, issue #52 ; plus de champ `libelle` — le titre se compose de
+`entreprise — poste` via `__str__`, issue #57 ; `created_at` affiché sur la
+fiche, issue #58),
 `StatusHistory`,
 `Reminder`, `Interview`, `Contact`, `ApiToken`, `CV` (avec analyse IA des
 informations principales — champs `analysis`/`analyzed_at`/… , issue #44 ;

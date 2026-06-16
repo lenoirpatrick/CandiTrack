@@ -135,7 +135,7 @@ class Candidature(models.Model):
     )
 
     # Étapes d'avancement (issue #3) — la barre de progression en découle.
-    envoyee = models.BooleanField("candidature envoyée", default=False)
+    envoyee = models.BooleanField("candidature envoyée/reçue", default=False)
     traitee = models.BooleanField("candidature traitée", default=False)
     entretien_programme = models.BooleanField("entretien programmé", default=False)
     date_entretien_1 = models.DateField("date entretien 1", null=True, blank=True)

@@ -6,7 +6,7 @@ versionnage [SemVer](https://semver.org/lang/fr/). Chaque version correspond à
 un milestone GitHub ; la liste des issues traitées est aussi publiée dans la
 release du même nom.
 
-## [Non publié] — 1.3.0
+## [Non publié] — 1.2.3
 
 - #64 — CV : bouton **« ✨ Extrait pour email (IA) »** dans la section Références.
   Il génère, via l'IA, un court texte prêt à coller dans un email (« Comme

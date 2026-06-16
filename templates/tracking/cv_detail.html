@@ -407,9 +407,11 @@
 
 <script>
     // Extrait d'email des références via l'IA (issue #64) : modal partagé.
+    // openAiModal est défini plus bas dans base.html : on l'appelle dans le
+    // gestionnaire de clic (et non à l'attache) pour qu'il soit disponible.
     (function () {
         var btn = document.getElementById("js-ref-extract");
-        if (!btn || !window.openAiModal) { return; }
+        if (!btn) { return; }
         btn.addEventListener("click", function () {
             window.openAiModal({
                 title: "✨ Extrait de références",

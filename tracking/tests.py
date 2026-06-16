@@ -1801,32 +1801,48 @@ class CVEditTests(TestCase):
             label="CV", file=SimpleUploadedFile("cv.txt", b"x"), **kwargs
         )
 
-    def _post(self, cv, payload):
+    def _post(self, cv, section, value):
         return self.client.post(
-            reverse("tracking:cv_edit", args=[cv.pk]),
-            {"analysis": json.dumps(payload)},
+            reverse("tracking:cv_edit", args=[cv.pk, section]),
+            {"value": json.dumps(value)},
         )
 
-    def test_edition_enregistre_les_sections(self):
+    def test_edition_section_experiences(self):
         cv = self._make_cv()
-        payload = {
-            "titre_profil": "Dev",
-            "experiences": [{"poste": "Lead", "entreprise": "Acme"}],
-            "competences": ["Python", ""],
-        }
-        resp = self._post(cv, payload)
+        resp = self._post(cv, "experiences", [{"poste": "Lead", "entreprise": "Acme"}])
         self.assertRedirects(resp, reverse("tracking:cv_detail", args=[cv.pk]))
         cv.refresh_from_db()
         self.assertTrue(cv.is_analyzed)
-        self.assertEqual(cv.analysis["titre_profil"], "Dev")
         self.assertEqual(len(cv.analysis["experiences"]), 1)
-        # La normalisation retire les chaînes vides des listes.
+
+    def test_edition_section_profil(self):
+        cv = self._make_cv()
+        self._post(cv, "profil", {"titre_profil": "Dev", "localisation": "Lyon"})
+        cv.refresh_from_db()
+        self.assertEqual(cv.analysis["titre_profil"], "Dev")
+        self.assertEqual(cv.analysis["localisation"], "Lyon")
+
+    def test_edition_section_ne_touche_pas_les_autres(self):
+        cv = self._make_cv(
+            analysis={"titre_profil": "Dev", "competences": ["Python"]},
+            analyzed_at=timezone.now(),
+        )
+        # On ne modifie que les langues : le reste doit être préservé.
+        self._post(cv, "langues", ["Anglais"])
+        cv.refresh_from_db()
+        self.assertEqual(cv.analysis["langues"], ["Anglais"])
+        self.assertEqual(cv.analysis["titre_profil"], "Dev")
         self.assertEqual(cv.analysis["competences"], ["Python"])
+
+    def test_section_inconnue_404(self):
+        cv = self._make_cv()
+        resp = self.client.get(reverse("tracking:cv_edit", args=[cv.pk, "inexistante"]))
+        self.assertEqual(resp.status_code, 404)
 
     def test_edition_marque_le_cv_analyse(self):
         cv = self._make_cv()
         self.assertFalse(cv.is_analyzed)
-        self._post(cv, {"titre_profil": "X"})
+        self._post(cv, "profil", {"titre_profil": "X"})
         cv.refresh_from_db()
         self.assertIsNotNone(cv.analyzed_at)
 
@@ -1835,17 +1851,21 @@ class CVEditTests(TestCase):
             analysis={"titre_profil": "Ancien"}, analyzed_at=timezone.now()
         )
         resp = self.client.post(
-            reverse("tracking:cv_edit", args=[cv.pk]), {"analysis": "{pas du json"}
+            reverse("tracking:cv_edit", args=[cv.pk, "profil"]),
+            {"value": "{pas du json"},
         )
         self.assertEqual(resp.status_code, 200)
         cv.refresh_from_db()
         self.assertEqual(cv.analysis["titre_profil"], "Ancien")
 
-    def test_page_edition_accessible(self):
-        cv = self._make_cv()
-        resp = self.client.get(reverse("tracking:cv_edit", args=[cv.pk]))
+    def test_page_edition_prefille_la_valeur(self):
+        cv = self._make_cv(
+            analysis={"titre_profil": "Dev Python"}, analyzed_at=timezone.now()
+        )
+        resp = self.client.get(reverse("tracking:cv_edit", args=[cv.pk, "profil"]))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Modifier l'analyse")
+        # La valeur courante est sérialisée pour pré-remplir l'éditeur JS.
+        self.assertContains(resp, "Dev Python")
 
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())

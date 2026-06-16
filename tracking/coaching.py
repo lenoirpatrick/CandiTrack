@@ -230,6 +230,10 @@ CV_ANALYSIS_PROMPT = (
     "centre de formation : reprends-la si elle figure dans le CV, sinon déduis "
     "l'URL officielle la plus plausible quand tu la connais avec certitude "
     "(format https://…), et laisse vide en cas de doute.\n"
+    'Dans "description", lorsque le CV présente plusieurs missions ou tâches '
+    "introduites par des tirets « - » (ou des puces), restitue chacune sur sa "
+    "propre ligne en les séparant par des retours à la ligne (\\n), pour une "
+    "mise en page lisible.\n"
     "Utilise une liste vide ou une chaîne vide quand l'information est absente. "
     "N'invente pas d'expériences, de formations ni de coordonnées. "
     "Réponds en français."

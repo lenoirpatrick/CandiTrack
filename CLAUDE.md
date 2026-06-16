@@ -111,11 +111,17 @@ emoji dans le libellé pour les menus).
   formations en timeline et **cartographie les lieux** (`_cv_localisations`) avec
   **OpenStreetMap/Leaflet** (géocodage **Nominatim**, marqueur emoji par type,
   popup société) — aucune clé API requise.
-- Édition de l'analyse (issue #61) : vue `cv_edit` + template `cv_edit.html`
-  (formulaire dynamique JS qui sérialise les sections en JSON, sans formset). Le
-  POST repasse par `coaching.normalize_cv_analysis` (alias public de
-  `_normalize_cv_analysis`) pour garantir la même structure que l'IA ; un CV non
-  analysé devient « analysé » dès la première saisie manuelle.
+- Édition de l'analyse (issue #61) : **par section**. `CV_SECTIONS` (vues)
+  décrit chaque section éditable (label/icône/`kind`) ; la vue
+  `cv_edit(pk, section)` ne modifie que la section ciblée (`_apply_cv_section`)
+  puis re-normalise tout via `coaching.normalize_cv_analysis` (alias public de
+  `_normalize_cv_analysis`). Template `cv_edit.html` = éditeur JS dynamique
+  piloté par `kind` (profile/coord/text/chips/experiences/formations),
+  sérialisé dans un champ caché `value` (objet passé via `json_script`, **pas**
+  pré-`json.dumps` sinon double encodage). `cv_detail` affiche toutes les
+  sections (même vides) avec un bouton `.sec-edit` par section. Un CV non
+  analysé devient « analysé » dès la première saisie. Les descriptions
+  d'expériences sont rendues avec `linebreaksbr` (puces « - » → retours ligne).
 - Références (issue #62) : modèle `Reference` (FK `CV`), `ReferenceForm` propose
   l'expérience associée dans une liste déroulante (rang -> libellé) construite
   depuis `cv.analysis['experiences']`. Vues `reference_create/update/delete`,

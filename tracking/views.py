@@ -451,39 +451,76 @@ def cv_analyze(request, pk):
     return redirect("tracking:cv_detail", pk=pk)
 
 
-def cv_edit(request, pk):
-    """Édition manuelle des sections de l'analyse d'un CV (issue #61).
+# Sections éditables d'une analyse de CV (issue #61). Chaque section porte un
+# libellé et un « kind » qui pilote le widget d'édition côté gabarit.
+CV_SECTIONS = {
+    "profil": {"label": "Profil", "icon": "👤", "kind": "profile"},
+    "experiences": {"label": "Expériences", "icon": "💼", "kind": "experiences"},
+    "formations": {"label": "Formations", "icon": "🎓", "kind": "formations"},
+    "coordonnees": {"label": "Coordonnées", "icon": "📇", "kind": "coord"},
+    "competences": {"label": "Compétences", "icon": "🛠️", "kind": "chips"},
+    "langues": {"label": "Langues", "icon": "🌐", "kind": "chips"},
+    "loisirs": {"label": "Loisirs", "icon": "🎨", "kind": "chips"},
+    "infos": {"label": "Informations diverses", "icon": "ℹ️", "kind": "text"},
+}
 
-    Permet de corriger/compléter les informations extraites par l'IA — ou d'en
-    saisir de toutes pièces si le CV n'a pas été analysé. Les données arrivent
-    sérialisées en JSON (construit côté client) puis sont normalisées comme une
-    analyse IA pour garantir une structure stable.
+
+def _cv_section_value(cv, section):
+    """Valeur courante d'une section de l'analyse, pour pré-remplir l'éditeur."""
+    analysis = cv.analysis or {}
+    if section == "profil":
+        return {
+            "titre_profil": analysis.get("titre_profil", ""),
+            "localisation": analysis.get("localisation", ""),
+        }
+    if section == "coordonnees":
+        return analysis.get("coordonnees") or {}
+    if section == "infos":
+        return analysis.get("infos", "")
+    return analysis.get(section) or []
+
+
+def _apply_cv_section(analysis, section, value):
+    """Fusionne la valeur éditée d'une section dans l'analyse (issue #61)."""
+    data = dict(analysis or {})
+    if section == "profil":
+        data["titre_profil"] = (value or {}).get("titre_profil", "")
+        data["localisation"] = (value or {}).get("localisation", "")
+    else:
+        data[section] = value
+    return data
+
+
+def cv_edit(request, pk, section):
+    """Édition localisée d'une section de l'analyse d'un CV (issue #61).
+
+    Une seule section est modifiée à la fois (les autres restent intactes) ;
+    l'ensemble est re-normalisé comme une analyse IA pour garantir une structure
+    stable. Un CV jamais analysé devient « analysé » dès la première saisie.
     """
     cv = get_object_or_404(CV, pk=pk)
+    meta = CV_SECTIONS.get(section)
+    if meta is None:
+        raise Http404("Section inconnue.")
     if request.method == "POST":
-        raw = request.POST.get("analysis", "")
+        raw = request.POST.get("value", "")
         try:
-            data = json.loads(raw) if raw else {}
+            value = json.loads(raw) if raw else None
         except (json.JSONDecodeError, ValueError):
-            data = None
-        if not isinstance(data, dict):
-            messages.error(request, "Données d'analyse invalides.")
+            messages.error(request, "Données invalides.")
         else:
-            cv.analysis = coaching.normalize_cv_analysis(data)
+            merged = _apply_cv_section(cv.analysis, section, value)
+            cv.analysis = coaching.normalize_cv_analysis(merged)
             cv.analysis_error = ""
-            # Un CV jamais analysé devient « analysé » dès la première saisie.
             if not cv.analyzed_at:
                 cv.analyzed_at = timezone.now()
             cv.save(update_fields=["analysis", "analysis_error", "analyzed_at"])
-            messages.success(request, "Analyse du CV mise à jour.")
+            messages.success(request, f"Section « {meta['label']} » mise à jour.")
             return redirect("tracking:cv_detail", pk=cv.pk)
     return render(
         request,
         "tracking/cv_edit.html",
-        {
-            "cv": cv,
-            "analysis_json": json.dumps(cv.analysis or {}, ensure_ascii=False),
-        },
+        {"cv": cv, "section": section, "meta": meta, "value": _cv_section_value(cv, section)},
     )
 
 

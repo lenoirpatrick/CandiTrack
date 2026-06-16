@@ -217,9 +217,24 @@ def candidature_delete(request, pk):
 
 @require_GET
 def site_list(request):
-    """Issue #366 — list of job sites with manual management."""
+    """Issue #366 — liste des contacts (sites/employeurs), gérés à la main."""
     sites = JobSite.objects.all()
     return render(request, "tracking/site_list.html", {"sites": sites})
+
+
+@require_GET
+def site_detail(request, pk):
+    """Détail d'un contact et de ses opportunités associées (issue #63).
+
+    Les opportunités sont les candidatures dont ce contact est la source
+    (`Candidature.source`), via le related_name ``candidatures``.
+    """
+    site = get_object_or_404(JobSite, pk=pk)
+    return render(
+        request,
+        "tracking/site_detail.html",
+        {"site": site, "candidatures": site.candidatures.all()},
+    )
 
 
 def site_create(request):
@@ -227,14 +242,14 @@ def site_create(request):
         form = JobSiteForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Site ajouté.")
+            messages.success(request, "Contact ajouté.")
             return redirect(SITE_LIST_ROUTE)
     else:
         form = JobSiteForm()
     return render(
         request,
         "tracking/site_form.html",
-        {"form": form, "title": "Ajouter un site"},
+        {"form": form, "title": "Ajouter un contact"},
     )
 
 
@@ -244,7 +259,7 @@ def site_update(request, pk):
         form = JobSiteForm(request.POST, instance=site)
         if form.is_valid():
             form.save()
-            messages.success(request, "Site mis à jour.")
+            messages.success(request, "Contact mis à jour.")
             return redirect(SITE_LIST_ROUTE)
     else:
         form = JobSiteForm(instance=site)
@@ -257,28 +272,28 @@ def site_update(request, pk):
 
 def site_delete(request, pk):
     site = get_object_or_404(JobSite, pk=pk)
-    # Les sites par défaut ne se suppriment pas : on les désactive (issue #22).
+    # Les contacts par défaut ne se suppriment pas : on les désactive (issue #22).
     if site.is_builtin:
         messages.error(
             request,
-            f"« {site.name} » est un site par défaut : désactivez-le plutôt que de le supprimer.",
+            f"« {site.name} » est un contact par défaut : désactivez-le plutôt que de le supprimer.",
         )
         return redirect(SITE_LIST_ROUTE)
     if request.method == "POST":
         site.delete()
-        messages.success(request, "Site supprimé.")
+        messages.success(request, "Contact supprimé.")
         return redirect(SITE_LIST_ROUTE)
     return render(request, "tracking/site_confirm_delete.html", {"site": site})
 
 
 def site_toggle_active(request, pk):
-    """Issue #22 — activer/désactiver un site (surtout les sites par défaut)."""
+    """Issue #22 — activer/désactiver un contact (surtout ceux par défaut)."""
     site = get_object_or_404(JobSite, pk=pk)
     if request.method == "POST":
         site.actif = not site.actif
         site.save(update_fields=["actif", "updated_at"])
         etat = "activé" if site.actif else "désactivé"
-        messages.success(request, f"Site « {site.name} » {etat}.")
+        messages.success(request, f"Contact « {site.name} » {etat}.")
     return redirect(SITE_LIST_ROUTE)
 
 

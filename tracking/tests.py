@@ -1942,3 +1942,41 @@ class ReferenceTests(TestCase):
         resp = self.client.get(reverse("tracking:cv_detail", args=[self.cv.pk]))
         self.assertContains(resp, "Marie Durand")
         self.assertContains(resp, "Lead · Acme")
+
+
+class ContactDetailTests(TestCase):
+    """Issue #63 — section « Contacts » et opportunités associées au détail."""
+
+    def test_nav_et_liste_renommees_en_contacts(self):
+        resp = self.client.get(reverse("tracking:site_list"))
+        # Libellé de navigation et titre de page renommés.
+        self.assertContains(resp, "Contacts")
+        self.assertContains(resp, "+ Ajouter un contact")
+
+    def test_liste_lie_vers_le_detail(self):
+        site = JobSite.objects.create(name="Acme")
+        resp = self.client.get(reverse("tracking:site_list"))
+        self.assertContains(resp, reverse("tracking:site_detail", args=[site.pk]))
+
+    def test_detail_liste_les_opportunites_associees(self):
+        acme = JobSite.objects.create(name="Acme")
+        autre = JobSite.objects.create(name="Globex")
+        liee = Candidature.objects.create(poste="Dev", entreprise="Acme", source=acme)
+        Candidature.objects.create(poste="Lead", entreprise="Globex", source=autre)
+        resp = self.client.get(reverse("tracking:site_detail", args=[acme.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Opportunités associées")
+        self.assertContains(resp, str(liee))
+        # Une candidature d'un autre contact ne doit pas apparaître.
+        self.assertNotContains(resp, "Lead")
+
+    def test_detail_sans_opportunite(self):
+        site = JobSite.objects.create(name="Acme")
+        resp = self.client.get(reverse("tracking:site_detail", args=[site.pk]))
+        self.assertContains(resp, "Aucune opportunité associée")
+
+    def test_message_creation_parle_de_contact(self):
+        resp = self.client.post(
+            reverse("tracking:site_create"), {"name": "Nouveau"}, follow=True
+        )
+        self.assertContains(resp, "Contact ajouté.")

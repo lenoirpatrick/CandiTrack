@@ -8,6 +8,11 @@ release du même nom.
 
 ## [Non publié] — 1.3.0
 
+- #63 — La section **« Sites » est renommée « Contacts »** (navigation, titres,
+  libellés et messages). Le nom d'un contact ouvre désormais une **fiche de
+  détail** présentant son type, son URL et la **liste des opportunités
+  associées** (candidatures dont il est la source), avec accès direct à chacune.
+
 - #61 — CV : **édition manuelle de l'analyse, section par section**. Chaque
   section de la fiche (profil, expériences, formations, coordonnées,
   compétences, langues, loisirs, infos) porte son propre bouton « ✏️ » qui

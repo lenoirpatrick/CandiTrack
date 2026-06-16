@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ site.name }} — Contacts — CandiTrack{% endblock %}
+{% block main_class %}wide{% endblock %}
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:1rem;">
+    <h1 style="margin:0; display:flex; align-items:center; gap:0.6rem;">
+        {% if site.logo_url %}<img src="{{ site.logo_url }}" alt="" height="28" style="vertical-align:middle;">{% endif %}
+        {{ site.name }}
+        {% if site.is_builtin %}<span class="badge">défaut</span>{% endif %}
+        {% if not site.actif %}<span class="badge">désactivé</span>{% endif %}
+    </h1>
+    <div style="display:flex; gap:0.5rem;">
+        <a class="btn secondary" href="{% url 'tracking:site_update' site.pk %}">✏️ Modifier</a>
+        <a class="btn secondary" href="{% url 'tracking:site_list' %}">← Retour</a>
+    </div>
+</div>
+
+<div class="card" style="display:flex; gap:2rem; flex-wrap:wrap;">
+    <div><div class="muted" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.03em;">Type</div>{{ site.get_type_display }}</div>
+    <div><div class="muted" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.03em;">URL</div>
+        {% if site.url %}<a href="{{ site.url }}" target="_blank" rel="noopener">{{ site.url }}</a>{% else %}—{% endif %}</div>
+</div>
+
+<div class="card">
+    <h2 style="margin-top:0;">Opportunités associées{% if candidatures %} <span class="badge">{{ candidatures|length }}</span>{% endif %}</h2>
+    {% if candidatures %}
+    <table>
+        <thead>
+            <tr>
+                <th>Candidature</th>
+                <th>Entreprise</th>
+                <th>Poste</th>
+                <th>Statut</th>
+                <th>Avancement</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in candidatures %}
+            {% with p=c.progression %}
+            <tr{% if p.closed %} class="closed-row"{% endif %}>
+                <td><a href="{{ c.get_absolute_url }}">{{ c }}</a></td>
+                <td>{{ c.entreprise|default:"—" }}</td>
+                <td>{{ c.poste|default:"—" }}</td>
+                <td><span class="badge">{{ c.etape_courante }}</span></td>
+                <td>
+                    <span class="mini-bar" title="{% if p.closed %}Terminée — {{ p.motif }}{% else %}{{ p.done }}/{{ p.total }}{% endif %} — {{ p.percent }} %"><span style="width:{{ p.percent }}%; background:{{ p.color }};"></span></span>
+                    <span class="muted" style="font-size:0.8rem;">{% if p.closed %}Terminée{% else %}{{ p.percent }} %{% endif %}</span>
+                </td>
+                <td>
+                    <div class="act-row">
+                        <a class="icon-btn" href="{{ c.get_absolute_url }}" title="Détails" aria-label="Détails">👁️</a>
+                    </div>
+                </td>
+            </tr>
+            {% endwith %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">Aucune opportunité associée à ce contact pour le moment.</p>
+    {% endif %}
+</div>
+{% endblock %}

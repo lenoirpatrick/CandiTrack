@@ -20,6 +20,7 @@ urlpatterns = [
     ),
     path("sites/", views.site_list, name="site_list"),
     path("sites/nouveau/", views.site_create, name="site_create"),
+    path("sites/<int:pk>/", views.site_detail, name="site_detail"),
     path("sites/<int:pk>/modifier/", views.site_update, name="site_update"),
     path("sites/<int:pk>/supprimer/", views.site_delete, name="site_delete"),
     path("sites/<int:pk>/desactiver/", views.site_toggle_active, name="site_toggle_active"),

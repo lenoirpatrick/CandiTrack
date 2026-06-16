@@ -53,7 +53,8 @@ docker compose up -d --build   # → http://127.0.0.1:53487/
 `JobSite` (nom, URL, `is_builtin`, `logo_url` — plus d'identifiants depuis
 l'issue #43 ; `logo_url` n'est plus saisi mais déduit du favicon, issue #50 ;
 `type` = `JobSite.Type` Généraliste/ESN/Direct, défaut Généraliste pour les
-sites par défaut, issue #55),
+sites par défaut, issue #55 ; côté UI la section est intitulée **« Contacts »**
+et une fiche `site_detail` liste les opportunités associées, issue #63),
 `Candidature` (cœur
 du suivi, étapes de progression + `motif_cloture` = clôture ; `cv` = CV joint,
 issue #49 ; `localisation` = zone géographique de l'offre, issue #52 ; `source`

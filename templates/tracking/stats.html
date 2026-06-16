@@ -91,9 +91,9 @@
     /* Libellé tronqué (avec tooltip) plutôt qu'un retour à la ligne disgracieux. */
     .bar-label { flex:0 0 8rem; font-size:0.9rem; white-space:nowrap; overflow:hidden;
                  text-overflow:ellipsis; }
-    /* Donut réduit dans la grille, mais suffisamment large pour rester lisible. */
-    .chart-grid .donut { width:150px; height:150px; }
-    .chart-grid .donut-wrap { gap:1rem; }
+    /* Donut large et centré dans la carte. */
+    .chart-grid .donut { width:250px; height:250px; }
+    .chart-grid .donut-wrap { gap:1rem; justify-content:center; }
     .bar-row .bar-track { flex:1; }
     /* Apparition progressive des barres (issue #35) */
     .bar-fill { transition:width .9s cubic-bezier(.22,.61,.36,1); }

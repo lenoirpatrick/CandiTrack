@@ -120,24 +120,21 @@
     </div>
 </div>
 
-<div style="display:flex; gap:1.1rem; flex-wrap:wrap; align-items:stretch; margin-bottom:1.1rem;">
-    <div class="card" style="flex:1 1 300px; margin-bottom:0; display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
-        <span>
-            📄 <a href="{{ cv.file.url }}" target="_blank" rel="noopener">Télécharger le fichier</a>
-            · <span class="muted">Ajouté le {{ cv.uploaded_at|date:"d/m/Y H:i" }}</span>
-        </span>
-        {% if not ai_config.is_configured %}
-        <span class="muted">Configurez une IA dans <a href="{% url 'tracking:help' %}#ia">Options → IA</a> pour analyser ce CV.</span>
-        {% endif %}
-    </div>
+<div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem 1.5rem; flex-wrap:wrap;">
+    <span>
+        📄 <a href="{{ cv.file.url }}" target="_blank" rel="noopener">Télécharger le fichier</a>
+        · <span class="muted">Ajouté le {{ cv.uploaded_at|date:"d/m/Y H:i" }}</span>
+    </span>
     {% if cv.is_analyzed %}
-    <div class="card cv-exports" style="flex:1 1 300px; margin-bottom:0;">
+    <div class="cv-exports">
         <span class="cv-exports-label">⬇️ Exporter :</span>
         {% for fmt, label in export_formats.items %}
         <a class="btn secondary" href="{% url 'tracking:cv_export' cv.pk fmt %}">{{ label }}</a>
         {% endfor %}
         <a class="btn" href="{% url 'tracking:cv_print' cv.pk %}" target="_blank" rel="noopener">📄 PDF professionnel</a>
     </div>
+    {% elif not ai_config.is_configured %}
+    <span class="muted">Configurez une IA dans <a href="{% url 'tracking:help' %}#ia">Options → IA</a> pour analyser ce CV.</span>
     {% endif %}
 </div>
 

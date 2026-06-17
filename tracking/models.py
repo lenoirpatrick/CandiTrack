@@ -472,6 +472,7 @@ class Reference(models.Model):
     )
     nom = models.CharField("nom", max_length=100)
     prenom = models.CharField("prénom", max_length=100, blank=True)
+    poste = models.CharField("poste", max_length=150, blank=True)
     telephone = models.CharField("téléphone", max_length=40, blank=True)
     email = models.EmailField("email", blank=True)
     linkedin = models.URLField("LinkedIn", blank=True)

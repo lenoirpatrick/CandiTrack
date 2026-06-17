@@ -69,7 +69,8 @@ informations principales — champs `analysis`/`analyzed_at`/… , issue #44 ;
 analyse **éditable manuellement** via `cv_edit`, issue #61 ;
 `actif` = archivage, issue #48 ; `par_defaut` = CV dont l'adresse sert d'origine
 aux trajets, issue #52),
-`Reference` (référent à fournir : nom/prénom/téléphone/email/linkedin, rattaché
+`Reference` (référent à fournir : nom/prénom/poste/téléphone/email/linkedin —
+`poste` ajouté issue #66, repris sur le CV PDF généré —, rattaché
 à une expérience du CV via `experience_index` = rang dans
 `CV.analysis['experiences']` ; géré depuis la fiche CV, issue #62),
 `AIConfig` (singleton de
@@ -125,6 +126,10 @@ emoji dans le libellé pour les menus).
   sections (même vides) avec un bouton `.sec-edit` par section. Un CV non
   analysé devient « analysé » dès la première saisie. Les descriptions
   d'expériences sont rendues avec `linebreaksbr` (puces « - » → retours ligne).
+  La section **profil** édite aussi le **titre du CV** (`CV.label`, champ modèle
+  hors analyse, sauvegardé à part dans `cv_edit`). La carte « profil » (titre du
+  profil = titre principal du CV généré, issue #66) est placée **tout en haut**
+  de `cv_detail`.
 - Références (issue #62) : modèle `Reference` (FK `CV`), `ReferenceForm` propose
   l'expérience associée dans une liste déroulante (rang -> libellé) construite
   depuis `cv.analysis['experiences']`. Vues `reference_create/update/delete`,
@@ -132,9 +137,21 @@ emoji dans le libellé pour les menus).
   bloc coordonnées a été renommée « Coordonnées » pour libérer le terme.
 - Exports de CV (issue #44) : `tracking/cv_export.py` convertit `CV.analysis` en
   **JSON Resume**, **Europass** (SkillsPassport) et **HR-Open Standards**
-  (`EXPORTERS`/`EXPORT_LABELS`, stdlib) ; vues `cv_export` (téléchargement JSON) et
-  `cv_print` (template `cv_print.html` autonome, **PDF via impression navigateur**).
+  (`EXPORTERS`/`EXPORT_LABELS`, stdlib) ; vue `cv_export` (téléchargement JSON).
   Boutons sur la fiche `cv_detail`.
+- PDF professionnel (issue #66) : le bouton « 📄 PDF professionnel » génère et
+  **télécharge** un CV mis en page **via l'IA**. `coaching.cv_html(cv)` demande à
+  l'IA un document **HTML autonome** (une page A4, CSS simple compatible
+  xhtml2pdf — pas de flexbox/grid, mise en page par tableaux —, sections :
+  Coordonnées, Expériences, Formation, Divers, et **Références** si des référents
+  existent — `_reference_lines`, partagé avec `references_email`) à partir de
+  `CV.analysis`, puis
+  `tracking/cv_pdf.py` (`render_pdf`, **xhtml2pdf**, dépendance pip) le convertit
+  en PDF à texte sélectionnable. La vue `cv_pdf` (GET) renvoie le PDF en pièce
+  jointe ; elle est appelée en **AJAX** par un handler global de `base.html`
+  (boutons `.js-cv-pdf`) qui affiche un **spinner sur le bouton** puis déclenche
+  le téléchargement du blob. Erreurs (IA `AIError`, conversion `PdfRenderError`,
+  IA non configurée) renvoyées en JSON → toast.
 - Quotas IA (issue #36) : `ai.generate` renvoie un `GenerationResult` (texte +
   tokens) ; `coaching._run` journalise chaque appel dans `AIUsage`. `AIConfig`
   porte une limite mensuelle de tokens par fournisseur (0 = illimitée) ; la

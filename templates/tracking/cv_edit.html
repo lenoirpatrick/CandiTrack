@@ -87,11 +87,14 @@
 
     // --- Constructeurs par type de section -------------------------------
     function buildProfile() {
+        var label = makeInput("input", value.label);
+        label.id = "f-label";
         var titre = makeInput("input", value.titre_profil);
         titre.id = "f-titre";
         var loc = makeInput("input", value.localisation);
         loc.id = "f-loc";
-        editor.appendChild(fieldBlock("Titre du profil", titre));
+        editor.appendChild(fieldBlock("Titre du CV", label));
+        editor.appendChild(fieldBlock("Titre du profil (titre principal du CV généré)", titre));
         editor.appendChild(fieldBlock("Localisation", loc));
     }
     function buildCoord() {
@@ -170,6 +173,7 @@
     function collect() {
         if (KIND === "profile") {
             return {
+                label: document.getElementById("f-label").value.trim(),
                 titre_profil: document.getElementById("f-titre").value.trim(),
                 localisation: document.getElementById("f-loc").value.trim()
             };

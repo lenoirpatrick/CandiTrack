@@ -120,6 +120,24 @@
     </div>
 </div>
 
+{% with a=cv.analysis %}
+<div class="cv-hero">
+    <div class="cv-avatar">👤</div>
+    <div>
+        <div class="cv-hero-title">{% if a.titre_profil %}{{ a.titre_profil }}{% else %}Profil à compléter{% endif %}</div>
+        {% if a.localisation %}<div class="cv-hero-sub">📍 {{ a.localisation }}</div>{% endif %}
+        {% if cv.is_analyzed %}
+        <div class="cv-hero-sub">
+            Analysé le {{ cv.analyzed_at|date:"d/m/Y H:i" }}
+            {% if cv.analysis_provider_label %}par {{ cv.analysis_provider_label }}{% endif %}
+            {% if cv.analysis_model %} · {{ cv.analysis_model }}{% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'profil' %}" title="Modifier le profil et le titre du CV">✏️</a>
+</div>
+{% endwith %}
+
 <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem 1.5rem; flex-wrap:wrap;">
     <span>
         📄 <a href="{{ cv.file.url }}" target="_blank" rel="noopener">Télécharger le fichier</a>
@@ -131,7 +149,11 @@
         {% for fmt, label in export_formats.items %}
         <a class="btn secondary" href="{% url 'tracking:cv_export' cv.pk fmt %}">{{ label }}</a>
         {% endfor %}
-        <a class="btn" href="{% url 'tracking:cv_print' cv.pk %}" target="_blank" rel="noopener">📄 PDF professionnel</a>
+        <a class="btn js-cv-pdf" href="{% url 'tracking:cv_pdf' cv.pk %}"
+           title="Génère et télécharge un CV mis en page par l'IA (peut prendre quelques secondes)">📄 PDF ✨</a>
+        <small class="muted" style="flex-basis:100%; margin-top:0.15rem;">
+            ✨ Le « PDF » est rédigé et mis en page par l'IA — sa génération peut prendre quelques secondes.
+        </small>
     </div>
     {% elif not ai_config.is_configured %}
     <span class="muted">Configurez une IA dans <a href="{% url 'tracking:help' %}#ia">Options → IA</a> pour analyser ce CV.</span>
@@ -154,22 +176,6 @@
 {% endif %}
 
 {% with a=cv.analysis %}
-<div class="cv-hero">
-    <div class="cv-avatar">👤</div>
-    <div>
-        <div class="cv-hero-title">{% if a.titre_profil %}{{ a.titre_profil }}{% else %}Profil à compléter{% endif %}</div>
-        {% if a.localisation %}<div class="cv-hero-sub">📍 {{ a.localisation }}</div>{% endif %}
-        {% if cv.is_analyzed %}
-        <div class="cv-hero-sub">
-            Analysé le {{ cv.analyzed_at|date:"d/m/Y H:i" }}
-            {% if cv.analysis_provider_label %}par {{ cv.analysis_provider_label }}{% endif %}
-            {% if cv.analysis_model %} · {{ cv.analysis_model }}{% endif %}
-        </div>
-        {% endif %}
-    </div>
-    <a class="icon-btn sec-edit" href="{% url 'tracking:cv_edit' cv.pk 'profil' %}" title="Modifier le profil">✏️</a>
-</div>
-
 <div class="cv-grid">
     <div class="cv-main">
         <div class="card">
@@ -381,6 +387,7 @@
         <div class="cv-refcard">
             <div>
                 <span class="ref-name">{{ ref }}</span>
+                {% if ref.poste %}<div class="muted" style="font-size:0.85rem;">{{ ref.poste }}</div>{% endif %}
                 {% if ref.experience_label %}<div><span class="ref-exp">💼 {{ ref.experience_label }}</span></div>{% endif %}
                 <div class="ref-contacts">
                     {% if ref.telephone %}<a href="tel:{{ ref.telephone }}">📞 {{ ref.telephone }}</a>{% endif %}

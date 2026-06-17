@@ -17,6 +17,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from . import coaching
 from . import cv_export as cv_exporters
+from . import cv_pdf as cv_pdf_render
 from .ai import AIError
 from .forms import CandidatureForm, CVForm, JobSiteForm, ReferenceForm
 from .models import (
@@ -408,12 +409,37 @@ def cv_export(request, pk, fmt):
 
 
 @require_GET
-def cv_print(request, pk):
-    """Vue d'impression d'un CV (PDF via l'impression navigateur, issue #44)."""
+def cv_pdf(request, pk):
+    """Génère et télécharge un CV professionnel en PDF via l'IA — issue #66.
+
+    L'IA rédige un CV en HTML autonome à partir de l'analyse, converti en PDF
+    (xhtml2pdf) puis renvoyé en pièce jointe à enregistrer. Appelé en AJAX (avec
+    un spinner sur le bouton) : les erreurs sont renvoyées en JSON.
+    """
     cv = get_object_or_404(CV, pk=pk)
     if not cv.is_analyzed:
         raise Http404("Ce CV n'a pas encore été analysé.")
-    return render(request, "tracking/cv_print.html", {"cv": cv})
+    config = AIConfig.load()
+    if not config.is_configured:
+        return JsonResponse(
+            {"error": "Configurez une IA dans Options → IA pour générer le PDF."},
+            status=400,
+        )
+    try:
+        html = coaching.cv_html(cv, config)
+        pdf = cv_pdf_render.render_pdf(html)
+    except AIError as exc:
+        return JsonResponse(
+            {"error": f"La génération du CV par l'IA a échoué : {exc}"}, status=502
+        )
+    except cv_pdf_render.PdfRenderError as exc:
+        return JsonResponse(
+            {"error": f"La conversion en PDF a échoué : {exc}"}, status=502
+        )
+    filename = f"{slugify(cv.label) or 'cv'}.pdf"
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def _analyze_cv_safely(request, cv):
@@ -485,6 +511,7 @@ def _cv_section_value(cv, section):
     analysis = cv.analysis or {}
     if section == "profil":
         return {
+            "label": cv.label,
             "titre_profil": analysis.get("titre_profil", ""),
             "localisation": analysis.get("localisation", ""),
         }
@@ -529,7 +556,14 @@ def cv_edit(request, pk, section):
             cv.analysis_error = ""
             if not cv.analyzed_at:
                 cv.analyzed_at = timezone.now()
-            cv.save(update_fields=["analysis", "analysis_error", "analyzed_at"])
+            update_fields = ["analysis", "analysis_error", "analyzed_at"]
+            # La section « profil » porte aussi le titre du CV (champ modèle).
+            if section == "profil" and isinstance(value, dict):
+                new_label = (value.get("label") or "").strip()
+                if new_label:
+                    cv.label = new_label
+                    update_fields.append("label")
+            cv.save(update_fields=update_fields)
             messages.success(request, f"Section « {meta['label']} » mise à jour.")
             return redirect("tracking:cv_detail", pk=cv.pk)
     return render(

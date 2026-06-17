@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from . import ai, coaching, cv_export, views
+from . import ai, coaching, cv_export, cv_pdf, views
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
     CV,
@@ -902,6 +902,83 @@ class AIReferencesViewTests(TestCase):
         self.assertContains(resp, reverse("tracking:ai_references", args=[self.cv.pk]))
 
 
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class CVHtmlTests(TestCase):
+    """Issue #66 — génération du HTML imprimable d'un CV par l'IA."""
+
+    def _cv(self):
+        return CV.objects.create(
+            label="Jean Dupont",
+            analysis={
+                "titre_profil": "Développeur Python",
+                "localisation": "Lyon",
+                "experiences": [
+                    {"poste": "Dev", "entreprise": "ACME", "periode": "2020-2023",
+                     "description": "APIs Django"}
+                ],
+                "formations": [
+                    {"intitule": "Master", "etablissement": "Univ", "periode": "2018"}
+                ],
+                "competences": ["Python", "Django"],
+                "langues": ["Français"],
+                "coordonnees": {"email": "jean@dupont.fr", "telephone": "0600"},
+            },
+            analyzed_at=timezone.now(),
+        )
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(
+            "```html\n<!DOCTYPE html><html></html>\n```", 1, 1, 2
+        ),
+    )
+    def test_cv_html_construit_le_prompt_et_nettoie_les_fences(self, gen):
+        config = AIConfig.load()
+        config.gemini_api_key = "k"
+        config.save()
+        html = coaching.cv_html(self._cv(), config)
+        # Les clôtures Markdown sont retirées.
+        self.assertEqual(html, "<!DOCTYPE html><html></html>")
+        # Le prompt envoyé contient les données du candidat.
+        prompt = gen.call_args.args[0]
+        # Le titre principal est le poste du profil, pas le nom du CV (issue #66).
+        self.assertIn("Développeur Python", prompt)
+        self.assertNotIn("Jean Dupont", prompt)
+        self.assertIn("APIs Django", prompt)
+        self.assertIn("jean@dupont.fr", prompt)
+
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("<html></html>", 1, 1, 2),
+    )
+    def test_cv_html_inclut_les_referents(self, gen):
+        cv = self._cv()
+        Reference.objects.create(
+            cv=cv, nom="Martin", prenom="Claire", poste="Directrice technique",
+            telephone="0700", email="claire@ref.fr", experience_index=0,
+        )
+        coaching.cv_html(cv, AIConfig.load())
+        prompt = gen.call_args.args[0]
+        self.assertIn("Références", prompt)
+        self.assertIn("Claire Martin", prompt)
+        self.assertIn("claire@ref.fr", prompt)
+        # Le poste du référent figure dans le prompt (issue #66).
+        self.assertIn("Directrice technique", prompt)
+        # Le référent est rattaché à l'expérience (poste · entreprise).
+        self.assertIn("Dev · ACME", prompt)
+
+    def test_render_pdf_produit_un_pdf(self):
+        pdf = cv_pdf.render_pdf("<html><body><h1>CV</h1><p>Accentué é à</p></body></html>")
+        self.assertTrue(pdf.startswith(b"%PDF"))
+
+    def test_render_pdf_html_invalide_leve_une_erreur(self):
+        with mock.patch(
+            "tracking.cv_pdf.pisa.CreatePDF", side_effect=ValueError("boom")
+        ):
+            with self.assertRaises(cv_pdf.PdfRenderError):
+                cv_pdf.render_pdf("<html></html>")
+
+
 class GeminiClientTests(TestCase):
     """Issue #33 — client HTTP Gemini (parsing et erreurs), réseau simulé."""
 
@@ -1383,18 +1460,58 @@ class CVAnalysisTests(TestCase):
         )
         self.assertEqual(resp.status_code, 404)
 
-    def test_vue_impression_pdf(self):
+    @mock.patch("tracking.views.cv_pdf_render.render_pdf", return_value=b"%PDF-1.4 ok")
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult(
+            "<!DOCTYPE html><html><body><h1>Mon CV</h1></body></html>", 1, 1, 2
+        ),
+    )
+    def test_pdf_professionnel_genere_via_ia(self, gen, render_pdf):
         cv = self._upload_analysed()
-        resp = self.client.get(reverse("tracking:cv_print", args=[cv.pk]))
+        resp = self.client.get(reverse("tracking:cv_pdf", args=[cv.pk]))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Développeur Python")
-        self.assertContains(resp, "window.print()")
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        self.assertIn("attachment", resp["Content-Disposition"])
+        self.assertEqual(resp.content, b"%PDF-1.4 ok")
+        # Le HTML de l'IA est passé au moteur PDF, et le prompt porte les données.
+        self.assertIn("<h1>Mon CV</h1>", render_pdf.call_args.args[0])
+        self.assertIn("Développeur Python", gen.call_args.args[0])
+
+    @mock.patch(
+        "tracking.coaching.ai.generate", side_effect=ai.AIError("Clé refusée")
+    )
+    def test_pdf_professionnel_echec_ia_renvoie_json(self, gen):
+        cv = self._upload_analysed()
+        resp = self.client.get(reverse("tracking:cv_pdf", args=[cv.pk]))
+        self.assertEqual(resp.status_code, 502)
+        self.assertIn("génération du CV par", resp.json()["error"])
+
+    @mock.patch(
+        "tracking.views.cv_pdf_render.render_pdf",
+        side_effect=cv_pdf.PdfRenderError("html invalide"),
+    )
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("<html></html>", 1, 1, 2),
+    )
+    def test_pdf_professionnel_echec_conversion_renvoie_json(self, gen, render_pdf):
+        cv = self._upload_analysed()
+        resp = self.client.get(reverse("tracking:cv_pdf", args=[cv.pk]))
+        self.assertEqual(resp.status_code, 502)
+        self.assertIn("conversion en PDF", resp.json()["error"])
+
+    def test_pdf_professionnel_cv_non_analyse_404(self):
+        self._upload(analyser=False)
+        cv = CV.objects.get()
+        resp = self.client.get(reverse("tracking:cv_pdf", args=[cv.pk]))
+        self.assertEqual(resp.status_code, 404)
 
     def test_boutons_export_sur_la_fiche(self):
         cv = self._upload_analysed()
         resp = self.client.get(reverse("tracking:cv_detail", args=[cv.pk]))
         self.assertContains(resp, reverse("tracking:cv_export", args=[cv.pk, "europass"]))
-        self.assertContains(resp, reverse("tracking:cv_print", args=[cv.pk]))
+        self.assertContains(resp, reverse("tracking:cv_pdf", args=[cv.pk]))
         self.assertContains(resp, "JSON Resume")
 
     def test_formulaire_propose_la_case_si_ia_configuree(self):
@@ -1817,6 +1934,11 @@ class SidebarTests(TestCase):
         self.assertContains(resp, "sidebar-foot")
         self.assertContains(resp, 'data-label="Options"')
 
+    def test_favicon_svg_presente(self):
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, 'rel="icon"')
+        self.assertContains(resp, "data:image/svg+xml;base64,")
+
     def test_active_link_marked(self):
         resp = self.client.get(reverse("tracking:stats"))
         self.assertContains(resp, "nav-item active")
@@ -1867,6 +1989,26 @@ class CVEditTests(TestCase):
         cv.refresh_from_db()
         self.assertEqual(cv.analysis["titre_profil"], "Dev")
         self.assertEqual(cv.analysis["localisation"], "Lyon")
+
+    def test_edition_profil_modifie_le_titre_du_cv(self):
+        cv = self._make_cv()
+        self._post(cv, "profil", {"label": "Nouveau titre", "titre_profil": "Dev"})
+        cv.refresh_from_db()
+        self.assertEqual(cv.label, "Nouveau titre")
+        self.assertEqual(cv.analysis["titre_profil"], "Dev")
+
+    def test_edition_profil_titre_vide_conserve_le_titre(self):
+        cv = self._make_cv()  # label = "CV" par défaut
+        self._post(cv, "profil", {"label": "", "titre_profil": "Dev"})
+        cv.refresh_from_db()
+        self.assertEqual(cv.label, "CV")
+
+    def test_edition_profil_prefille_le_titre_du_cv(self):
+        cv = self._make_cv()
+        cv.label = "Titre du CV à voir"
+        cv.save(update_fields=["label"])
+        resp = self.client.get(reverse("tracking:cv_edit", args=[cv.pk, "profil"]))
+        self.assertContains(resp, "Titre du CV à voir")
 
     def test_edition_section_ne_touche_pas_les_autres(self):
         cv = self._make_cv(

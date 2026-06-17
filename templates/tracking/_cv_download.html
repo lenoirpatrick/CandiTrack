@@ -7,7 +7,7 @@ Attend `cv` et, pour les exports structurés, `export_formats` (EXPORT_LABELS).
     <div class="dd-menu">
         <a href="{{ cv.file.url }}" target="_blank" rel="noopener">📄 Fichier original</a>
         {% if cv.is_analyzed %}
-        <a href="{% url 'tracking:cv_print' cv.pk %}" target="_blank" rel="noopener">🖨️ PDF professionnel</a>
+        <a class="js-cv-pdf" href="{% url 'tracking:cv_pdf' cv.pk %}" title="Rédigé et mis en page par l'IA">🖨️ PDF ✨ <span class="muted" style="font-size:0.85em;">(IA)</span></a>
         <div class="dd-sep"></div>
         {% for fmt, label in export_formats.items %}
         <a href="{% url 'tracking:cv_export' cv.pk fmt %}">🧩 {{ label }}</a>

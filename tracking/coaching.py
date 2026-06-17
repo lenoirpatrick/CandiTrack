@@ -203,17 +203,13 @@ def relance_email(candidature, config=None):
     return _run(config, prompt)
 
 
-def references_email(cv, config=None):
-    """Rédige un extrait d'email transmettant les références d'un CV (issue #64).
-
-    Produit un court texte prêt à coller dans un email (« Comme demandé, je vous
-    joins les références… ») listant chaque référent et ses coordonnées.
-    """
-    config = config or AIConfig.load()
-
+def _reference_lines(cv):
+    """Lignes « - Référent (détails) » des référents d'un CV (issues #64, #66)."""
     lines = []
     for ref in cv.references.all():
         details = []
+        if ref.poste:
+            details.append(f"poste : {ref.poste}")
         if ref.experience_label:
             details.append(f"référent pour : {ref.experience_label}")
         if ref.telephone:
@@ -226,6 +222,18 @@ def references_email(cv, config=None):
         if details:
             line += " (" + " ; ".join(details) + ")"
         lines.append(line)
+    return lines
+
+
+def references_email(cv, config=None):
+    """Rédige un extrait d'email transmettant les références d'un CV (issue #64).
+
+    Produit un court texte prêt à coller dans un email (« Comme demandé, je vous
+    joins les références… ») listant chaque référent et ses coordonnées.
+    """
+    config = config or AIConfig.load()
+
+    lines = _reference_lines(cv)
 
     prompt = (
         "Tu es un assistant qui rédige des emails professionnels en français, "
@@ -244,6 +252,112 @@ def references_email(cv, config=None):
     )
 
     return _run(config, prompt)
+
+
+# --- Génération d'un CV PDF via HTML imprimable (issue #66) ----------------
+
+CV_HTML_PROMPT = (
+    "Génère un CV professionnel destiné à être converti en PDF sur une seule "
+    "page A4, en français. Produis UNIQUEMENT un document HTML complet et "
+    "autonome (de <!DOCTYPE html> à </html>), sans aucun texte autour ni "
+    "balises de code Markdown.\n\n"
+    "Le HTML sera converti par le moteur xhtml2pdf, qui ne gère qu'un "
+    "sous-ensemble simple de CSS. Respecte donc impérativement :\n"
+    "- Tout le style dans une seule balise <style> ; AUCUNE ressource externe "
+    "(pas de lien CSS, police web, image ou script distant).\n"
+    "- N'utilise QUE du CSS simple supporté par xhtml2pdf : "
+    "font-family/font-size/font-weight, color, background-color, text-align, "
+    "margin, padding, border, et la règle @page { size: A4; margin: ... } pour "
+    "les marges. INTERDIT : flexbox, grid, float, position, flottants. Pour "
+    "toute mise en page sur plusieurs colonnes, utilise un <table> "
+    "(width en %), pas de fl/grid.\n"
+    "- Police sans-serif (Helvetica), mise en page claire et sobre : titres de "
+    "section en gras et bien séparés, puces (<ul>) pour les listes.\n"
+    "- Tout doit tenir sur UNE seule page A4.\n\n"
+    "Structure le CV avec ces sections, dans cet ordre :\n"
+    "1. Coordonnées : affiche en grand, comme titre principal de l'en-tête, le "
+    "titre/poste du profil (et NON un nom de personne). Liste ensuite email, "
+    "téléphone, localisation, et le cas échéant adresse et permis.\n"
+    "2. Expériences professionnelles (de la plus récente à la plus ancienne) : "
+    "pour chaque poste « intitulé — entreprise — dates » puis 2 à 4 puces "
+    "décrivant les réalisations avec des verbes d'action.\n"
+    "3. Formation (de la plus récente à la plus ancienne) : « diplôme — "
+    "établissement — année ».\n"
+    "4. Divers : compétences techniques, langues, centres d'intérêt / "
+    "certifications.\n"
+    "5. Références : UNIQUEMENT si des référents sont fournis ci-dessous. Liste "
+    "chaque référent avec son nom, l'expérience/le poste concerné le cas échéant, "
+    "puis ses coordonnées (téléphone, email, LinkedIn). Si aucun référent n'est "
+    "fourni, omets entièrement cette section.\n\n"
+    "Adopte un ton professionnel et concis. N'invente AUCUNE information : "
+    "utilise uniquement les données ci-dessous ; si une donnée manque, laisse le "
+    "champ vide ou omets-le plutôt que de le remplir au hasard."
+)
+
+
+def _join(*values):
+    """« a — b — c » à partir des valeurs non vides (séparateur cadratin)."""
+    return " — ".join(v for v in values if v)
+
+
+def _cv_context(cv):
+    """Données de l'analyse d'un CV, en texte structuré, pour le prompt CV."""
+    a = cv.analysis or {}
+    coord = a.get("coordonnees", {})
+
+    # Titre principal du CV = poste du profil (pas le nom du CV).
+    lines = ["# Coordonnées", f"Titre/poste du profil (titre principal) : {a.get('titre_profil', '')}"]
+    if coord.get("email"):
+        lines.append(f"Email : {coord['email']}")
+    if coord.get("telephone"):
+        lines.append(f"Téléphone : {coord['telephone']}")
+    if a.get("localisation"):
+        lines.append(f"Localisation : {a['localisation']}")
+    if coord.get("adresse"):
+        lines.append(f"Adresse : {coord['adresse']}")
+    if coord.get("permis"):
+        lines.append(f"Permis : {coord['permis']}")
+
+    lines.append("\n# Expériences professionnelles")
+    for exp in a.get("experiences", []):
+        lines.append(
+            "- " + _join(exp.get("poste"), exp.get("entreprise"), exp.get("periode"))
+        )
+        if exp.get("lieu"):
+            lines.append(f"  Lieu : {exp['lieu']}")
+        if exp.get("description"):
+            lines.append(f"  Réalisations : {exp['description']}")
+
+    lines.append("\n# Formation")
+    for form in a.get("formations", []):
+        lines.append(
+            "- "
+            + _join(form.get("intitule"), form.get("etablissement"), form.get("periode"))
+        )
+
+    lines.append("\n# Divers")
+    if a.get("competences"):
+        lines.append("Compétences techniques : " + ", ".join(a["competences"]))
+    if a.get("langues"):
+        lines.append("Langues : " + ", ".join(a["langues"]))
+    if a.get("loisirs"):
+        lines.append("Centres d'intérêt : " + ", ".join(a["loisirs"]))
+    if a.get("infos"):
+        lines.append("Autres : " + a["infos"])
+
+    ref_lines = _reference_lines(cv)
+    if ref_lines:
+        lines.append("\n# Références (référents à contacter)")
+        lines.extend(ref_lines)
+
+    return "\n".join(lines)
+
+
+def cv_html(cv, config=None):
+    """Document HTML imprimable d'un CV professionnel, généré par l'IA (issue #66)."""
+    config = config or AIConfig.load()
+    prompt = CV_HTML_PROMPT + "\n\nDonnées du candidat :\n" + _cv_context(cv)
+    return _strip_code_fences(_run(config, prompt))
 
 
 # --- Analyse de CV (issue #44) --------------------------------------------
@@ -368,10 +482,9 @@ def _normalize_cv_analysis(data):
 normalize_cv_analysis = _normalize_cv_analysis
 
 
-def _parse_cv_analysis(text):
-    """Parse la réponse de l'IA en dict normalisé, ou ``None`` si illisible."""
+def _strip_code_fences(text):
+    """Retire d'éventuelles clôtures Markdown (```… ```) autour d'une sortie IA."""
     cleaned = text.strip()
-    # Retire d'éventuelles clôtures Markdown (```json … ```), tolérées en sortie.
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
         if lines and lines[0].startswith("```"):
@@ -379,6 +492,12 @@ def _parse_cv_analysis(text):
         if lines and lines[-1].strip().startswith("```"):
             lines = lines[:-1]
         cleaned = "\n".join(lines).strip()
+    return cleaned
+
+
+def _parse_cv_analysis(text):
+    """Parse la réponse de l'IA en dict normalisé, ou ``None`` si illisible."""
+    cleaned = _strip_code_fences(text)
     try:
         data = json.loads(cleaned)
     except (json.JSONDecodeError, ValueError):

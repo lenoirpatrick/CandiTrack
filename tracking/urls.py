@@ -33,7 +33,7 @@ urlpatterns = [
     path("cv/<int:pk>/archiver/", views.cv_toggle_active, name="cv_toggle_active"),
     path("cv/<int:pk>/defaut/", views.cv_set_default, name="cv_set_default"),
     path("cv/<int:pk>/export/<str:fmt>/", views.cv_export, name="cv_export"),
-    path("cv/<int:pk>/imprimer/", views.cv_print, name="cv_print"),
+    path("cv/<int:pk>/pdf/", views.cv_pdf, name="cv_pdf"),
     path("cv/<int:pk>/supprimer/", views.cv_delete, name="cv_delete"),
     # Références d'un CV (issue #62)
     path(

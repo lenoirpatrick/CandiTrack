@@ -143,8 +143,9 @@ class ReferenceForm(forms.ModelForm):
 
     class Meta:
         model = Reference
-        fields = ["nom", "prenom", "telephone", "email", "linkedin", "experience_index"]
+        fields = ["nom", "prenom", "poste", "telephone", "email", "linkedin", "experience_index"]
         widgets = {
+            "poste": forms.TextInput(attrs={"placeholder": "ex. Directeur technique"}),
             "telephone": forms.TextInput(attrs={"placeholder": "06 12 34 56 78"}),
             "linkedin": forms.URLInput(
                 attrs={"placeholder": "https://www.linkedin.com/in/…"}

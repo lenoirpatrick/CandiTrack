@@ -113,7 +113,9 @@ emoji dans le libellé pour les menus).
   l'étape) puis `api/candidatures/<pk>/relance/envoyer/`
   (`candidature_relance_send` → `tracking/mailing.py`, envoi SMTP Gmail via mot de
   passe d'application ; passe le statut à *Relancée* + nouvelle entrée historique).
-  Config via `/aide/` (catégorie **Relances**) : `_save_reminder_config`.
+  Config via `/aide/` (catégorie **Relances**) : `_save_reminder_config` ; bouton
+  **« 🔌 Tester la connexion »** → `api/relance/test/` (`relance_test_email` →
+  `mailing.test_connection`, login SMTP sans envoi).
 - Analyse de CV (issue #44) : `coaching.analyze_cv(cv)` demande à l'IA un JSON
   structuré (profil, expériences, formations, compétences, langues, coordonnées/
   références — adresse, téléphone, email, permis —, loisirs, infos diverses),

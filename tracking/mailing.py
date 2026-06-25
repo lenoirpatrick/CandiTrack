@@ -48,3 +48,22 @@ def send_email(config, to, subject, body):
             server.send_message(message)
     except (smtplib.SMTPException, OSError) as exc:
         raise MailError(f"Échec de l'envoi de l'email : {exc}") from exc
+
+
+def test_connection(config):
+    """Vérifie les identifiants Gmail sans envoyer d'email (issue #67).
+
+    Se connecte au serveur SMTP et s'authentifie ; lève :class:`MailError` si la
+    connexion n'est pas configurée ou si l'authentification échoue.
+    """
+    if not config.email_configured:
+        raise MailError(
+            "Connexion Gmail non configurée. Renseignez l'adresse et le mot de "
+            "passe d'application."
+        )
+    try:
+        with smtplib.SMTP(GMAIL_SMTP_HOST, GMAIL_SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
+            server.starttls(context=ssl.create_default_context())
+            server.login(config.gmail_email, config.gmail_app_password)
+    except (smtplib.SMTPException, OSError) as exc:
+        raise MailError(f"Échec de la connexion : {exc}") from exc

@@ -831,6 +831,27 @@ def ai_relance_message(request, pk):
 
 
 @require_POST
+def relance_test_email(request):
+    """Teste la connexion Gmail sans envoyer d'email (issue #67).
+
+    Utilise les valeurs saisies dans le formulaire ; un mot de passe laissé vide
+    se rabat sur celui déjà enregistré (jamais réaffiché côté UI).
+    """
+    config = ReminderConfig.load()
+    email = (request.POST.get("gmail_email") or "").strip()
+    password = (request.POST.get("gmail_app_password") or "").strip()
+    test_config = ReminderConfig(
+        gmail_email=email or config.gmail_email,
+        gmail_app_password=password or config.gmail_app_password,
+    )
+    try:
+        mailing.test_connection(test_config)
+    except mailing.MailError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    return JsonResponse({"ok": True})
+
+
+@require_POST
 def candidature_relance_send(request, pk):
     """Envoie l'email de relance via Gmail et marque la candidature relancée (issue #67)."""
     candidature = get_object_or_404(Candidature, pk=pk)

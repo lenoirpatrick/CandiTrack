@@ -240,6 +240,9 @@
 
                     <div class="form-actions">
                         <button class="btn" type="submit">Enregistrer</button>
+                        <button class="btn secondary" type="button" id="relance-test"
+                                title="Vérifier les identifiants Gmail (sans envoyer d'email)">🔌 Tester la connexion</button>
+                        <span id="relance-test-result" class="muted" style="align-self:center;"></span>
                     </div>
                 </form>
 
@@ -297,6 +300,50 @@
             });
         });
     });
+
+    // Test de la connexion Gmail (issue #67) : vérifie les identifiants saisis
+    // (ou enregistrés si le mot de passe est laissé vide) sans envoyer d'email.
+    var testBtn = document.getElementById("relance-test");
+    if (testBtn) {
+        var result = document.getElementById("relance-test-result");
+        var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+        testBtn.addEventListener("click", function () {
+            var label = testBtn.textContent;
+            testBtn.disabled = true;
+            testBtn.textContent = "⏳ Test…";
+            result.textContent = "";
+            result.style.color = "";
+            var body = new URLSearchParams({
+                gmail_email: (document.getElementById("gmail_email") || {}).value || "",
+                gmail_app_password: (document.getElementById("gmail_app_password") || {}).value || ""
+            });
+            fetch("{% url 'tracking:relance_test_email' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": token,
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: body.toString()
+            }).then(function (r) {
+                return r.json().then(function (data) { return {ok: r.ok, data: data}; });
+            }).then(function (res) {
+                if (res.ok && res.data.ok) {
+                    result.textContent = "✅ Connexion réussie.";
+                    result.style.color = "#27a567";
+                } else {
+                    result.textContent = "❌ " + (res.data.error || "Échec de la connexion.");
+                    result.style.color = "#e0584b";
+                }
+            }).catch(function () {
+                result.textContent = "❌ Impossible de contacter le serveur.";
+                result.style.color = "#e0584b";
+            }).finally(function () {
+                testBtn.disabled = false;
+                testBtn.textContent = label;
+            });
+        });
+    }
 
     // Fournisseur d'IA (issue #34) : n'afficher que le bloc clé/modèle du
     // fournisseur sélectionné.

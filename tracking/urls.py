@@ -58,6 +58,7 @@ urlpatterns = [
         views.candidature_relance_send,
         name="candidature_relance_send",
     ),
+    path("api/relance/test/", views.relance_test_email, name="relance_test_email"),
     path("api/cv/<int:pk>/references/", views.ai_references, name="ai_references"),
     # API for the Chrome extension (issue #2)
     path("api/candidatures/", views.api_candidature_create, name="api_candidature_create"),

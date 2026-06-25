@@ -1021,6 +1021,60 @@ class MailingTests(TestCase):
         server.login.assert_called_once_with("moi@gmail.com", "x")
         server.send_message.assert_called_once()
 
+    @mock.patch("tracking.mailing.smtplib.SMTP")
+    def test_connection_logs_in_without_sending(self, smtp):
+        config = ReminderConfig(gmail_email="moi@gmail.com", gmail_app_password="x")
+        mailing.test_connection(config)
+        server = smtp.return_value.__enter__.return_value
+        server.login.assert_called_once_with("moi@gmail.com", "x")
+        server.send_message.assert_not_called()
+
+    def test_connection_not_configured_raises(self):
+        with self.assertRaises(mailing.MailError):
+            mailing.test_connection(ReminderConfig())
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class RelanceTestConnectionViewTests(TestCase):
+    """Issue #67 — endpoint de test de la connexion Gmail."""
+
+    @mock.patch("tracking.views.mailing.test_connection")
+    def test_ok_with_form_values(self, test_conn):
+        resp = self.client.post(
+            reverse("tracking:relance_test_email"),
+            {"gmail_email": "moi@gmail.com", "gmail_app_password": "secret"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        # Les valeurs du formulaire sont utilisées pour le test.
+        config = test_conn.call_args.args[0]
+        self.assertEqual(config.gmail_email, "moi@gmail.com")
+        self.assertEqual(config.gmail_app_password, "secret")
+
+    @mock.patch("tracking.views.mailing.test_connection")
+    def test_blank_password_falls_back_to_saved(self, test_conn):
+        saved = ReminderConfig.load()
+        saved.gmail_email = "moi@gmail.com"
+        saved.gmail_app_password = "garde"
+        saved.save()
+        self.client.post(
+            reverse("tracking:relance_test_email"),
+            {"gmail_email": "moi@gmail.com", "gmail_app_password": ""},
+        )
+        self.assertEqual(test_conn.call_args.args[0].gmail_app_password, "garde")
+
+    @mock.patch(
+        "tracking.views.mailing.test_connection",
+        side_effect=mailing.MailError("Échec de la connexion : auth"),
+    )
+    def test_failure_returns_502(self, test_conn):
+        resp = self.client.post(
+            reverse("tracking:relance_test_email"),
+            {"gmail_email": "moi@gmail.com", "gmail_app_password": "bad"},
+        )
+        self.assertEqual(resp.status_code, 502)
+        self.assertIn("Échec", resp.json()["error"])
+
 
 @override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY, MEDIA_ROOT=tempfile.mkdtemp())
 class AIReferencesViewTests(TestCase):

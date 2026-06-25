@@ -199,7 +199,9 @@ class Candidature(models.Model):
         """Short label of the furthest reached step, for the list (issue #12).
 
         Reflects the boolean progress steps rather than the raw ``statut``
-        field, so the list updates as the candidature advances.
+        field, so the list updates as the candidature advances. Exception : une
+        candidature relancée (statut « Relancée ») qui n'a pas dépassé l'envoi
+        affiche « Relancée » plutôt que « Envoyée » (issue #67).
         """
         if self.est_terminee:
             return "Terminée"
@@ -207,6 +209,10 @@ class Candidature(models.Model):
         for field, _ in self.PROGRESS_STEPS:
             if getattr(self, field):
                 label = self.STEP_SHORT_LABELS[field]
+        # La relance n'est pas une étape d'avancement : on la fait remonter tant
+        # que la candidature n'a pas progressé au-delà de l'envoi (issue #67).
+        if self.statut == Statut.RELANCEE and label in ("Nouvelle", ENVOYEE_LABEL):
+            return "Relancée"
         return label
 
     def progression(self):

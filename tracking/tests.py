@@ -52,6 +52,20 @@ class EtapeCouranteTests(TestCase):
         c = Candidature(poste="X", motif_cloture=MotifCloture.REFUS_CANDIDAT)
         self.assertEqual(c.etape_courante(), "Terminée")
 
+    def test_relancee_remonte_dans_le_libelle(self):
+        # Issue #67 : une candidature relancée (encore au stade « Envoyée »)
+        # affiche « Relancée » plutôt que « Envoyée ».
+        c = Candidature(poste="X", envoyee=True, statut=Statut.RELANCEE)
+        self.assertEqual(c.etape_courante(), "Relancée")
+
+    def test_relancee_garde_etape_avancee(self):
+        # Une relance ne masque pas une étape plus avancée déjà atteinte.
+        c = Candidature(
+            poste="X", envoyee=True, traitee=True, entretien_programme=True,
+            statut=Statut.RELANCEE,
+        )
+        self.assertEqual(c.etape_courante(), "Entretien")
+
 
 class ProgressionColorTests(TestCase):
     """Issue #10 — bar colour advances, and is red when stopped."""

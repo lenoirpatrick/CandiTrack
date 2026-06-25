@@ -16,13 +16,16 @@ Palette de référence (issue #14) :
 ## Application
 
 Les couleurs sont mappées sur les variables CSS du thème dans
-`templates/base.html` (`:root`, `@media (prefers-color-scheme: dark)` et
-`:root[data-theme="dark"]`).
+`templates/base.html` (`:root`, `@media (prefers-color-scheme: dark)`,
+`:root[data-theme="dark"]` et `:root[data-theme="linkedin"]`).
 
 - **Thème clair** : accent `#3A506B` (slate, bon contraste avec le texte blanc
   des boutons), texte `#0B132B`.
 - **Thème sombre** : reprend directement la palette — fond `#0B132B`, cartes
   `#1C2541`, bordures `#3A506B`, accent `#5BC0BE`.
+- **Thème LinkedIn** (issue #68) : variante claire aux couleurs de LinkedIn —
+  fond gris `#F3F2EF`, cartes blanches, accent bleu LinkedIn `#0A66C2`, texte
+  `#1D2226`, puces/chips bleutées `#E8F0FB`.
 
 Les couleurs du graphique circulaire « répartition par source » (issue #15)
 sont définies dans `tracking/statistics.py` (`SOURCE_COLORS`), ancrées sur la

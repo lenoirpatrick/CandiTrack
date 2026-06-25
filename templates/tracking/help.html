@@ -11,6 +11,8 @@
                 role="tab" aria-selected="false" aria-controls="panel-extensions">🧩 Extensions</button>
         <button type="button" class="options-tab" data-panel="ia"
                 role="tab" aria-selected="false" aria-controls="panel-ia">🤖 IA</button>
+        <button type="button" class="options-tab" data-panel="relances"
+                role="tab" aria-selected="false" aria-controls="panel-relances">🔔 Relances</button>
     </nav>
 
     <div class="options-content">
@@ -50,6 +52,17 @@
                             <rect x="6" y="33" width="40" height="3" rx="1.5" fill="#8fa3bf"/>
                         </svg>
                         <span>Sombre</span>
+                    </button>
+                    <button type="button" class="theme-choice" data-theme-choice="linkedin" role="radio" aria-checked="false">
+                        <svg viewBox="0 0 64 44" width="64" height="44" aria-hidden="true">
+                            <rect x="1" y="1" width="62" height="42" rx="5" fill="#f3f2ef" stroke="#dcdbd8"/>
+                            <rect x="1" y="1" width="62" height="11" rx="5" fill="#ffffff"/>
+                            <rect x="6" y="3" width="7" height="7" rx="1.5" fill="#0a66c2"/>
+                            <rect x="6" y="18" width="34" height="4" rx="2" fill="#0a66c2"/>
+                            <rect x="6" y="26" width="50" height="3" rx="1.5" fill="#5e5e5e"/>
+                            <rect x="6" y="33" width="40" height="3" rx="1.5" fill="#5e5e5e"/>
+                        </svg>
+                        <span>LinkedIn</span>
                     </button>
                 </div>
             </div>
@@ -199,6 +212,60 @@
                 {% endif %}
             </div>
         </section>
+
+        <!-- Catégorie Relances > Rappels + Gmail (issue #67) -->
+        <section id="panel-relances" class="options-panel" role="tabpanel" aria-labelledby="tab-relances" hidden>
+            <div class="card">
+                <h2 style="margin-top:0;">Rappels de relance</h2>
+                <p>CandiTrack signale les candidatures restées <strong>sans réponse</strong>
+                    (envoi de CV ou retour d'entretien) au-delà du délai ci-dessous, et permet
+                    d'<strong>envoyer un mail de relance</strong> (rédigé par l'IA selon l'étape)
+                    depuis la fiche de la candidature.</p>
+
+                <form method="post" style="max-width:520px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="relance_save">
+                    <div class="field">
+                        <label for="delai_jours">Délai avant rappel (jours)</label>
+                        <input id="delai_jours" name="delai_jours" type="number" min="0"
+                               value="{{ reminder_config.delai_jours }}">
+                        <small class="muted">Nombre de jours sans réponse avant d'afficher le rappel
+                            (0 désactive les rappels).</small>
+                    </div>
+
+                    <h3 style="margin-bottom:0.3rem;">Connexion Gmail</h3>
+                    <p class="muted" style="margin-top:0;">L'envoi utilise votre compte Gmail via un
+                        <strong>mot de passe d'application</strong> (distinct de votre mot de passe
+                        habituel ; la validation en deux étapes doit être activée).
+                        <a href="{{ reminder_config.GMAIL_APP_PASSWORD_URL }}" target="_blank" rel="noopener">Créer un mot de passe d'application ↗</a></p>
+                    <div class="field">
+                        <label for="gmail_email">Adresse Gmail d'envoi</label>
+                        <input id="gmail_email" name="gmail_email" type="email" autocomplete="off"
+                               value="{{ reminder_config.gmail_email }}" placeholder="vous@gmail.com">
+                    </div>
+                    <div class="field">
+                        <label for="gmail_app_password">Mot de passe d'application</label>
+                        <input id="gmail_app_password" name="gmail_app_password" type="password" autocomplete="off"
+                               placeholder="{% if reminder_config.gmail_app_password %}•••••••• (laisser vide pour conserver){% else %}16 caractères, sans espaces{% endif %}">
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="btn" type="submit">Enregistrer</button>
+                        <button class="btn secondary" type="button" id="relance-test"
+                                title="Vérifier les identifiants Gmail (sans envoyer d'email)">🔌 Tester la connexion</button>
+                        <span id="relance-test-result" class="muted" style="align-self:center;"></span>
+                    </div>
+                </form>
+
+                {% if reminder_config.email_configured %}
+                <p style="margin-top:0.75rem;">État Gmail : <span class="badge">✅ configuré</span>
+                    — {{ reminder_config.gmail_email }}.</p>
+                {% else %}
+                <p style="margin-top:0.75rem;">État Gmail : <span class="badge">⚪ non configuré</span>
+                    (les mails ne pourront pas être envoyés, mais restent générables et copiables).</p>
+                {% endif %}
+            </div>
+        </section>
     </div>
 </div>
 
@@ -244,6 +311,50 @@
             });
         });
     });
+
+    // Test de la connexion Gmail (issue #67) : vérifie les identifiants saisis
+    // (ou enregistrés si le mot de passe est laissé vide) sans envoyer d'email.
+    var testBtn = document.getElementById("relance-test");
+    if (testBtn) {
+        var result = document.getElementById("relance-test-result");
+        var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+        testBtn.addEventListener("click", function () {
+            var label = testBtn.textContent;
+            testBtn.disabled = true;
+            testBtn.textContent = "⏳ Test…";
+            result.textContent = "";
+            result.style.color = "";
+            var body = new URLSearchParams({
+                gmail_email: (document.getElementById("gmail_email") || {}).value || "",
+                gmail_app_password: (document.getElementById("gmail_app_password") || {}).value || ""
+            });
+            fetch("{% url 'tracking:relance_test_email' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": token,
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: body.toString()
+            }).then(function (r) {
+                return r.json().then(function (data) { return {ok: r.ok, data: data}; });
+            }).then(function (res) {
+                if (res.ok && res.data.ok) {
+                    result.textContent = "✅ Connexion réussie.";
+                    result.style.color = "#27a567";
+                } else {
+                    result.textContent = "❌ " + (res.data.error || "Échec de la connexion.");
+                    result.style.color = "#e0584b";
+                }
+            }).catch(function () {
+                result.textContent = "❌ Impossible de contacter le serveur.";
+                result.style.color = "#e0584b";
+            }).finally(function () {
+                testBtn.disabled = false;
+                testBtn.textContent = label;
+            });
+        });
+    }
 
     // Fournisseur d'IA (issue #34) : n'afficher que le bloc clé/modèle du
     // fournisseur sélectionné.

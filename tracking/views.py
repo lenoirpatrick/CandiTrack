@@ -17,6 +17,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from . import coaching
 from . import cv_export as cv_exporters
+from . import mailing
 from .ai import AIError
 from .forms import CandidatureForm, CVForm, JobSiteForm, ReferenceForm
 from .models import (
@@ -27,6 +28,7 @@ from .models import (
     Candidature,
     JobSite,
     Reference,
+    ReminderConfig,
     Statut,
     StatusHistory,
 )
@@ -52,7 +54,9 @@ CANDIDATURE_SORTS = {
 
 @require_GET
 def candidature_list(request):
-    candidatures = Candidature.objects.select_related("source")
+    candidatures = Candidature.objects.select_related("source").prefetch_related(
+        "status_history"
+    )
 
     # Recherche plein texte sur les principaux champs (issue #11).
     query = (request.GET.get("q") or "").strip()
@@ -88,6 +92,13 @@ def candidature_list(request):
         )
     ).order_by("_closed", f"{prefix}{field}", "-created_at")
 
+    # Rappel visuel de relance (issue #67) : on matérialise la liste pour
+    # attacher à chaque candidature le nombre de jours sans réponse (ou None).
+    delai = ReminderConfig.load().delai_jours
+    candidatures = list(candidatures)
+    for c in candidatures:
+        c.relance_jours = c.relance_due_jours(delai)
+
     return render(
         request,
         "tracking/candidature_list.html",
@@ -98,6 +109,7 @@ def candidature_list(request):
             "dir": direction,
             "show_archived": show_archived,
             "archived_count": archived_count,
+            "relance_delai": delai,
         },
     )
 
@@ -121,6 +133,7 @@ def candidature_detail(request, pk):
     )
     # Origine du calcul de trajet : adresse du CV par défaut (issue #52).
     default_cv = CV.default()
+    reminder_config = ReminderConfig.load()
     return render(
         request,
         "tracking/candidature_detail.html",
@@ -128,6 +141,8 @@ def candidature_detail(request, pk):
             "candidature": candidature,
             "home_location": default_cv.home_location if default_cv else "",
             "default_cv": default_cv,
+            "reminder_config": reminder_config,
+            "relance_jours": candidature.relance_due_jours(reminder_config.delai_jours),
         },
     )
 
@@ -619,6 +634,8 @@ def help_page(request):
             _save_ai_config(request)
         elif action == "ai_clear":
             _clear_ai_key(request, AIConfig.load())
+        elif action == "relance_save":
+            _save_reminder_config(request)
         return redirect("tracking:help")
 
     config = AIConfig.load()
@@ -630,8 +647,25 @@ def help_page(request):
             "settings_token": settings.CANDITRACK_API_TOKEN,
             "ai_config": config,
             "ai_providers": _ai_providers_context(config),
+            "reminder_config": ReminderConfig.load(),
         },
     )
+
+
+def _save_reminder_config(request):
+    """Enregistre la config des relances : délai + identifiants Gmail (issue #67).
+
+    Le mot de passe d'application n'est remplacé que si une valeur non vide est
+    fournie (on conserve sinon celui déjà saisi).
+    """
+    config = ReminderConfig.load()
+    config.delai_jours = _positive_int(request.POST.get("delai_jours"))
+    config.gmail_email = (request.POST.get("gmail_email") or "").strip()
+    password = (request.POST.get("gmail_app_password") or "").strip()
+    if password:
+        config.gmail_app_password = password
+    config.save()
+    messages.success(request, "Configuration des relances enregistrée.")
 
 
 def _provider_usage(provider, limit):
@@ -770,10 +804,96 @@ def ai_coaching(request):
 
 
 @require_POST
-def ai_relance(request, pk):
-    """Renvoie un brouillon de mail de relance IA pour une candidature."""
+def ai_relance_message(request, pk):
+    """Renvoie l'objet et le corps d'un mail de relance IA, selon l'étape (issue #67)."""
     candidature = get_object_or_404(Candidature, pk=pk)
-    return _ai_endpoint(request, lambda: coaching.relance_email(candidature))
+    config = AIConfig.load()
+    if not config.is_configured:
+        return JsonResponse(
+            {"error": "Aucune clé IA configurée. Renseignez-la dans Options → IA."},
+            status=400,
+        )
+    try:
+        message = coaching.relance_message(candidature)
+    except AIError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    payload = {
+        "ok": True,
+        "objet": message["objet"],
+        "corps": message["corps"],
+        "provider": config.get_provider_display(),
+        "model": config.model,
+    }
+    warning = _quota_warning(config)
+    if warning:
+        payload["warning"] = warning
+    return JsonResponse(payload)
+
+
+@require_POST
+def relance_test_email(request):
+    """Teste la connexion Gmail sans envoyer d'email (issue #67).
+
+    Utilise les valeurs saisies dans le formulaire ; un mot de passe laissé vide
+    se rabat sur celui déjà enregistré (jamais réaffiché côté UI).
+    """
+    config = ReminderConfig.load()
+    email = (request.POST.get("gmail_email") or "").strip()
+    password = (request.POST.get("gmail_app_password") or "").strip()
+    test_config = ReminderConfig(
+        gmail_email=email or config.gmail_email,
+        gmail_app_password=password or config.gmail_app_password,
+    )
+    try:
+        mailing.test_connection(test_config)
+    except mailing.MailError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    return JsonResponse({"ok": True})
+
+
+def _mark_relancee(candidature):
+    """Passe la candidature en « Relancée » et réarme le compteur (issue #67).
+
+    Le passage de statut s'accompagne d'une nouvelle entrée d'historique, qui
+    sert aussi de date de référence pour le délai sans réponse.
+    """
+    if candidature.statut != Statut.RELANCEE:
+        candidature.statut = Statut.RELANCEE
+        candidature.save(update_fields=["statut", "updated_at"])
+    StatusHistory.objects.create(candidature=candidature, statut=candidature.statut)
+
+
+@require_POST
+def candidature_relance_send(request, pk):
+    """Envoie l'email de relance via Gmail et marque la candidature relancée (issue #67)."""
+    candidature = get_object_or_404(Candidature, pk=pk)
+    config = ReminderConfig.load()
+    destinataire = (request.POST.get("destinataire") or "").strip()
+    objet = (request.POST.get("objet") or "").strip()
+    corps = (request.POST.get("corps") or "").strip()
+    if not corps:
+        return JsonResponse({"error": "Le corps du message est vide."}, status=400)
+    try:
+        mailing.send_email(config, destinataire, objet, corps)
+    except mailing.MailError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+    _mark_relancee(candidature)
+    return JsonResponse({"ok": True})
+
+
+@require_POST
+def candidature_relance_manual(request, pk):
+    """Enregistre une relance manuelle (sans email) et passe en Relancée (issue #67).
+
+    Utile lorsque la relance a été faite par un autre moyen (téléphone, message
+    direct…) : on consigne la relance et on réarme le compteur de jours.
+    """
+    candidature = get_object_or_404(Candidature, pk=pk)
+    _mark_relancee(candidature)
+    if _is_ajax(request):
+        return JsonResponse({"ok": True})
+    messages.success(request, "Candidature marquée comme relancée.")
+    return redirect("tracking:candidature_detail", pk=pk)
 
 
 @require_POST

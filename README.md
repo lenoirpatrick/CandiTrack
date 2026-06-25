@@ -192,8 +192,19 @@ chacun renseigne **sa propre clé API**.
    modale : à partir du dernier CV chargé (analysé par Gemini) et des statistiques
    (volume, motifs de refus, délais…), l'IA propose un positionnement et des
    actions à réaliser.
-4. Sur une candidature, **« ✉️ Mail de relance (IA) »** génère un brouillon de
-   mail de relance, régénérable à volonté.
+4. Sur une candidature, **« 🔔 Relancer »** ouvre une fenêtre où l'IA rédige
+   l'objet et le corps d'un **mail de relance** adapté à l'étape en cours, qu'on
+   peut éditer puis **envoyer via Gmail** (voir ci-dessous).
+
+### Rappels de relance & envoi Gmail (issue #67)
+
+CandiTrack affiche un **rappel visuel 🔔** sur les candidatures restées **sans
+réponse** (envoi de CV ou retour d'entretien) au-delà d'un **délai configurable**
+(10 jours par défaut). Depuis la fiche, le bouton **« 🔔 Relancer »** génère le
+mail via l'IA et l'envoie par **Gmail**. La configuration se fait dans
+**Options → Relances** : délai en jours, adresse Gmail et **mot de passe
+d'application** Google (chiffré en base, lien de création fourni). Un envoi
+réussi passe la candidature en **« Relancée »** et réarme le compteur de jours.
 
 **Quotas (issue #36).** Chaque appel journalise les tokens consommés. Dans
 **Options → IA**, la consommation du mois courant (appels + tokens) s'affiche par

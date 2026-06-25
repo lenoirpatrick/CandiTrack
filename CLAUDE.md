@@ -8,8 +8,10 @@ commentaires, messages de commit).
 - **Django 6.0.1** / **Python 3.14**, base **SQLite**.
 - Projet `canditrack/`, application unique `tracking/`.
 - Templates avec **CSS inline** dans `templates/base.html` (pas de dossier
-  `static/` source) ; thème clair/sombre via variables CSS + attribut
-  `data-theme` (voir `docs/palette.md`).
+  `static/` source) ; thèmes clair/sombre/**LinkedIn** (issue #68) via variables
+  CSS + attribut `data-theme` (`linkedin` = variante claire, bleu `#0a66c2` ;
+  voir `docs/palette.md`). Choix dans Options → Interface (`.theme-choice`,
+  stocké en localStorage `theme`, pré-appliqué en `<head>` anti-flash).
 - Mise en page : **sidebar latérale rétractable** (issue #35) — état desktop
   `data-sidebar="expanded|collapsed"` sur `<html>` (persisté dans localStorage,
   pré-appliqué en `<head>` anti-flash), tiroir mobile via `.sidebar-open` +
@@ -73,7 +75,10 @@ aux trajets, issue #52),
 à une expérience du CV via `experience_index` = rang dans
 `CV.analysis['experiences']` ; géré depuis la fiche CV, issue #62),
 `AIConfig` (singleton de
-config du coaching IA, clé Gemini chiffrée — issue #33). Énumérations
+config du coaching IA, clé Gemini chiffrée — issue #33),
+`ReminderConfig` (singleton des relances, issue #67 : `delai_jours` avant
+rappel + identifiants Gmail `gmail_email`/`gmail_app_password` chiffré).
+Énumérations
 `TextChoices` : `Canal`, `Statut`, `MotifCloture` (certaines avec icône
 emoji dans le libellé pour les menus).
 
@@ -97,11 +102,25 @@ emoji dans le libellé pour les menus).
   `<provider>_api_key/_model/_monthly_limit`, accès générique par getattr), le
   `provider` actif détermine `api_key`/`model`. `MODELS_BY_PROVIDER`, `DEFAULTS`
   et `PROVIDER_INFO` (tier gratuit + liens doc/clé) pilotent l'UI. Config via `/aide/` (page Options,
-  catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan),
-  `api/candidatures/<pk>/relance/` (mail de relance) et
+  catégorie IA, issue #34). Endpoints POST AJAX `api/coaching/` (bilan) et
   `api/cv/<pk>/references/` (extrait d'email des références,
   `coaching.references_email`, issue #64) ; UI = modal partagé `#ai-modal` dans
   `base.html` (spinner + rendu Markdown), ouvert via `window.openAiModal`.
+- Relances (issue #67) : rappel visuel 🔔 sur les candidatures « en attente »
+  (`Candidature.RELANCE_STATUTS` = envoyée/relancée/entretien passé) sans réponse
+  depuis `ReminderConfig.delai_jours` (`relance_due_jours`, calculé depuis la
+  dernière entrée `status_history`). Depuis la fiche, bouton **« 🔔 Relancer »** =
+  modal dédié (≠ `#ai-modal`) : `api/candidatures/<pk>/relance/`
+  (`ai_relance_message` → `coaching.relance_message`, objet+corps JSON adaptés à
+  l'étape) puis `api/candidatures/<pk>/relance/envoyer/`
+  (`candidature_relance_send` → `tracking/mailing.py`, envoi SMTP Gmail via mot de
+  passe d'application). Bouton **« ✅ Marquer comme relancée »** =
+  `api/candidatures/<pk>/relance/manuelle/` (`candidature_relance_manual`, relance
+  faite par un autre moyen, sans email). Les deux passent le statut à *Relancée*
+  + nouvelle entrée d'historique via `_mark_relancee` (réarme le compteur).
+  Config via `/aide/` (catégorie **Relances**) : `_save_reminder_config` ; bouton
+  **« 🔌 Tester la connexion »** → `api/relance/test/` (`relance_test_email` →
+  `mailing.test_connection`, login SMTP sans envoi).
 - Analyse de CV (issue #44) : `coaching.analyze_cv(cv)` demande à l'IA un JSON
   structuré (profil, expériences, formations, compétences, langues, coordonnées/
   références — adresse, téléphone, email, permis —, loisirs, infos diverses),

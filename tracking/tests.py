@@ -9,7 +9,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from . import ai, coaching, cv_export, views
+from datetime import timedelta
+
+from . import ai, coaching, cv_export, mailing, views
 from .forms import CandidatureForm, CVForm, JobSiteForm
 from .models import (
     CV,
@@ -21,7 +23,9 @@ from .models import (
     JobSite,
     MotifCloture,
     Reference,
+    ReminderConfig,
     Statut,
+    StatusHistory,
 )
 from .statistics import compute_stats
 
@@ -47,6 +51,20 @@ class EtapeCouranteTests(TestCase):
     def test_cloturee(self):
         c = Candidature(poste="X", motif_cloture=MotifCloture.REFUS_CANDIDAT)
         self.assertEqual(c.etape_courante(), "Terminée")
+
+    def test_relancee_remonte_dans_le_libelle(self):
+        # Issue #67 : une candidature relancée (encore au stade « Envoyée »)
+        # affiche « Relancée » plutôt que « Envoyée ».
+        c = Candidature(poste="X", envoyee=True, statut=Statut.RELANCEE)
+        self.assertEqual(c.etape_courante(), "Relancée")
+
+    def test_relancee_garde_etape_avancee(self):
+        # Une relance ne masque pas une étape plus avancée déjà atteinte.
+        c = Candidature(
+            poste="X", envoyee=True, traitee=True, entretien_programme=True,
+            statut=Statut.RELANCEE,
+        )
+        self.assertEqual(c.etape_courante(), "Entretien")
 
 
 class ProgressionColorTests(TestCase):
@@ -703,6 +721,8 @@ class AIConfigViewTests(TestCase):
         self.assertContains(resp, "Options")
         self.assertContains(resp, "theme-picker")
         self.assertContains(resp, 'data-theme-choice="dark"')
+        # Thème LinkedIn (issue #68).
+        self.assertContains(resp, 'data-theme-choice="linkedin"')
 
     def test_ai_save_sets_gemini_key_and_model(self):
         self.client.post(
@@ -825,7 +845,7 @@ class AICoachingViewTests(TestCase):
 
 @override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
 class AIRelanceViewTests(TestCase):
-    """Issue #33 — endpoint de mail de relance IA."""
+    """Issues #33, #67 — génération du mail de relance IA (objet + corps)."""
 
     def setUp(self):
         self.cand = Candidature.objects.create(entreprise="ACME", poste="Dev")
@@ -835,25 +855,260 @@ class AIRelanceViewTests(TestCase):
 
     @mock.patch(
         "tracking.coaching.ai.generate",
-        return_value=ai.GenerationResult("Objet : relance\n…", 5, 8, 13),
+        return_value=ai.GenerationResult(
+            '{"objet": "Relance ACME", "corps": "Bonjour,\\nje me permets…"}', 5, 8, 13
+        ),
     )
-    def test_returns_email(self, gen):
-        resp = self.client.post(reverse("tracking:ai_relance", args=[self.cand.pk]))
+    def test_returns_objet_and_corps(self, gen):
+        resp = self.client.post(
+            reverse("tracking:ai_relance_message", args=[self.cand.pk])
+        )
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("relance", resp.json()["text"])
+        data = resp.json()
+        self.assertEqual(data["objet"], "Relance ACME")
+        self.assertIn("Bonjour", data["corps"])
         # Le prompt envoyé mentionne l'entreprise de la candidature.
         self.assertIn("ACME", gen.call_args.args[0])
 
+    @mock.patch(
+        "tracking.coaching.ai.generate",
+        return_value=ai.GenerationResult("Texte libre non JSON", 5, 8, 13),
+    )
+    def test_non_json_falls_back_to_body(self, gen):
+        resp = self.client.post(
+            reverse("tracking:ai_relance_message", args=[self.cand.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["corps"], "Texte libre non JSON")
+
     def test_unknown_candidature_404(self):
-        resp = self.client.post(reverse("tracking:ai_relance", args=[99999]))
+        resp = self.client.post(reverse("tracking:ai_relance_message", args=[99999]))
         self.assertEqual(resp.status_code, 404)
 
     def test_detail_page_shows_relance_button(self):
         resp = self.client.get(
             reverse("tracking:candidature_detail", args=[self.cand.pk])
         )
-        self.assertContains(resp, "Mail de relance (IA)")
-        self.assertContains(resp, "openAiModal")
+        self.assertContains(resp, "🔔 Relancer")
+        self.assertContains(resp, "relance-modal")
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class RelanceReminderTests(TestCase):
+    """Issue #67 — rappel visuel de relance après N jours sans réponse."""
+
+    def _aged_candidature(self, jours, **kwargs):
+        """Candidature dont la dernière activité (historique) remonte à N jours."""
+        cand = Candidature.objects.create(poste="Dev", **kwargs)
+        # On vieillit l'entrée d'historique pour simuler l'absence de réponse.
+        old = timezone.now() - timedelta(days=jours)
+        history = StatusHistory.objects.create(candidature=cand, statut=cand.statut)
+        StatusHistory.objects.filter(pk=history.pk).update(date=old)
+        return cand
+
+    def test_relance_due_after_delay(self):
+        cand = self._aged_candidature(12, statut=Statut.ENVOYEE)
+        self.assertEqual(cand.relance_due_jours(10), 12)
+
+    def test_no_relance_before_delay(self):
+        cand = self._aged_candidature(5, statut=Statut.ENVOYEE)
+        self.assertIsNone(cand.relance_due_jours(10))
+
+    def test_no_relance_for_non_waiting_status(self):
+        cand = self._aged_candidature(30, statut=Statut.OFFRE)
+        self.assertIsNone(cand.relance_due_jours(10))
+
+    def test_no_relance_when_closed(self):
+        cand = self._aged_candidature(
+            30, statut=Statut.ENVOYEE, motif_cloture=MotifCloture.POSTE_POURVU
+        )
+        self.assertIsNone(cand.relance_due_jours(10))
+
+    def test_zero_delay_disables_reminders(self):
+        cand = self._aged_candidature(30, statut=Statut.ENVOYEE)
+        self.assertIsNone(cand.relance_due_jours(0))
+
+    def test_list_shows_reminder_badge(self):
+        self._aged_candidature(15, entreprise="ACME", statut=Statut.ENVOYEE)
+        resp = self.client.get(reverse("tracking:candidature_list"))
+        self.assertContains(resp, "🔔 Relance")
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class ReminderConfigTests(TestCase):
+    """Issue #67 — configuration des relances (délai + Gmail) via Options."""
+
+    def test_save_config(self):
+        resp = self.client.post(
+            reverse("tracking:help"),
+            {
+                "action": "relance_save",
+                "delai_jours": "7",
+                "gmail_email": "moi@gmail.com",
+                "gmail_app_password": "abcd efgh ijkl mnop",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        config = ReminderConfig.load()
+        self.assertEqual(config.delai_jours, 7)
+        self.assertEqual(config.gmail_email, "moi@gmail.com")
+        self.assertTrue(config.email_configured)
+
+    def test_password_kept_when_blank(self):
+        config = ReminderConfig.load()
+        config.gmail_email = "moi@gmail.com"
+        config.gmail_app_password = "secret"
+        config.save()
+        self.client.post(
+            reverse("tracking:help"),
+            {"action": "relance_save", "delai_jours": "9",
+             "gmail_email": "moi@gmail.com", "gmail_app_password": ""},
+        )
+        config = ReminderConfig.load()
+        self.assertEqual(config.gmail_app_password, "secret")
+        self.assertEqual(config.delai_jours, 9)
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class RelanceSendTests(TestCase):
+    """Issue #67 — envoi de l'email de relance via Gmail."""
+
+    def setUp(self):
+        self.cand = Candidature.objects.create(
+            entreprise="ACME", poste="Dev", statut=Statut.ENVOYEE
+        )
+        config = ReminderConfig.load()
+        config.gmail_email = "moi@gmail.com"
+        config.gmail_app_password = "secret"
+        config.save()
+
+    @mock.patch("tracking.views.mailing.send_email")
+    def test_send_marks_relancee(self, send):
+        resp = self.client.post(
+            reverse("tracking:candidature_relance_send", args=[self.cand.pk]),
+            {"destinataire": "rh@acme.com", "objet": "Relance", "corps": "Bonjour"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        send.assert_called_once()
+        self.cand.refresh_from_db()
+        self.assertEqual(self.cand.statut, Statut.RELANCEE)
+        # Une entrée d'historique réinitialise le compteur de relance.
+        self.assertTrue(self.cand.status_history.exists())
+
+    def test_manual_relance_marks_relancee(self):
+        resp = self.client.post(
+            reverse("tracking:candidature_relance_manual", args=[self.cand.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        self.cand.refresh_from_db()
+        self.assertEqual(self.cand.statut, Statut.RELANCEE)
+        self.assertTrue(self.cand.status_history.exists())
+
+    def test_manual_relance_non_ajax_redirects(self):
+        resp = self.client.post(
+            reverse("tracking:candidature_relance_manual", args=[self.cand.pk])
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.cand.refresh_from_db()
+        self.assertEqual(self.cand.statut, Statut.RELANCEE)
+
+    def test_send_requires_body(self):
+        resp = self.client.post(
+            reverse("tracking:candidature_relance_send", args=[self.cand.pk]),
+            {"destinataire": "rh@acme.com", "objet": "Relance", "corps": "  "},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    @mock.patch(
+        "tracking.views.mailing.send_email",
+        side_effect=mailing.MailError("Connexion Gmail non configurée."),
+    )
+    def test_send_error_returns_502(self, send):
+        resp = self.client.post(
+            reverse("tracking:candidature_relance_send", args=[self.cand.pk]),
+            {"destinataire": "rh@acme.com", "objet": "x", "corps": "Bonjour"},
+        )
+        self.assertEqual(resp.status_code, 502)
+        self.assertIn("Gmail", resp.json()["error"])
+
+
+class MailingTests(TestCase):
+    """Issue #67 — module d'envoi Gmail (smtplib)."""
+
+    def test_not_configured_raises(self):
+        config = ReminderConfig(gmail_email="", gmail_app_password="")
+        with self.assertRaises(mailing.MailError):
+            mailing.send_email(config, "rh@acme.com", "Objet", "Corps")
+
+    def test_missing_recipient_raises(self):
+        config = ReminderConfig(gmail_email="moi@gmail.com", gmail_app_password="x")
+        with self.assertRaises(mailing.MailError):
+            mailing.send_email(config, "", "Objet", "Corps")
+
+    @mock.patch("tracking.mailing.smtplib.SMTP")
+    def test_sends_via_smtp(self, smtp):
+        config = ReminderConfig(gmail_email="moi@gmail.com", gmail_app_password="x")
+        mailing.send_email(config, "rh@acme.com", "Objet", "Corps")
+        server = smtp.return_value.__enter__.return_value
+        server.login.assert_called_once_with("moi@gmail.com", "x")
+        server.send_message.assert_called_once()
+
+    @mock.patch("tracking.mailing.smtplib.SMTP")
+    def test_connection_logs_in_without_sending(self, smtp):
+        config = ReminderConfig(gmail_email="moi@gmail.com", gmail_app_password="x")
+        mailing.test_connection(config)
+        server = smtp.return_value.__enter__.return_value
+        server.login.assert_called_once_with("moi@gmail.com", "x")
+        server.send_message.assert_not_called()
+
+    def test_connection_not_configured_raises(self):
+        with self.assertRaises(mailing.MailError):
+            mailing.test_connection(ReminderConfig())
+
+
+@override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY)
+class RelanceTestConnectionViewTests(TestCase):
+    """Issue #67 — endpoint de test de la connexion Gmail."""
+
+    @mock.patch("tracking.views.mailing.test_connection")
+    def test_ok_with_form_values(self, test_conn):
+        resp = self.client.post(
+            reverse("tracking:relance_test_email"),
+            {"gmail_email": "moi@gmail.com", "gmail_app_password": "secret"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        # Les valeurs du formulaire sont utilisées pour le test.
+        config = test_conn.call_args.args[0]
+        self.assertEqual(config.gmail_email, "moi@gmail.com")
+        self.assertEqual(config.gmail_app_password, "secret")
+
+    @mock.patch("tracking.views.mailing.test_connection")
+    def test_blank_password_falls_back_to_saved(self, test_conn):
+        saved = ReminderConfig.load()
+        saved.gmail_email = "moi@gmail.com"
+        saved.gmail_app_password = "garde"
+        saved.save()
+        self.client.post(
+            reverse("tracking:relance_test_email"),
+            {"gmail_email": "moi@gmail.com", "gmail_app_password": ""},
+        )
+        self.assertEqual(test_conn.call_args.args[0].gmail_app_password, "garde")
+
+    @mock.patch(
+        "tracking.views.mailing.test_connection",
+        side_effect=mailing.MailError("Échec de la connexion : auth"),
+    )
+    def test_failure_returns_502(self, test_conn):
+        resp = self.client.post(
+            reverse("tracking:relance_test_email"),
+            {"gmail_email": "moi@gmail.com", "gmail_app_password": "bad"},
+        )
+        self.assertEqual(resp.status_code, 502)
+        self.assertIn("Échec", resp.json()["error"])
 
 
 @override_settings(CANDITRACK_FERNET_KEY=TEST_FERNET_KEY, MEDIA_ROOT=tempfile.mkdtemp())

@@ -171,6 +171,11 @@ class Candidature(models.Model):
         "acceptation": "Acceptation",
     }
 
+    # Statuts « en attente d'une réponse » (issue #67) : une candidature dans
+    # l'un de ces états (envoi de CV, relance précédente, entretien passé) peut
+    # afficher un rappel de relance passé le délai configuré.
+    RELANCE_STATUTS = {Statut.ENVOYEE, Statut.RELANCEE, Statut.ENTRETIEN_PASSE}
+
     class Meta:
         verbose_name = "candidature"
         verbose_name_plural = "candidatures"
@@ -246,6 +251,42 @@ class Candidature(models.Model):
             "color": color,
             "motif": self.get_motif_cloture_display() if closed else "",
         }
+
+    def derniere_activite_relance(self):
+        """Date de référence pour le délai de relance (issue #67).
+
+        On prend l'entrée dans le statut courant (dernier changement de statut),
+        à défaut la date d'envoi, à défaut la date de création. Le calcul tire
+        parti de ``status_history`` préchargé dans la liste pour éviter les
+        requêtes en cascade.
+        """
+        history = list(self.status_history.all())
+        if history:
+            return timezone.localtime(history[0].date).date()
+        if self.date_envoi:
+            return self.date_envoi
+        return timezone.localtime(self.created_at).date() if self.created_at else None
+
+    def jours_sans_reponse(self):
+        """Nombre de jours écoulés depuis la dernière activité (issue #67)."""
+        reference = self.derniere_activite_relance()
+        if reference is None:
+            return 0
+        return (timezone.localdate() - reference).days
+
+    def relance_conseillee(self, delai):
+        """Vrai si une relance est conseillée après ``delai`` jours (issue #67)."""
+        if delai <= 0 or self.est_terminee or self.acceptation:
+            return False
+        if self.statut not in self.RELANCE_STATUTS:
+            return False
+        return self.jours_sans_reponse() >= delai
+
+    def relance_due_jours(self, delai):
+        """Jours sans réponse si une relance est conseillée, sinon ``None`` (issue #67)."""
+        if not self.relance_conseillee(delai):
+            return None
+        return self.jours_sans_reponse()
 
 
 class StatusHistory(models.Model):
@@ -735,3 +776,45 @@ class AIUsage(models.Model):
             created_at__month=when.month,
         ).aggregate(calls=models.Count("id"), tokens=models.Sum("total_tokens"))
         return {"calls": agg["calls"] or 0, "tokens": agg["tokens"] or 0}
+
+
+class ReminderConfig(models.Model):
+    """Paramètres des rappels de relance et de l'envoi d'email (issue #67).
+
+    Mono-utilisateur : une seule ligne (via :meth:`load`). Conserve le délai (en
+    jours) au-delà duquel une candidature sans réponse affiche un rappel de
+    relance, ainsi que les identifiants Gmail (adresse + mot de passe
+    d'application, chiffré au repos comme les clés API) servant à envoyer les
+    emails de relance.
+    """
+
+    # Page Google de création d'un mot de passe d'application (issue #67).
+    GMAIL_APP_PASSWORD_URL = "https://myaccount.google.com/apppasswords"
+    DEFAULT_DELAI_JOURS = 10
+
+    delai_jours = models.PositiveIntegerField(
+        "délai avant rappel (jours)", default=DEFAULT_DELAI_JOURS
+    )
+    gmail_email = models.EmailField("adresse Gmail d'envoi", blank=True)
+    gmail_app_password = EncryptedCharField(
+        "mot de passe d'application Gmail", blank=True, default=""
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "configuration des relances"
+        verbose_name_plural = "configuration des relances"
+
+    def __str__(self):
+        return "Configuration des relances"
+
+    @classmethod
+    def load(cls):
+        """Renvoie l'unique configuration, en la créant au besoin (singleton)."""
+        config, _ = cls.objects.get_or_create(pk=1)
+        return config
+
+    @property
+    def email_configured(self):
+        """Vrai si l'envoi Gmail est configuré (adresse + mot de passe)."""
+        return bool(self.gmail_email and self.gmail_app_password)

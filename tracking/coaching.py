@@ -5,7 +5,7 @@ du client HTTP brut (:mod:`tracking.ai`). Deux usages :
 
 - :func:`coaching_advice` — un bilan global à partir du CV, des postes visés et
   des retours reçus (volume de candidatures, motifs de refus…).
-- :func:`relance_email` — un brouillon de mail de relance pour une candidature.
+- :func:`relance_message` — objet + corps d'un mail de relance, adapté à l'étape.
 - :func:`analyze_cv` — extraction des informations principales d'un CV (issue #44).
 """
 
@@ -172,35 +172,71 @@ def coaching_advice(config=None):
     return _run(config, prompt, attachments=[attachment] if attachment else None)
 
 
-def relance_email(candidature, config=None):
-    """Génère un brouillon de mail de relance pour une candidature."""
+def relance_message(candidature, config=None):
+    """Génère l'objet et le corps d'un mail de relance, selon l'étape (issue #67).
+
+    Renvoie un dict ``{"objet", "corps"}``. Le prompt s'adapte à l'étape en
+    cours : relance après un simple envoi de candidature, ou relance pour obtenir
+    un retour après un entretien passé.
+    """
     config = config or AIConfig.load()
+
+    # L'angle de la relance dépend de l'avancement (issue #67).
+    apres_entretien = (
+        candidature.statut == Statut.ENTRETIEN_PASSE
+        or bool(candidature.date_entretien_1)
+    )
+    if apres_entretien:
+        contexte = (
+            "La personne a passé un entretien et n'a pas eu de retour : la "
+            "relance vise à obtenir poliment un retour suite à cet entretien."
+        )
+    else:
+        contexte = (
+            "La personne a envoyé sa candidature et n'a pas eu de réponse : la "
+            "relance vise à réaffirmer son intérêt et à obtenir des nouvelles."
+        )
 
     infos = [
         f"- Entreprise : {candidature.entreprise or 'non précisée'}",
         f"- Poste : {candidature.poste or 'non précisé'}",
         f"- Statut actuel : {candidature.get_statut_display()}",
+        f"- Étape en cours : {candidature.etape_courante()}",
         f"- Canal d'envoi : {candidature.get_canal_envoi_display()}",
     ]
     if candidature.date_envoi:
         infos.append(f"- Date d'envoi de la candidature : {candidature.date_envoi:%d/%m/%Y}")
+    if candidature.date_entretien_1:
+        infos.append(f"- Date d'entretien : {candidature.date_entretien_1:%d/%m/%Y}")
     if candidature.notes:
         infos.append(f"- Notes personnelles : {candidature.notes}")
 
     prompt = (
         "Tu es un assistant qui rédige des mails de relance professionnels en "
         "français, polis, concis et personnalisés.\n\n"
-        "Rédige un mail de relance pour la candidature suivante :\n"
+        f"{contexte}\n\n"
+        "Candidature concernée :\n"
         + "\n".join(infos)
         + "\n\nConsignes :\n"
         "- Ton courtois et professionnel, sans servilité.\n"
         "- Rappelle brièvement la candidature et réaffirme la motivation.\n"
         "- Termine par une formule d'ouverture (disponibilité pour un échange).\n"
-        "- Propose un objet de mail puis le corps. N'invente aucune information "
-        "factuelle absente ci-dessus (laisse des crochets [à compléter] au besoin)."
+        "- N'invente aucune information factuelle absente ci-dessus (laisse des "
+        "crochets [à compléter] au besoin).\n"
+        "Réponds UNIQUEMENT par un objet JSON valide, sans texte autour ni "
+        'balises de code, avec exactement ces clés : "objet" (l\'objet du mail) '
+        'et "corps" (le corps du mail, avec des retours à la ligne \\n).'
     )
 
-    return _run(config, prompt)
+    text = _run(config, prompt)
+    data = _parse_json_object(text)
+    defaut_objet = f"Relance — candidature {candidature}".strip(" —")
+    if not data:
+        return {"objet": defaut_objet, "corps": text.strip()}
+    return {
+        "objet": _as_text(data.get("objet")) or defaut_objet,
+        "corps": _as_text(data.get("corps")) or text.strip(),
+    }
 
 
 def references_email(cv, config=None):
@@ -368,10 +404,9 @@ def _normalize_cv_analysis(data):
 normalize_cv_analysis = _normalize_cv_analysis
 
 
-def _parse_cv_analysis(text):
-    """Parse la réponse de l'IA en dict normalisé, ou ``None`` si illisible."""
+def _strip_code_fences(text):
+    """Retire d'éventuelles clôtures Markdown (```json … ```) autour d'un texte."""
     cleaned = text.strip()
-    # Retire d'éventuelles clôtures Markdown (```json … ```), tolérées en sortie.
     if cleaned.startswith("```"):
         lines = cleaned.splitlines()
         if lines and lines[0].startswith("```"):
@@ -379,11 +414,22 @@ def _parse_cv_analysis(text):
         if lines and lines[-1].strip().startswith("```"):
             lines = lines[:-1]
         cleaned = "\n".join(lines).strip()
+    return cleaned
+
+
+def _parse_json_object(text):
+    """Parse un objet JSON renvoyé par l'IA, ou ``None`` si illisible (issue #67)."""
     try:
-        data = json.loads(cleaned)
+        data = json.loads(_strip_code_fences(text))
     except (json.JSONDecodeError, ValueError):
         return None
-    if not isinstance(data, dict):
+    return data if isinstance(data, dict) else None
+
+
+def _parse_cv_analysis(text):
+    """Parse la réponse de l'IA en dict normalisé, ou ``None`` si illisible."""
+    data = _parse_json_object(text)
+    if data is None:
         return None
     return _normalize_cv_analysis(data)
 

@@ -5,11 +5,18 @@
     <h1 style="margin:0;">{{ candidature }}</h1>
     <div style="display:flex; gap:0.5rem;">
         <button type="button" class="btn secondary" id="js-relance"
-                title="Proposer un mail de relance rédigé par l'IA">✉️ Mail de relance (IA)</button>
+                title="Rédiger et envoyer un mail de relance (IA + Gmail)">🔔 Relancer</button>
         <a class="btn" href="{% url 'tracking:candidature_update' candidature.pk %}">Modifier</a>
         <a class="btn secondary" href="{% url 'tracking:candidature_delete' candidature.pk %}">Supprimer</a>
     </div>
 </div>
+
+{% if relance_jours %}
+<div class="relance-banner">
+    🔔 <strong>Relance conseillée</strong> — sans réponse depuis {{ relance_jours }} jours.
+    Utilisez le bouton <strong>Relancer</strong> pour préparer et envoyer un mail.
+</div>
+{% endif %}
 
 {% with progress=candidature.progression %}
 <div class="card">
@@ -102,16 +109,122 @@
 
 <a href="{% url 'tracking:candidature_list' %}" class="btn secondary">← Retour à la liste</a>
 
+<dialog id="relance-modal"><div class="modal-body">
+    <h2 style="margin-top:0;">🔔 Relancer la candidature</h2>
+    {% if not reminder_config.email_configured %}
+    <div class="ai-warning">⚠️ L'envoi par Gmail n'est pas configuré.
+        <a href="{% url 'tracking:help' %}#relances">Le configurer dans Options → Relances</a>
+        (vous pourrez tout de même générer et copier le message).</div>
+    {% endif %}
+    <div class="field">
+        <label for="relance-to">Destinataire</label>
+        <input type="email" id="relance-to" placeholder="recruteur@exemple.com" autocomplete="off">
+    </div>
+    <div class="field">
+        <label for="relance-objet">Objet</label>
+        <input type="text" id="relance-objet" placeholder="Objet du mail de relance">
+    </div>
+    <div class="field">
+        <label for="relance-corps">Message</label>
+        <textarea id="relance-corps" rows="11" placeholder="Cliquez « Générer via IA » ou rédigez votre message…"></textarea>
+    </div>
+    <p id="relance-meta" class="ai-meta" hidden></p>
+    <div class="ai-actions">
+        <button type="button" class="btn secondary" id="relance-generate"
+                title="Rédiger le mail via l'IA selon l'étape en cours">✨ Générer via IA</button>
+        <button type="button" class="btn" id="relance-send">📨 Envoyer via Gmail</button>
+        <button type="button" class="btn secondary" data-relance-close>Fermer</button>
+    </div>
+</div></dialog>
+
 <script>
-// Mail de relance IA (issue #33) : ouvre le modal partagé sur l'endpoint dédié.
+// Relance d'une candidature (issue #67) : génération du mail par l'IA (objet +
+// corps, selon l'étape) puis envoi via Gmail. La fenêtre est dédiée (et non le
+// modal IA partagé) car elle combine édition et envoi.
 (function () {
     var btn = document.getElementById("js-relance");
-    if (!btn) return;
-    btn.addEventListener("click", function () {
-        window.openAiModal({
-            title: "✉️ Mail de relance",
-            url: "{% url 'tracking:ai_relance' candidature.pk %}",
-            loading: "Rédaction du mail de relance…"
+    var modal = document.getElementById("relance-modal");
+    if (!btn || !modal) return;
+    var to = document.getElementById("relance-to");
+    var objet = document.getElementById("relance-objet");
+    var corps = document.getElementById("relance-corps");
+    var meta = document.getElementById("relance-meta");
+    var genBtn = document.getElementById("relance-generate");
+    var sendBtn = document.getElementById("relance-send");
+    var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+    var GEN_URL = "{% url 'tracking:ai_relance_message' candidature.pk %}";
+    var SEND_URL = "{% url 'tracking:candidature_relance_send' candidature.pk %}";
+
+    btn.addEventListener("click", function () { modal.showModal(); });
+    modal.addEventListener("click", function (e) { if (e.target === modal) modal.close(); });
+    modal.querySelectorAll("[data-relance-close]").forEach(function (el) {
+        el.addEventListener("click", function () { modal.close(); });
+    });
+
+    genBtn.addEventListener("click", function () {
+        var label = genBtn.textContent;
+        genBtn.disabled = true;
+        genBtn.textContent = "⏳ Rédaction…";
+        fetch(GEN_URL, {
+            method: "POST",
+            headers: {"X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest"}
+        }).then(function (r) {
+            return r.json().then(function (data) { return {ok: r.ok, data: data}; });
+        }).then(function (res) {
+            if (res.ok && res.data.ok) {
+                objet.value = res.data.objet || "";
+                corps.value = res.data.corps || "";
+                if (res.data.warning && window.toast) window.toast("⚠️ " + res.data.warning, "warning");
+                if (res.data.provider) {
+                    meta.hidden = false;
+                    meta.textContent = "Généré par " + res.data.provider +
+                        (res.data.model ? " · " + res.data.model : "");
+                }
+            } else if (window.toast) {
+                window.toast(res.data.error || "Échec de la génération.", "error");
+            }
+        }).catch(function () {
+            if (window.toast) window.toast("Impossible de contacter le serveur.", "error");
+        }).finally(function () {
+            genBtn.disabled = false;
+            genBtn.textContent = label;
+        });
+    });
+
+    sendBtn.addEventListener("click", function () {
+        if (!corps.value.trim()) {
+            if (window.toast) window.toast("Le message est vide.", "error");
+            return;
+        }
+        var label = sendBtn.textContent;
+        sendBtn.disabled = true;
+        sendBtn.textContent = "⏳ Envoi…";
+        var body = new URLSearchParams({
+            destinataire: to.value, objet: objet.value, corps: corps.value
+        });
+        fetch(SEND_URL, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": token,
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: body.toString()
+        }).then(function (r) {
+            return r.json().then(function (data) { return {ok: r.ok, data: data}; });
+        }).then(function (res) {
+            if (res.ok && res.data.ok) {
+                if (window.toast) window.toast("Mail de relance envoyé.", "success");
+                modal.close();
+                window.location.reload();
+            } else if (window.toast) {
+                window.toast(res.data.error || "Échec de l'envoi.", "error");
+            }
+        }).catch(function () {
+            if (window.toast) window.toast("Impossible de contacter le serveur.", "error");
+        }).finally(function () {
+            sendBtn.disabled = false;
+            sendBtn.textContent = label;
         });
     });
 })();

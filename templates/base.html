@@ -134,6 +134,14 @@
                background:var(--chip-bg); color:var(--chip-text); }
         .badge { display:inline-block; background:var(--chip-bg); color:var(--chip-text); padding:0.15rem 0.55rem;
                  border-radius:999px; font-size:0.8rem; }
+        /* Rappel de relance d'une candidature sans réponse (issue #67). */
+        .relance-badge { background:rgba(217,138,0,0.16); color:#b06f00; border:1px solid #d98a00;
+                 white-space:nowrap; }
+        :root[data-theme="dark"] .relance-badge { color:#f0b95a; }
+        @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .relance-badge { color:#f0b95a; } }
+        /* Bandeau de rappel sur la fiche candidature (issue #67). */
+        .relance-banner { background:rgba(217,138,0,0.12); border:1px solid #d98a00; color:var(--text);
+                 border-radius:var(--radius-sm); padding:0.7rem 0.9rem; margin-bottom:1.1rem; }
         /* Interrupteur actif/inactif d'un site (issue #32). */
         .switch { position:relative; display:inline-block; width:38px; height:20px; vertical-align:middle; margin:0; }
         .switch input { opacity:0; width:0; height:0; }

@@ -11,6 +11,8 @@
                 role="tab" aria-selected="false" aria-controls="panel-extensions">🧩 Extensions</button>
         <button type="button" class="options-tab" data-panel="ia"
                 role="tab" aria-selected="false" aria-controls="panel-ia">🤖 IA</button>
+        <button type="button" class="options-tab" data-panel="relances"
+                role="tab" aria-selected="false" aria-controls="panel-relances">🔔 Relances</button>
     </nav>
 
     <div class="options-content">
@@ -196,6 +198,57 @@
                     <input type="hidden" name="action" value="ai_clear">
                     <button type="submit" class="linklike">Supprimer la clé active</button>
                 </form>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Catégorie Relances > Rappels + Gmail (issue #67) -->
+        <section id="panel-relances" class="options-panel" role="tabpanel" aria-labelledby="tab-relances" hidden>
+            <div class="card">
+                <h2 style="margin-top:0;">Rappels de relance</h2>
+                <p>CandiTrack signale les candidatures restées <strong>sans réponse</strong>
+                    (envoi de CV ou retour d'entretien) au-delà du délai ci-dessous, et permet
+                    d'<strong>envoyer un mail de relance</strong> (rédigé par l'IA selon l'étape)
+                    depuis la fiche de la candidature.</p>
+
+                <form method="post" style="max-width:520px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="relance_save">
+                    <div class="field">
+                        <label for="delai_jours">Délai avant rappel (jours)</label>
+                        <input id="delai_jours" name="delai_jours" type="number" min="0"
+                               value="{{ reminder_config.delai_jours }}">
+                        <small class="muted">Nombre de jours sans réponse avant d'afficher le rappel
+                            (0 désactive les rappels).</small>
+                    </div>
+
+                    <h3 style="margin-bottom:0.3rem;">Connexion Gmail</h3>
+                    <p class="muted" style="margin-top:0;">L'envoi utilise votre compte Gmail via un
+                        <strong>mot de passe d'application</strong> (distinct de votre mot de passe
+                        habituel ; la validation en deux étapes doit être activée).
+                        <a href="{{ reminder_config.GMAIL_APP_PASSWORD_URL }}" target="_blank" rel="noopener">Créer un mot de passe d'application ↗</a></p>
+                    <div class="field">
+                        <label for="gmail_email">Adresse Gmail d'envoi</label>
+                        <input id="gmail_email" name="gmail_email" type="email" autocomplete="off"
+                               value="{{ reminder_config.gmail_email }}" placeholder="vous@gmail.com">
+                    </div>
+                    <div class="field">
+                        <label for="gmail_app_password">Mot de passe d'application</label>
+                        <input id="gmail_app_password" name="gmail_app_password" type="password" autocomplete="off"
+                               placeholder="{% if reminder_config.gmail_app_password %}•••••••• (laisser vide pour conserver){% else %}16 caractères, sans espaces{% endif %}">
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="btn" type="submit">Enregistrer</button>
+                    </div>
+                </form>
+
+                {% if reminder_config.email_configured %}
+                <p style="margin-top:0.75rem;">État Gmail : <span class="badge">✅ configuré</span>
+                    — {{ reminder_config.gmail_email }}.</p>
+                {% else %}
+                <p style="margin-top:0.75rem;">État Gmail : <span class="badge">⚪ non configuré</span>
+                    (les mails ne pourront pas être envoyés, mais restent générables et copiables).</p>
                 {% endif %}
             </div>
         </section>

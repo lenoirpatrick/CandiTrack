@@ -851,6 +851,18 @@ def relance_test_email(request):
     return JsonResponse({"ok": True})
 
 
+def _mark_relancee(candidature):
+    """Passe la candidature en « Relancée » et réarme le compteur (issue #67).
+
+    Le passage de statut s'accompagne d'une nouvelle entrée d'historique, qui
+    sert aussi de date de référence pour le délai sans réponse.
+    """
+    if candidature.statut != Statut.RELANCEE:
+        candidature.statut = Statut.RELANCEE
+        candidature.save(update_fields=["statut", "updated_at"])
+    StatusHistory.objects.create(candidature=candidature, statut=candidature.statut)
+
+
 @require_POST
 def candidature_relance_send(request, pk):
     """Envoie l'email de relance via Gmail et marque la candidature relancée (issue #67)."""
@@ -865,13 +877,23 @@ def candidature_relance_send(request, pk):
         mailing.send_email(config, destinataire, objet, corps)
     except mailing.MailError as exc:
         return JsonResponse({"error": str(exc)}, status=502)
-    # La relance passe le statut à « Relancée » et réinitialise le compteur de
-    # jours sans réponse via une nouvelle entrée d'historique (issue #67).
-    if candidature.statut != Statut.RELANCEE:
-        candidature.statut = Statut.RELANCEE
-        candidature.save(update_fields=["statut", "updated_at"])
-    StatusHistory.objects.create(candidature=candidature, statut=candidature.statut)
+    _mark_relancee(candidature)
     return JsonResponse({"ok": True})
+
+
+@require_POST
+def candidature_relance_manual(request, pk):
+    """Enregistre une relance manuelle (sans email) et passe en Relancée (issue #67).
+
+    Utile lorsque la relance a été faite par un autre moyen (téléphone, message
+    direct…) : on consigne la relance et on réarme le compteur de jours.
+    """
+    candidature = get_object_or_404(Candidature, pk=pk)
+    _mark_relancee(candidature)
+    if _is_ajax(request):
+        return JsonResponse({"ok": True})
+    messages.success(request, "Candidature marquée comme relancée.")
+    return redirect("tracking:candidature_detail", pk=pk)
 
 
 @require_POST

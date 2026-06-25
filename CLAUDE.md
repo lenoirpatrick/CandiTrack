@@ -114,7 +114,10 @@ emoji dans le libellé pour les menus).
   (`ai_relance_message` → `coaching.relance_message`, objet+corps JSON adaptés à
   l'étape) puis `api/candidatures/<pk>/relance/envoyer/`
   (`candidature_relance_send` → `tracking/mailing.py`, envoi SMTP Gmail via mot de
-  passe d'application ; passe le statut à *Relancée* + nouvelle entrée historique).
+  passe d'application). Bouton **« ✅ Marquer comme relancée »** =
+  `api/candidatures/<pk>/relance/manuelle/` (`candidature_relance_manual`, relance
+  faite par un autre moyen, sans email). Les deux passent le statut à *Relancée*
+  + nouvelle entrée d'historique via `_mark_relancee` (réarme le compteur).
   Config via `/aide/` (catégorie **Relances**) : `_save_reminder_config` ; bouton
   **« 🔌 Tester la connexion »** → `api/relance/test/` (`relance_test_email` →
   `mailing.test_connection`, login SMTP sans envoi).

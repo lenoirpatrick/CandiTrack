@@ -982,6 +982,25 @@ class RelanceSendTests(TestCase):
         # Une entrée d'historique réinitialise le compteur de relance.
         self.assertTrue(self.cand.status_history.exists())
 
+    def test_manual_relance_marks_relancee(self):
+        resp = self.client.post(
+            reverse("tracking:candidature_relance_manual", args=[self.cand.pk]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        self.cand.refresh_from_db()
+        self.assertEqual(self.cand.statut, Statut.RELANCEE)
+        self.assertTrue(self.cand.status_history.exists())
+
+    def test_manual_relance_non_ajax_redirects(self):
+        resp = self.client.post(
+            reverse("tracking:candidature_relance_manual", args=[self.cand.pk])
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.cand.refresh_from_db()
+        self.assertEqual(self.cand.statut, Statut.RELANCEE)
+
     def test_send_requires_body(self):
         resp = self.client.post(
             reverse("tracking:candidature_relance_send", args=[self.cand.pk]),

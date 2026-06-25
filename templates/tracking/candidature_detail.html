@@ -139,6 +139,8 @@
         <button type="button" class="btn secondary" id="relance-generate"
                 title="Rédiger le mail via l'IA selon l'étape en cours">✨ Générer via IA</button>
         <button type="button" class="btn" id="relance-send">📨 Envoyer via Gmail</button>
+        <button type="button" class="btn secondary" id="relance-manual"
+                title="Enregistrer une relance faite par un autre moyen (passe le statut à « Relancée »)">✅ Marquer comme relancée</button>
         <button type="button" class="btn secondary" data-relance-close>Fermer</button>
     </div>
 </div></dialog>
@@ -157,9 +159,11 @@
     var meta = document.getElementById("relance-meta");
     var genBtn = document.getElementById("relance-generate");
     var sendBtn = document.getElementById("relance-send");
+    var manualBtn = document.getElementById("relance-manual");
     var token = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
     var GEN_URL = "{% url 'tracking:ai_relance_message' candidature.pk %}";
     var SEND_URL = "{% url 'tracking:candidature_relance_send' candidature.pk %}";
+    var MANUAL_URL = "{% url 'tracking:candidature_relance_manual' candidature.pk %}";
 
     btn.addEventListener("click", function () { modal.showModal(); });
     modal.addEventListener("click", function (e) { if (e.target === modal) modal.close(); });
@@ -231,6 +235,33 @@
         }).finally(function () {
             sendBtn.disabled = false;
             sendBtn.textContent = label;
+        });
+    });
+
+    // Relance manuelle (issue #67) : consigne la relance sans envoyer d'email et
+    // passe le statut à « Relancée ».
+    manualBtn.addEventListener("click", function () {
+        var label = manualBtn.textContent;
+        manualBtn.disabled = true;
+        manualBtn.textContent = "⏳…";
+        fetch(MANUAL_URL, {
+            method: "POST",
+            headers: {"X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest"}
+        }).then(function (r) {
+            return r.json().then(function (data) { return {ok: r.ok, data: data}; });
+        }).then(function (res) {
+            if (res.ok && res.data.ok) {
+                if (window.toast) window.toast("Candidature marquée comme relancée.", "success");
+                modal.close();
+                window.location.reload();
+            } else if (window.toast) {
+                window.toast(res.data.error || "Échec de l'enregistrement.", "error");
+            }
+        }).catch(function () {
+            if (window.toast) window.toast("Impossible de contacter le serveur.", "error");
+        }).finally(function () {
+            manualBtn.disabled = false;
+            manualBtn.textContent = label;
         });
     });
 })();

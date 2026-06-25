@@ -707,6 +707,8 @@ class AIConfigViewTests(TestCase):
         self.assertContains(resp, "Options")
         self.assertContains(resp, "theme-picker")
         self.assertContains(resp, 'data-theme-choice="dark"')
+        # Thème LinkedIn (issue #68).
+        self.assertContains(resp, 'data-theme-choice="linkedin"')
 
     def test_ai_save_sets_gemini_key_and_model(self):
         self.client.post(

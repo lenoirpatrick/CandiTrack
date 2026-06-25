@@ -8,8 +8,10 @@ commentaires, messages de commit).
 - **Django 6.0.1** / **Python 3.14**, base **SQLite**.
 - Projet `canditrack/`, application unique `tracking/`.
 - Templates avec **CSS inline** dans `templates/base.html` (pas de dossier
-  `static/` source) ; thème clair/sombre via variables CSS + attribut
-  `data-theme` (voir `docs/palette.md`).
+  `static/` source) ; thèmes clair/sombre/**LinkedIn** (issue #68) via variables
+  CSS + attribut `data-theme` (`linkedin` = variante claire, bleu `#0a66c2` ;
+  voir `docs/palette.md`). Choix dans Options → Interface (`.theme-choice`,
+  stocké en localStorage `theme`, pré-appliqué en `<head>` anti-flash).
 - Mise en page : **sidebar latérale rétractable** (issue #35) — état desktop
   `data-sidebar="expanded|collapsed"` sur `<html>` (persisté dans localStorage,
   pré-appliqué en `<head>` anti-flash), tiroir mobile via `.sidebar-open` +

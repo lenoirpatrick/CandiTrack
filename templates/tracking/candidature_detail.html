@@ -116,17 +116,23 @@
         <a href="{% url 'tracking:help' %}#relances">Le configurer dans Options → Relances</a>
         (vous pourrez tout de même générer et copier le message).</div>
     {% endif %}
+    {% comment %}data-bwignore / data-lpignore / data-1p-ignore : on dit aux
+    gestionnaires de mots de passe (Bitwarden…) d'ignorer ces champs, sans quoi
+    ils tentent d'y greffer leur menu d'autofill dans la modale (issue #67).{% endcomment %}
     <div class="field">
         <label for="relance-to">Destinataire</label>
-        <input type="email" id="relance-to" placeholder="recruteur@exemple.com" autocomplete="off">
+        <input type="email" id="relance-to" placeholder="recruteur@exemple.com"
+               autocomplete="off" data-bwignore data-lpignore="true" data-1p-ignore>
     </div>
     <div class="field">
         <label for="relance-objet">Objet</label>
-        <input type="text" id="relance-objet" placeholder="Objet du mail de relance">
+        <input type="text" id="relance-objet" placeholder="Objet du mail de relance"
+               autocomplete="off" data-bwignore data-lpignore="true" data-1p-ignore>
     </div>
     <div class="field">
         <label for="relance-corps">Message</label>
-        <textarea id="relance-corps" rows="11" placeholder="Cliquez « Générer via IA » ou rédigez votre message…"></textarea>
+        <textarea id="relance-corps" rows="11" autocomplete="off" data-bwignore data-lpignore="true" data-1p-ignore
+                  placeholder="Cliquez « Générer via IA » ou rédigez votre message…"></textarea>
     </div>
     <p id="relance-meta" class="ai-meta" hidden></p>
     <div class="ai-actions">
